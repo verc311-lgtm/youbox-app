@@ -29,8 +29,6 @@ interface Tarifa {
     nombre_servicio: string;
     tarifa_q: number;
     tipo_cobro: string;
-    peso_min_lbs: number;
-    peso_max_lbs: number | null;
 }
 
 interface ClienteAgrupado {
@@ -76,10 +74,9 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
             // 1. Obtener las tarifas activas de la bodega de esta consolidación
             const { data: tarifasData, error: tarifasError } = await supabase
                 .from('tarifas')
-                .select('id, nombre_servicio, tarifa_q, tipo_cobro, peso_min_lbs, peso_max_lbs')
+                .select('id, nombre_servicio, tarifa_q, tipo_cobro')
                 .eq('bodega_id', bodegaId)
-                .eq('activa', true)
-                .order('peso_min_lbs', { ascending: true });
+                .eq('activa', true);
 
             if (tarifasError) throw tarifasError;
             const fetchedTarifas = (tarifasData || []) as Tarifa[];
@@ -138,11 +135,8 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 let t_costo = 0;
 
                 if (fetchedTarifas.length > 0) {
-                    // Tratar de encontrar la tarifa por escalón de peso
-                    t_aplicada = fetchedTarifas.find(t =>
-                        grupo.totalLbs >= t.peso_min_lbs &&
-                        (t.peso_max_lbs === null || grupo.totalLbs <= t.peso_max_lbs)
-                    ) || fetchedTarifas[0]; // Fallback a la primera si nada calza
+                    // Try to find the generic "por_libra" tariff as default fallback
+                    t_aplicada = fetchedTarifas.find(t => t.tipo_cobro === 'por_libra') || fetchedTarifas[0];
 
                     if (t_aplicada.tipo_cobro === 'por_libra') {
                         t_costo = t_aplicada.tarifa_q * (grupo.totalLbs > 0 ? grupo.totalLbs : 1); // min 1 lb
