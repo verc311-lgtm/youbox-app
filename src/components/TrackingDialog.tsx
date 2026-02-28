@@ -105,6 +105,42 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
 
             await supabase.from('consolidaciones').update({ estado: mappedMasterState }).eq('id', consolidacionId);
 
+            // 3. (NEW) Cascading Tracking Updates to Individual Packages
+            // A) Buscar todos los IDs de paquetes dentro de esta consolidación
+            const { data: pivotData } = await supabase
+                .from('consolidacion_paquetes')
+                .select('paquete_id')
+                .eq('consolidacion_id', consolidacionId);
+
+            if (pivotData && pivotData.length > 0) {
+                const packageIds = pivotData.map(p => p.paquete_id);
+
+                // B) Map intermediate states to actual `paquetes.estado` constraint states 
+                let paqueteEstadoDestino = '';
+                if (nuevoEstado === 'Creado') paqueteEstadoDestino = 'consolidado';
+                else if (['En tránsito', 'SAT', 'Pago de Impuestos', 'Oficina Quetzaltenango'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
+                else if (nuevoEstado === 'Entregado') paqueteEstadoDestino = 'entregado';
+
+                // C) Actualizar el estado de los paquetes 
+                if (paqueteEstadoDestino) {
+                    await supabase
+                        .from('paquetes')
+                        .update({ estado: paqueteEstadoDestino })
+                        .in('id', packageIds);
+                }
+
+                // D) Insertar eventos históricos individuales para legibilidad del cliente
+                const historyEntries = packageIds.map(pid => ({
+                    paquete_id: pid,
+                    estado_anterior: 'Actualización Automática',
+                    estado_nuevo: paqueteEstadoDestino || 'en_transito',
+                    usuario_id: user?.id,
+                    notas: `[Actualización de Contenedor Master ${codigoMaster}] - ${nuevoEstado}${ciudad ? ` en ${ciudad}` : ''}. ${comentario ? comentario : ''}`.trim()
+                }));
+
+                await supabase.from('historial_estados').insert(historyEntries);
+            }
+
             // Refresh
             setCiudad('');
             setComentario('');
