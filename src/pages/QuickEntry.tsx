@@ -282,7 +282,7 @@ export function QuickEntry() {
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 font-semibold w-12 text-center">#</th>
-                <th className="px-4 py-3 font-semibold w-40">Transportista</th>
+                <th className="px-4 py-3 font-semibold w-40">Bodega Destino</th>
                 <th className="px-4 py-3 font-semibold min-w-[200px]">Tracking Number <span className="text-red-500">*</span></th>
                 <th className="px-4 py-3 font-semibold min-w-[240px]">Cliente / Locker <span className="text-red-500">*</span></th>
                 <th className="px-4 py-3 font-semibold w-24">Peso(lbs)</th>
@@ -297,15 +297,15 @@ export function QuickEntry() {
                 <tr key={row.id} className="hover:bg-blue-50/10 transition-colors group">
                   <td className="px-4 py-2 text-center text-slate-400 font-medium">{index + 1}</td>
 
-                  {/* Transportista */}
+                  {/* Bodega */}
                   <td className="px-4 py-2">
                     <select
-                      value={row.transportista_id}
-                      onChange={(e) => updateRow(row.id, 'transportista_id', e.target.value)}
+                      value={row.bodega_id}
+                      onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
                       className="block w-full rounded-md border-0 py-1.5 px-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs"
                     >
-                      {transportistas.map(t => (
-                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      {bodegas.map(b => (
+                        <option key={b.id} value={b.id}>{b.nombre}</option>
                       ))}
                     </select>
                   </td>
