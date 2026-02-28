@@ -139,6 +139,31 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                 }));
 
                 await supabase.from('historial_estados').insert(historyEntries);
+
+                // 4. (NEW) Notificaciones de Email masivas
+                if (notifyEmail) {
+                    const { data: paqData } = await supabase.from('paquetes').select('cliente_id, clientes(nombre, apellido)').in('id', packageIds);
+                    if (paqData) {
+                        const notifsMap = new Map();
+                        paqData.forEach(p => {
+                            if (p.cliente_id && p.clientes && !notifsMap.has(p.cliente_id)) {
+                                notifsMap.set(p.cliente_id, p.clientes);
+                            }
+                        });
+
+                        const uniqueClients = Array.from(notifsMap.entries());
+                        if (uniqueClients.length > 0) {
+                            const notificacionesArray = uniqueClients.map(([cid, clientInfo]) => ({
+                                cliente_id: cid,
+                                tipo: 'email',
+                                asunto: `Actualización de Envío - Master ${codigoMaster}`,
+                                mensaje: `Hola ${clientInfo.nombre},\n\nTu paquete perteneciente al viaje ${codigoMaster} ha sido actualizado al siguiente estado: **${nuevoEstado}**${ciudad ? ` en ${ciudad}` : ''}.\n\n${comentario ? 'Nota: ' + comentario : ''}\n\nGracias por confiar en nosotros.`,
+                                estado: 'pendiente'
+                            }));
+                            await supabase.from('notificaciones').insert(notificacionesArray);
+                        }
+                    }
+                }
             }
 
             // Refresh

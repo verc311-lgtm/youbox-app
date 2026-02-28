@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Camera, ScanBarcode, Plus, Search, Loader2, Trash2, Save } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, ScanBarcode, Plus, Search, Loader2, Trash2, Save, ScanLine, Keyboard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 
 interface Cliente {
   id: string;
@@ -62,6 +63,10 @@ export function QuickEntry() {
   const [globalBodega, setGlobalBodega] = useState('');
   const [globalTransportista, setGlobalTransportista] = useState('');
 
+  // Scanner state
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [activeScannerRowId, setActiveScannerRowId] = useState<string | null>(null);
+
   // Fetch Catalogs initially
   useEffect(() => {
     fetchCatalogs();
@@ -102,7 +107,17 @@ export function QuickEntry() {
     const lastRow = rows[rows.length - 1];
     const bId = lastRow ? lastRow.bodega_id : globalBodega;
     const tId = lastRow ? lastRow.transportista_id : globalTransportista;
-    setRows([...rows, createEmptyRow(bId, tId)]);
+    const newId = Math.random().toString(36).substring(7);
+    const newRow = createEmptyRow(bId, tId);
+    newRow.id = newId;
+
+    setRows(prev => [...prev, newRow]);
+
+    // Auto-focus next tracking input
+    setTimeout(() => {
+      const el = document.getElementById(`tracking-${newId}`);
+      if (el) el.focus();
+    }, 50);
   };
 
   const removeRow = (idToRemove: string) => {
@@ -170,6 +185,59 @@ export function QuickEntry() {
       }
       return r;
     }));
+
+    // Auto focus weight (peso)
+    setTimeout(() => {
+      const el = document.getElementById(`peso-${id}`);
+      if (el) el.focus();
+    }, 50);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
+    // Hardware Scanner (or user) pressed Enter
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (type === 'tracking') {
+        const el = document.getElementById(`client-${currentId}`);
+        if (el) el.focus();
+      } else if (type === 'client') {
+        const el = document.getElementById(`peso-${currentId}`);
+        if (el) el.focus();
+      } else if (type === 'peso') {
+        // Try to go to next row
+        const isLastRow = index === rows.length - 1;
+        if (isLastRow) {
+          const lastRow = rows[index];
+          // Solo agregar si la fila actual ya tiene tracking válido
+          if (lastRow.tracking.trim() !== '') {
+            addRow();
+          }
+        } else {
+          const nextRowId = rows[index + 1].id;
+          const el = document.getElementById(`tracking-${nextRowId}`);
+          if (el) el.focus();
+        }
+      }
+    }
+  };
+
+  const openScanner = (rowId: string) => {
+    setActiveScannerRowId(rowId);
+    setIsScannerOpen(true);
+  };
+
+  const onScanSuccess = (decodedText: string) => {
+    if (activeScannerRowId) {
+      updateRow(activeScannerRowId, 'tracking', decodedText);
+      setIsScannerOpen(false);
+      setActiveScannerRowId(null);
+
+      // Auto focus client search
+      setTimeout(() => {
+        const el = document.getElementById(`client-${activeScannerRowId}`);
+        if (el) el.focus();
+      }, 100);
+    }
   };
 
   // Check clicking outside (simplified by onBlur)
@@ -256,7 +324,7 @@ export function QuickEntry() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Multi-Entry (Bulk)</h1>
-          <p className="text-sm text-slate-500">Ingreso masivo de paquetes en matriz tipo Excel.</p>
+          <p className="text-sm text-slate-500">Ingreso masivo de paquetes en matriz optimizada para lectores <Keyboard className="inline h-3 w-3 mx-0.5 text-slate-400" /> y cámara.</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -312,16 +380,28 @@ export function QuickEntry() {
 
                   {/* Tracking */}
                   <td className="px-4 py-2">
-                    <input
-                      type="text"
-                      className="block w-full rounded-md border-0 py-1.5 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm font-medium"
-                      placeholder="Escanea o escribe..."
-                      value={row.tracking}
-                      onChange={(e) => {
-                        updateRow(row.id, 'tracking', e.target.value);
-                        handleRowInteraction(index);
-                      }}
-                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        id={`tracking-${row.id}`}
+                        type="text"
+                        className="block w-full rounded-md border-0 py-1.5 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm font-medium"
+                        placeholder="Escanea o escribe..."
+                        value={row.tracking}
+                        onChange={(e) => {
+                          updateRow(row.id, 'tracking', e.target.value);
+                          handleRowInteraction(index);
+                        }}
+                        onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => openScanner(row.id)}
+                        className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200"
+                        title="Usar Cámara (Scan Óptico)"
+                      >
+                        <ScanLine className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
 
                   {/* Client Autocomplete */}
@@ -331,12 +411,14 @@ export function QuickEntry() {
                         <Search className="h-3 w-3 text-slate-400" />
                       </div>
                       <input
+                        id={`client-${row.id}`}
                         type="text"
                         className={`block w-full rounded-md border-0 py-1.5 pl-7 pr-3 text-slate-900 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm ${!row.cliente_id && row.clientSearch ? 'ring-yellow-400' : 'ring-slate-300'}`}
                         placeholder="Buscar YBG..."
                         value={row.clientSearch}
                         onChange={(e) => handleClientSearchChange(row.id, e.target.value)}
                         onBlur={() => closeDropdown(row.id)}
+                        onKeyDown={(e) => handleKeyDown(e, row.id, 'client', index)}
                         autoComplete="off"
                       />
                       {row.isSearchingClient && (
@@ -369,12 +451,14 @@ export function QuickEntry() {
                   {/* Peso */}
                   <td className="px-4 py-2">
                     <input
+                      id={`peso-${row.id}`}
                       type="number"
                       step="0.01"
                       className="block w-full rounded-md border-0 py-1.5 px-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs"
                       placeholder="0.00"
                       value={row.peso_lbs}
                       onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
                     />
                   </td>
 
@@ -466,10 +550,17 @@ export function QuickEntry() {
             Mostrando <span className="font-medium text-slate-900">{rows.length}</span> fila(s) para captura de datos.
           </p>
           <p className="text-sm text-slate-500">
-            Solo se guardarán las filas con <span className="font-semibold text-slate-800">Tracking y Cliente</span> válidos.
+            Puedes conectar una pistola de código de barras láser. El sistema usará la tecla <kbd className="font-mono bg-white border border-slate-300 px-1 rounded mx-1">Enter</kbd> para saltar ágilmente.
           </p>
         </div>
       </div>
+
+      {/* Barcode Modal */}
+      <BarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => { setIsScannerOpen(false); setActiveScannerRowId(null); }}
+        onScan={onScanSuccess}
+      />
     </div>
   );
 }
