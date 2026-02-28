@@ -132,7 +132,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
 
         setLoading(true);
         try {
-            const numeroFactura = `FAC-${Date.now()}`;
+            const numeroFactura = `FAC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
             const total = getTotal();
 
             // 1. Create Factura

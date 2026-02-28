@@ -176,7 +176,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 // Solo generar si tiene costo > 0 (o modificar si gustan regalar factorías en cero)
                 if (grupo.totalQ <= 0) continue;
 
-                const numeroFactura = `FAC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                const numeroFactura = `FAC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
                 // 1. Crear Factura
                 const resFactura = await supabase
