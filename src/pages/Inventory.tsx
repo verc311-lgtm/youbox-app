@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { LabelPrinterModal } from '../components/LabelPrinterModal';
 
 interface Paquete {
   id: string;
@@ -31,6 +32,8 @@ export function Inventory() {
   const { user, isAdmin } = useAuth();
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [printingLabel, setPrintingLabel] = useState<any>(null);
 
   useEffect(() => {
     fetchPaquetes();
@@ -158,7 +161,24 @@ export function Inventory() {
                     </td>
                     {isAdmin && (
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => setPrintingLabel({
+                              remitenteInfo: p.transportistas?.nombre || '',
+                              trackingOriginal: p.tracking,
+                              clienteCasillero: p.clientes?.locker_id || '',
+                              clienteNombre: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.trim(),
+                              bodegaDestino: p.bodegas?.nombre || 'General',
+                              pesoLbs: p.peso_lbs,
+                              piezas: 1
+                            })}
+                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Imprimir Etiqueta"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                          </button>
+                          <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -168,6 +188,14 @@ export function Inventory() {
           </table>
         </div>
       </div>
+
+      {printingLabel && (
+        <LabelPrinterModal
+          isOpen={!!printingLabel}
+          onClose={() => setPrintingLabel(null)}
+          paquete={printingLabel}
+        />
+      )}
     </div>
   );
 }
