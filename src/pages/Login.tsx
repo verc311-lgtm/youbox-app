@@ -104,13 +104,21 @@ export function Login() {
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center">
+                    <div className="mt-6 space-y-3 text-center">
                         <p className="text-slate-400 text-sm">
                             ¿No tienes cuenta?{' '}
                             <Link to="/register" className="text-blue-400 hover:text-blue-300 font-medium transition-colors">
                                 Crear cuenta de cliente
                             </Link>
                         </p>
+                        <div className="border-t border-white/10 pt-3">
+                            <Link
+                                to="/tracking"
+                                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                                📦 Rastrear mi paquete sin iniciar sesión
+                            </Link>
+                        </div>
                     </div>
                 </div>
 

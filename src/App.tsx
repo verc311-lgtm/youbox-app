@@ -16,6 +16,7 @@ import { Login } from './pages/Login';
 import { Expenses } from './pages/Expenses';
 import { Register } from './pages/Register';
 import { Reports } from './pages/Reports';
+import { PublicTracking } from './pages/PublicTracking';
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,7 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
+      <Route path="/tracking" element={<PublicTracking />} />
 
       {/* Protected routes */}
       <Route
