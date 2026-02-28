@@ -4,6 +4,8 @@ import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck } f
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TrackingDialog } from './TrackingDialog';
+import { BulkInvoiceModal } from './billing/BulkInvoiceModal';
+import { useAuth } from '../context/AuthContext';
 
 interface Consolidacion {
     id: string;
@@ -24,6 +26,14 @@ export function ConsolidationsList() {
     // Dialog state
     const [trackingId, setTrackingId] = useState<string | null>(null);
     const [trackingCodigo, setTrackingCodigo] = useState('');
+
+    // Bulk Invoice Modal State
+    const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+    const [selectedConsolidationId, setSelectedConsolidationId] = useState('');
+    const [selectedBodegaId, setSelectedBodegaId] = useState('');
+
+    const { user } = useAuth();
+    const isAdmin = user?.rol === 'admin';
 
     useEffect(() => {
         fetchConsolidaciones();
@@ -65,6 +75,12 @@ export function ConsolidationsList() {
     const openTracking = (id: string, codigo: string) => {
         setTrackingId(id);
         setTrackingCodigo(codigo);
+    };
+
+    const openInvoiceModal = (consId: string, bodegaId: string) => {
+        setSelectedConsolidationId(consId);
+        setSelectedBodegaId(bodegaId);
+        setInvoiceModalOpen(true);
     };
 
     const getStatusColor = (estado: string) => {
@@ -161,12 +177,23 @@ export function ConsolidationsList() {
                                             <p className="text-xs font-medium text-slate-500">{cons.peso_total_lbs?.toFixed(2)} lbs</p>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button
-                                                onClick={() => openTracking(cons.id, cons.codigo)}
-                                                className="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors font-bold shadow-sm"
-                                            >
-                                                <ExternalLink className="h-4 w-4" /> Tracking Master
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {isAdmin && cons.bodegas && (
+                                                    <button
+                                                        onClick={() => openInvoiceModal(cons.id, (cons.bodegas as any).id)}
+                                                        className="inline-flex items-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors font-bold shadow-sm"
+                                                        title="Generar Facturas"
+                                                    >
+                                                        <Layers className="h-4 w-4" /> Facturar Lote
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => openTracking(cons.id, cons.codigo)}
+                                                    className="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg transition-colors font-bold shadow-sm"
+                                                >
+                                                    <ExternalLink className="h-4 w-4" /> Tracking Master
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -182,6 +209,18 @@ export function ConsolidationsList() {
                     codigoMaster={trackingCodigo}
                     onClose={() => setTrackingId(null)}
                     onUpdate={fetchConsolidaciones}
+                />
+            )}
+
+            {invoiceModalOpen && (
+                <BulkInvoiceModal
+                    isOpen={invoiceModalOpen}
+                    onClose={() => setInvoiceModalOpen(false)}
+                    onSuccess={() => {
+                        fetchConsolidaciones();
+                    }}
+                    consolidacionId={selectedConsolidationId}
+                    bodegaId={selectedBodegaId}
                 />
             )}
         </div>
