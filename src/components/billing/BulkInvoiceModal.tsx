@@ -195,7 +195,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                         monto_total: grupo.totalQ,
                         estado: 'pendiente',
                         moneda: 'GTQ',
-                        creado_por: user?.id,
+                        creado_por: user?.id?.includes('-') && user.id.length > 15 ? user.id : null,
                         notas: `Factura masiva por importación de ${grupo.paquetes.length} paquete(s) consolidado(s).`
                     }])
                     .select()
