@@ -13,8 +13,8 @@ interface Consolidacion {
     estado: string;
     peso_total_lbs: number;
     created_at: string;
-    bodegas: { nombre: string } | null;
-    zonas: { nombre: string } | null;
+    bodegas: { id: string, nombre: string } | null;
+    zonas: { id: string, nombre: string } | null;
     paquetes_count?: number;
 }
 
@@ -32,8 +32,7 @@ export function ConsolidationsList() {
     const [selectedConsolidationId, setSelectedConsolidationId] = useState('');
     const [selectedBodegaId, setSelectedBodegaId] = useState('');
 
-    const { user } = useAuth();
-    const isAdmin = user?.rol === 'admin';
+    const { user, isAdmin } = useAuth();
 
     useEffect(() => {
         fetchConsolidaciones();
@@ -46,8 +45,8 @@ export function ConsolidationsList() {
                 .from('consolidaciones')
                 .select(`
           id, codigo, estado, peso_total_lbs, created_at,
-          bodegas(nombre),
-          zonas(nombre),
+          bodegas(id, nombre),
+          zonas(id, nombre),
           consolidacion_paquetes(count)
         `)
                 .order('created_at', { ascending: false });
