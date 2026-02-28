@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Inbox, CreditCard } from 'lucide-react';
+import { FileText, Inbox, CreditCard, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale';
 
 import { GenerateInvoiceModal } from '../components/billing/GenerateInvoiceModal';
 import { RegisterPaymentModal } from '../components/billing/RegisterPaymentModal';
+import { downloadInvoicePDF } from '../utils/generateInvoicePDF';
 
 interface Factura {
   id: string;
@@ -46,7 +47,7 @@ export function Billing() {
         .from('facturas')
         .select(`
           id, numero, monto_total, moneda, estado, fecha_emision,
-          clientes (nombre, apellido)
+          clientes (nombre, apellido, locker_id, nit, direccion_entrega)
         `)
         .order('fecha_emision', { ascending: false });
 
@@ -174,7 +175,11 @@ export function Billing() {
                           <CreditCard className="h-4 w-4" /> Registrar Pago
                         </button>
                       )}
-                      <button className="text-blue-600 hover:text-blue-900 mr-4">Ver Detalles</button>
+                      <button
+                        onClick={() => downloadInvoicePDF(f as any)}
+                        className="text-slate-600 hover:text-blue-600 inline-flex items-center gap-1 transition-colors">
+                        <Download className="h-4 w-4" /> PDF
+                      </button>
                     </td>
                   </tr>
                 ))
