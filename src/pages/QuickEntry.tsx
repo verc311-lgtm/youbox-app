@@ -282,7 +282,7 @@ export function QuickEntry() {
             <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 font-semibold w-12 text-center">#</th>
-                <th className="px-4 py-3 font-semibold w-40">Bodega Destino</th>
+                <th className="px-4 py-3 font-semibold w-40">Bodega de Salida</th>
                 <th className="px-4 py-3 font-semibold min-w-[200px]">Tracking Number <span className="text-red-500">*</span></th>
                 <th className="px-4 py-3 font-semibold min-w-[240px]">Cliente / Locker <span className="text-red-500">*</span></th>
                 <th className="px-4 py-3 font-semibold w-24">Peso(lbs)</th>
