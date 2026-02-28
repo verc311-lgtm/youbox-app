@@ -17,6 +17,8 @@ interface Gasto {
     recibo_url: string;
     estado: string;
     numero_cuenta?: string;
+    sucursal_id?: string;
+    sucursales?: { nombre: string };
     created_at: string;
 }
 
@@ -27,6 +29,8 @@ const CategoriasGastos = [
 export function Expenses() {
     const { user } = useAuth();
     const [gastos, setGastos] = useState<Gasto[]>([]);
+    const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
+    const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
@@ -41,22 +45,50 @@ export function Expenses() {
         fecha_pago: new Date().toISOString().split('T')[0],
         numero_cuenta: '',
         notas: '',
+        sucursal_id: '',
     });
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [filePreview, setFilePreview] = useState<string | null>(null);
 
     useEffect(() => {
-        fetchGastos();
+        fetchSucursales();
     }, []);
+
+    useEffect(() => {
+        fetchGastos();
+    }, [selectedFilterBranch, user?.sucursal_id]);
+
+    async function fetchSucursales() {
+        if (user?.role === 'admin') {
+            const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
+            if (data) {
+                setSucursales(data);
+                if (data.length > 0) {
+                    setFormData(prev => ({ ...prev, sucursal_id: data[0].id }));
+                }
+            }
+        } else if (user?.sucursal_id) {
+            setFormData(prev => ({ ...prev, sucursal_id: user.sucursal_id! }));
+        }
+    }
 
     async function fetchGastos() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('gastos_financieros')
-                .select('*')
+                .select('*, sucursales(nombre)')
                 .order('fecha_pago', { ascending: false });
+
+            // Si no es admin, solo ve los de su sucursal
+            if (user?.role !== 'admin' && user?.sucursal_id) {
+                query = query.eq('sucursal_id', user.sucursal_id);
+            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
+                query = query.eq('sucursal_id', selectedFilterBranch);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setGastos(data || []);
@@ -128,6 +160,7 @@ export function Expenses() {
                 numero_cuenta: formData.numero_cuenta,
                 notas: formData.notas,
                 recibo_url: recibo_url,
+                sucursal_id: formData.sucursal_id || null,
                 estado: 'verificado', // Auto-verified since it comes from an admin form
                 registrado_por: user?.id === 'admin-001' ? null : user?.id,
             };
@@ -146,6 +179,7 @@ export function Expenses() {
                 fecha_pago: new Date().toISOString().split('T')[0],
                 numero_cuenta: '',
                 notas: '',
+                sucursal_id: user?.role === 'admin' && sucursales.length > 0 ? sucursales[0].id : (user?.sucursal_id || ''),
             });
             setSelectedFile(null);
             setFilePreview(null);
@@ -169,11 +203,26 @@ export function Expenses() {
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto pb-10">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Control de Gastos</h1>
                     <p className="text-sm text-slate-500">Registra y verifica pagos de renta, salarios, proveedores y más.</p>
                 </div>
+                {user?.role === 'admin' && (
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <Building className="h-4 w-4 text-slate-400" />
+                        <select
+                            value={selectedFilterBranch}
+                            onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                            className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                        >
+                            <option value="all">Todas las Sedes</option>
+                            {sucursales.map(s => (
+                                <option key={s.id} value={s.id}>{s.nombre}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -203,6 +252,25 @@ export function Expenses() {
                                 </select>
                             </div>
                         </div>
+
+                        {user?.role === 'admin' && sucursales.length > 0 && (
+                            <div className="space-y-1">
+                                <label className="text-sm font-medium text-slate-700">Sucursal <span className="text-red-500">*</span></label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Building className="h-4 w-4 text-slate-400" />
+                                    </div>
+                                    <select
+                                        required
+                                        value={formData.sucursal_id}
+                                        onChange={e => setFormData({ ...formData, sucursal_id: e.target.value })}
+                                        className="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                    >
+                                        {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-1">
                             <label className="text-sm font-medium text-slate-700">Concepto / Referencia <span className="text-red-500">*</span></label>
@@ -346,6 +414,11 @@ export function Expenses() {
                                                 <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                                                     {gasto.categoria}
                                                 </span>
+                                                {gasto.sucursales?.nombre && (
+                                                    <span className="ml-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-700/10 hidden sm:inline-flex">
+                                                        {gasto.sucursales.nombre}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-3 font-bold text-slate-800 text-right">
                                                 {formatQ(gasto.monto_q)}

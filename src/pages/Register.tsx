@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Boxes, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle, Copy, MessageCircle, Mail } from 'lucide-react';
+import { Boxes, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle, Copy, MessageCircle, Mail, MapPin } from 'lucide-react';
 import { useAuth, getAddressText } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 
 type Step = 'form' | 'success';
 
@@ -15,14 +16,28 @@ export function Register() {
     } | null>(null);
 
     const [form, setForm] = useState({
-        nombre: '', apellido: '', email: '', telefono: '', password: '', confirmPassword: '',
+        nombre: '', apellido: '', email: '', telefono: '', password: '', confirmPassword: '', sucursal_id: ''
     });
+    const [sucursales, setSucursales] = useState<{ id: string, nombre: string, prefijo_casillero: string }[]>([]);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        const fetchSucursales = async () => {
+            const { data } = await supabase.from('sucursales').select('*').eq('activa', true).order('nombre');
+            if (data) {
+                setSucursales(data);
+                if (data.length > 0) {
+                    setForm(prev => ({ ...prev, sucursal_id: data[0].id }));
+                }
+            }
+        };
+        fetchSucursales();
+    }, []);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
@@ -38,6 +53,12 @@ export function Register() {
         if (form.password.length < 6) {
             setError('La contraseña debe tener al menos 6 caracteres.'); return;
         }
+        if (!form.sucursal_id) {
+            setError('Por favor selecciona una sucursal.'); return;
+        }
+
+        const selectedSucursal = sucursales.find(s => s.id === form.sucursal_id);
+
         setLoading(true);
         const result = await register({
             nombre: form.nombre,
@@ -45,6 +66,8 @@ export function Register() {
             email: form.email,
             telefono: form.telefono,
             password: form.password,
+            sucursal_id: selectedSucursal?.id,
+            sucursal_prefix: selectedSucursal?.prefijo_casillero
         });
         setLoading(false);
         if (result.error) { setError(result.error); return; }
@@ -220,6 +243,23 @@ export function Register() {
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <MapPin className="h-4 w-4 text-emerald-400" />
+                                ¿En qué Sucursal recoges tus paquetes? *
+                            </label>
+                            <select
+                                name="sucursal_id"
+                                value={form.sucursal_id}
+                                onChange={handleChange}
+                                className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2.5 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors text-sm font-medium"
+                            >
+                                {sucursales.map(s => (
+                                    <option key={s.id} value={s.id} className="bg-slate-800">{s.nombre}</option>
+                                ))}
+                            </select>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-1.5">Nombre *</label>

@@ -12,6 +12,7 @@ export interface AuthUser {
     telefono?: string;
     locker_id?: string;
     role: UserRole;
+    sucursal_id?: string;
 }
 
 interface AuthContextType {
@@ -29,6 +30,8 @@ export interface RegisterData {
     email: string;
     telefono: string;
     password: string;
+    sucursal_id?: string;
+    sucursal_prefix?: string;
 }
 
 // ─── Addresses (from company images) ────────────────────────────────────────
@@ -103,21 +106,21 @@ Tel: ${a.tapachula.telefono}
 }
 
 // ─── Locker ID Generator ─────────────────────────────────────────────────────
-async function generateNextLocker(): Promise<string> {
+async function generateNextLocker(prefix: string = 'YBG'): Promise<string> {
     try {
         const { data } = await supabase
             .from('clientes')
             .select('locker_id')
-            .like('locker_id', 'YBG%')
+            .like('locker_id', `${prefix}%`)
             .order('locker_id', { ascending: false })
             .limit(1);
 
-        if (!data || data.length === 0) return 'YBG4000';
+        if (!data || data.length === 0) return `${prefix}4000`;
 
-        const lastNum = parseInt(data[0].locker_id.replace('YBG', ''), 10);
-        return `YBG${lastNum + 1}`;
+        const lastNum = parseInt(data[0].locker_id.replace(prefix, ''), 10);
+        return `${prefix}${lastNum + 1}`;
     } catch {
-        return 'YBG4000';
+        return `${prefix}4000`;
     }
 }
 
@@ -172,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     telefono: clientData.telefono,
                     locker_id: clientData.locker_id,
                     role: 'cliente',
+                    sucursal_id: clientData.sucursal_id
                 };
                 setUser(clientUser);
                 localStorage.setItem('youbox_user', JSON.stringify(clientUser));
@@ -205,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 email: staffData.email,
                 telefono: staffData.telefono,
                 role: staffData.roles?.nombre || 'admin', // Default a admin si falla el rol
+                sucursal_id: staffData.sucursal_id
             };
             setUser(staffUser);
             localStorage.setItem('youbox_user', JSON.stringify(staffUser));
@@ -217,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const register = async (data: RegisterData): Promise<{ error?: string; user?: AuthUser }> => {
         try {
-            const lockerId = await generateNextLocker();
+            const lockerId = await generateNextLocker(data.sucursal_prefix || 'YBG');
 
             const { data: inserted, error } = await supabase
                 .from('clientes')
@@ -229,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     locker_id: lockerId,
                     notas: data.password, // guardamos contraseña en 'notas' hasta que exista password_hash
                     activo: true,
+                    sucursal_id: data.sucursal_id || null
                 }])
                 .select()
                 .single();
@@ -248,6 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 telefono: inserted.telefono,
                 locker_id: inserted.locker_id,
                 role: 'cliente',
+                sucursal_id: inserted.sucursal_id
             };
 
             setUser(newUser);

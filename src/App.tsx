@@ -11,6 +11,7 @@ import { Billing } from './pages/Billing';
 import { Settings } from './pages/Settings';
 import { Tariffs } from './pages/Tariffs';
 import { Users } from './pages/Users';
+import { Branches } from './pages/Branches';
 import { Login } from './pages/Login';
 import { Expenses } from './pages/Expenses';
 import { Register } from './pages/Register';
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
         <Route path="tariffs" element={<AdminRoute><Tariffs /></AdminRoute>} />
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+        <Route path="branches" element={<AdminRoute><Branches /></AdminRoute>} />
         <Route path="expenses" element={<AdminRoute><Expenses /></AdminRoute>} />
         <Route path="reports" element={<AdminRoute><Reports /></AdminRoute>} />
 

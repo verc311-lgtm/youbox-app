@@ -8,6 +8,11 @@ interface Rol {
     nombre: string;
 }
 
+interface Sucursal {
+    id: string;
+    nombre: string;
+}
+
 interface StaffUser {
     id: string;
     nombre: string;
@@ -17,6 +22,8 @@ interface StaffUser {
     activo: boolean;
     rol_id: string;
     roles?: { nombre: string };
+    sucursal_id?: string;
+    sucursales?: { nombre: string };
     password_hash?: string;
     created_at: string;
 }
@@ -24,6 +31,7 @@ interface StaffUser {
 export function Users() {
     const [users, setUsers] = useState<StaffUser[]>([]);
     const [roles, setRoles] = useState<Rol[]>([]);
+    const [sucursales, setSucursales] = useState<Sucursal[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -35,13 +43,28 @@ export function Users() {
         email: '',
         telefono: '',
         rol_id: '',
+        sucursal_id: '',
         password: ''
     });
 
     useEffect(() => {
         fetchUsers();
         fetchRoles();
+        fetchSucursales();
     }, []);
+
+    async function fetchSucursales() {
+        try {
+            const { data, error } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
+            if (error) throw error;
+            setSucursales(data || []);
+            if (data && data.length > 0) {
+                setFormData(f => ({ ...f, sucursal_id: data[0].id }));
+            }
+        } catch (e) {
+            console.error('Error fetching sucursales:', e);
+        }
+    }
 
     async function fetchRoles() {
         try {
@@ -61,7 +84,7 @@ export function Users() {
             setLoading(true);
             const { data, error } = await supabase
                 .from('usuarios')
-                .select(`*, roles ( nombre )`)
+                .select(`*, roles ( nombre ), sucursales ( nombre )`)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -83,6 +106,7 @@ export function Users() {
                 email: formData.email.toLowerCase(),
                 telefono: formData.telefono,
                 rol_id: formData.rol_id,
+                sucursal_id: formData.sucursal_id,
                 password_hash: formData.password,
                 activo: true
             }]);
@@ -90,7 +114,7 @@ export function Users() {
             if (error) throw error;
 
             setShowModal(false);
-            setFormData({ nombre: '', apellido: '', email: '', telefono: '', rol_id: roles[0]?.id || '', password: '' });
+            setFormData({ nombre: '', apellido: '', email: '', telefono: '', rol_id: roles[0]?.id || '', sucursal_id: sucursales[0]?.id || '', password: '' });
             fetchUsers();
         } catch (error: any) {
             console.error('Error creating user:', error);
@@ -146,7 +170,7 @@ export function Users() {
                             <tr>
                                 <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Usuario</th>
                                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Contacto</th>
-                                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Rol</th>
+                                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Rol & Sucursal</th>
                                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estado</th>
                                 <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                                     <span className="sr-only">Acciones</span>
@@ -180,11 +204,20 @@ export function Users() {
                                             <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {u.email}</div>
                                             {u.telefono && <div className="flex items-center gap-1.5 mt-1"><Phone className="w-3.5 h-3.5" /> {u.telefono}</div>}
                                         </td>
-                                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
-                                            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 capitalize">
-                                                <ShieldCheck className="w-3.5 h-3.5" />
-                                                {u.roles?.nombre || 'Sin Rol'}
-                                            </span>
+                                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 space-y-2">
+                                            <div>
+                                                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 capitalize">
+                                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                                    {u.roles?.nombre || 'Sin Rol'}
+                                                </span>
+                                            </div>
+                                            {u.sucursales?.nombre && (
+                                                <div>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                                                        {u.sucursales.nombre}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                             <button
@@ -254,6 +287,15 @@ export function Users() {
                                         ))}
                                     </select>
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Asignación de Sucursal</label>
+                                <select required value={formData.sucursal_id} onChange={e => setFormData({ ...formData, sucursal_id: e.target.value })} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border">
+                                    {sucursales.map(s => (
+                                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             <div className="pt-4 flex gap-3 justify-end">

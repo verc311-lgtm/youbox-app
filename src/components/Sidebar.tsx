@@ -13,7 +13,8 @@ import {
   LogOut,
   Inbox,
   Receipt,
-  BarChart3
+  BarChart3,
+  Building2
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Pagos', href: '/payments', icon: CreditCard, section: 'Finanzas' },
   { name: 'Gastos', href: '/expenses', icon: Receipt, section: 'Finanzas' },
   { name: 'Reportes', href: '/reports', icon: BarChart3, section: 'Finanzas' },
+  { name: 'Sucursales', href: '/branches', icon: Building2, section: 'Configuración' },
   { name: 'Usuarios', href: '/users', icon: Users, section: 'Configuración' },
   { name: 'Geografía', href: '/geography', icon: Map, section: 'Configuración' },
   { name: 'Tarifas', href: '/tariffs', icon: Calculator, section: 'Configuración' },

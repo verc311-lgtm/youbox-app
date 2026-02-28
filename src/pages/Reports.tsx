@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar, Building } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAuth } from '../context/AuthContext';
 
 interface Mensual {
     mes: string;
@@ -24,6 +25,10 @@ export function Reports() {
     const [loading, setLoading] = useState(true);
     const [monthlyData, setMonthlyData] = useState<Mensual[]>([]);
     const [categoryData, setCategoryData] = useState<Categoria[]>([]);
+    const { user } = useAuth();
+    const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
+    const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+
     const [kpis, setKpis] = useState({
         ingresosMesActual: 0,
         gastosMesActual: 0,
@@ -31,8 +36,19 @@ export function Reports() {
     });
 
     useEffect(() => {
+        if (user?.role === 'admin') {
+            fetchSucursales();
+        }
+    }, [user]);
+
+    useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedFilterBranch, user]);
+
+    const fetchSucursales = async () => {
+        const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
+        if (data) setSucursales(data);
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -41,22 +57,31 @@ export function Reports() {
             const hoy = new Date();
             const hace6Meses = subMonths(hoy, 5);
 
-            // Fetch Incomes (Facturas verificadas)
-            const { data: facturas, error: facturasErr } = await supabase
+            let queryFacturas = supabase
                 .from('facturas')
-                .select('monto_total, fecha_emision')
+                .select('monto_total, fecha_emision, clientes!inner(sucursal_id)')
                 .eq('estado', 'verificado')
                 .gte('fecha_emision', hace6Meses.toISOString());
 
-            if (facturasErr) throw facturasErr;
-
-            // Fetch Expenses (Gastos verificados)
-            const { data: gastos, error: gastosErr } = await supabase
+            let queryGastos = supabase
                 .from('gastos_financieros')
                 .select('monto_q, fecha_pago, categoria')
                 .eq('estado', 'verificado')
                 .gte('fecha_pago', hace6Meses.toISOString());
 
+            // Filtros de Sucursal
+            if (user?.role !== 'admin' && user?.sucursal_id) {
+                queryFacturas = queryFacturas.eq('clientes.sucursal_id', user.sucursal_id);
+                queryGastos = queryGastos.eq('sucursal_id', user.sucursal_id);
+            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
+                queryFacturas = queryFacturas.eq('clientes.sucursal_id', selectedFilterBranch);
+                queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
+            }
+
+            const { data: facturas, error: facturasErr } = await queryFacturas;
+            if (facturasErr) throw facturasErr;
+
+            const { data: gastos, error: gastosErr } = await queryGastos;
             if (gastosErr) throw gastosErr;
 
             // Generate month brackets
@@ -143,9 +168,26 @@ export function Reports() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-10">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard Financiero</h1>
-                <p className="text-sm text-slate-500">Métricas clave e historial de utilidad de los últimos 6 meses.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard Financiero</h1>
+                    <p className="text-sm text-slate-500">Métricas clave e historial de utilidad de los últimos 6 meses.</p>
+                </div>
+                {user?.role === 'admin' && (
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        <Building className="h-4 w-4 text-slate-400" />
+                        <select
+                            value={selectedFilterBranch}
+                            onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                            className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                        >
+                            <option value="all">Todas las Sedes</option>
+                            {sucursales.map(s => (
+                                <option key={s.id} value={s.id}>{s.nombre}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
             </div>
 
             {/* KPIs */}
