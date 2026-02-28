@@ -14,6 +14,7 @@ import { Users } from './pages/Users';
 import { Login } from './pages/Login';
 import { Expenses } from './pages/Expenses';
 import { Register } from './pages/Register';
+import { Reports } from './pages/Reports';
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="tariffs" element={<AdminRoute><Tariffs /></AdminRoute>} />
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
         <Route path="expenses" element={<AdminRoute><Expenses /></AdminRoute>} />
+        <Route path="reports" element={<AdminRoute><Reports /></AdminRoute>} />
 
         {/* Pages under development or placeholders */}
         <Route path="payments" element={<Navigate to="/billing" replace />} />
