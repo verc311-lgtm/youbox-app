@@ -32,6 +32,14 @@ export interface RegisterData {
     password: string;
     sucursal_id?: string;
     sucursal_prefix?: string;
+    // Guatemala address
+    departamento?: string;
+    municipio?: string;
+    direccion_linea1?: string;
+    direccion_linea2?: string;
+    referencia?: string;
+    acepto_tyc?: boolean;
+    fecha_acepto_tyc?: string;
 }
 
 // ─── Addresses (from company images) ────────────────────────────────────────
@@ -234,7 +242,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     locker_id: lockerId,
                     notas: data.password, // guardamos contraseña en 'notas' hasta que exista password_hash
                     activo: true,
-                    sucursal_id: data.sucursal_id || null
+                    sucursal_id: data.sucursal_id || null,
+                    departamento: data.departamento || null,
+                    municipio: data.municipio || null,
+                    direccion_linea1: data.direccion_linea1 || null,
+                    direccion_linea2: data.direccion_linea2 || null,
+                    referencia: data.referencia || null,
+                    acepto_tyc: data.acepto_tyc || false,
+                    fecha_acepto_tyc: data.fecha_acepto_tyc || null,
                 }])
                 .select()
                 .single();
