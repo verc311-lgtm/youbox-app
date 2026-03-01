@@ -11,6 +11,8 @@ interface FacturaDatos {
     moneda: string;
     estado: string;
     fecha_emision: string;
+    cliente_manual_nombre?: string;
+    cliente_manual_nit?: string;
     clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string };
 }
 
@@ -72,9 +74,14 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(71, 85, 105); // Slate-600
-        doc.text(`Cliente: ${factura?.clientes?.nombre || ''} ${factura?.clientes?.apellido || ''}`, 14, 62);
-        doc.text(`Casillero: ${factura?.clientes?.locker_id || 'N/A'}`, 14, 67);
-        doc.text(`NIT: ${factura?.clientes?.nit || 'C/F'}`, 14, 72);
+        
+        const clientName = factura.clientes ? `${factura.clientes.nombre} ${factura.clientes.apellido}` : (factura.cliente_manual_nombre || 'Consumidor Final');
+        const clientNit = factura.clientes ? (factura.clientes.nit || 'C/F') : (factura.cliente_manual_nit || 'C/F');
+        const clientLocker = factura.clientes ? (factura.clientes.locker_id || 'N/A') : 'N/A';
+
+        doc.text(`Cliente: ${clientName}`, 14, 62);
+        doc.text(`Casillero: ${clientLocker}`, 14, 67);
+        doc.text(`NIT: ${clientNit}`, 14, 72);
         
         if (factura.clientes?.direccion_entrega) {
             doc.text(`Dirección: ${factura.clientes.direccion_entrega}`, 14, 77);

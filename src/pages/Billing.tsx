@@ -16,6 +16,8 @@ interface Factura {
   moneda: string;
   estado: string;
   fecha_emision: string;
+  cliente_manual_nombre?: string;
+  cliente_manual_nit?: string;
   clientes?: { nombre: string; apellido: string };
 }
 
@@ -46,7 +48,7 @@ export function Billing() {
       let query = supabase
         .from('facturas')
         .select(`
-          id, numero, monto_total, moneda, estado, fecha_emision,
+          id, numero, monto_total, moneda, estado, fecha_emision, cliente_manual_nombre, cliente_manual_nit,
           clientes (nombre, apellido, locker_id, nit, direccion_entrega)
         `)
         .order('fecha_emision', { ascending: false });
@@ -151,13 +153,13 @@ export function Billing() {
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6 font-medium text-slate-900">
                       <div>{f.numero}</div>
                       <div className="sm:hidden text-xs text-slate-500 mt-1">
-                        {isAdmin && <>{f.clientes?.nombre} {f.clientes?.apellido} <br /></>}
+                        {isAdmin && <>{f.clientes ? `${f.clientes.nombre} ${f.clientes.apellido}` : (f.cliente_manual_nombre || 'Consumidor Final')} <br /></>}
                         {f.fecha_emision ? format(new Date(f.fecha_emision), 'dd/MM/yy') : 'N/A'}
                       </div>
                     </td>
                     {isAdmin && (
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden sm:table-cell">
-                        {f.clientes?.nombre} {f.clientes?.apellido}
+                        {f.clientes ? `${f.clientes.nombre} ${f.clientes.apellido}` : (f.cliente_manual_nombre || 'Consumidor Final')}
                       </td>
                     )}
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden md:table-cell">

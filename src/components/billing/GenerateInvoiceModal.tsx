@@ -40,13 +40,17 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
     const [selectedCliente, setSelectedCliente] = useState('');
     const [selectedBodega, setSelectedBodega] = useState('');
 
+    const [isManualClient, setIsManualClient] = useState(false);
+    const [manualName, setManualName] = useState('');
+    const [manualNit, setManualNit] = useState('');
+    const [clientSearchTerm, setClientSearchTerm] = useState('');
+
     const [conceptos, setConceptos] = useState<{ id: string, descripcion: string, cantidad: number, precio_unitario: number }[]>([]);
     const [sendEmail, setSendEmail] = useState(true);
 
     useEffect(() => {
         if (isOpen) {
             fetchInitialData();
-        } else {
             resetForm();
         }
     }, [isOpen]);
@@ -60,6 +64,10 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
     }, [selectedBodega]);
 
     const resetForm = () => {
+        setIsManualClient(false);
+        setManualName('');
+        setManualNit('');
+        setClientSearchTerm('');
         setSelectedCliente('');
         setSelectedBodega('');
         setConceptos([]);
@@ -120,8 +128,18 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
     };
 
     const handleSave = async () => {
-        if (!selectedCliente || conceptos.length === 0) {
-            alert("Seleccione un cliente y agregue al menos un concepto.");
+        if (!isManualClient && !selectedCliente) {
+            alert("Seleccione un cliente registrado o use la opción de cliente manual.");
+            return;
+        }
+
+        if (isManualClient && !manualName.trim()) {
+            alert("Ingrese el nombre del cliente manual.");
+            return;
+        }
+
+        if (conceptos.length === 0) {
+            alert("Agregue al menos un concepto a la factura.");
             return;
         }
 
@@ -140,7 +158,9 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                 .from('facturas')
                 .insert([{
                     numero: numeroFactura,
-                    cliente_id: selectedCliente,
+                    cliente_id: isManualClient ? null : selectedCliente,
+                    cliente_manual_nombre: isManualClient ? manualName.trim() : null,
+                    cliente_manual_nit: isManualClient ? manualNit.trim() : null,
                     monto_subtotal: total,
                     monto_total: total,
                     moneda: 'GTQ',
@@ -165,7 +185,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
             if (conceptosError) throw conceptosError;
 
             // 3. Queue Email if requested (mock saving notification logic)
-            if (sendEmail) {
+            if (sendEmail && !isManualClient) {
                 const targetCliente = clientes.find(c => c.id === selectedCliente);
                 if (targetCliente?.email) {
                     await supabase.from('notificaciones').insert([{
@@ -205,20 +225,86 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                 {/* Body */}
                 <div className="p-6 overflow-y-auto flex-1 space-y-6">
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Cliente *</label>
-                            <select
-                                value={selectedCliente}
-                                onChange={(e) => setSelectedCliente(e.target.value)}
-                                className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                            >
-                                <option value="">-- Seleccionar Cliente --</option>
-                                {clientes.map(c => (
-                                    <option key={c.id} value={c.id}>{c.locker_id} - {c.nombre} {c.apellido}</option>
-                                ))}
-                            </select>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-4">
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="clientType"
+                                    checked={!isManualClient}
+                                    onChange={() => setIsManualClient(false)}
+                                    className="text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700">Cliente Registrado</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="clientType"
+                                    checked={isManualClient}
+                                    onChange={() => setIsManualClient(true)}
+                                    className="text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700">Factura Manual / Consumidor Final</span>
+                            </label>
                         </div>
+
+                        {!isManualClient ? (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Buscar y Seleccionar Cliente *</label>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre, locker o email..."
+                                    value={clientSearchTerm}
+                                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                                    className="w-full mb-2 rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                />
+                                <select
+                                    value={selectedCliente}
+                                    onChange={(e) => setSelectedCliente(e.target.value)}
+                                    className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm max-h-40 overflow-y-auto"
+                                    size={4}
+                                >
+                                    {clientes
+                                        .filter(c => `${c.nombre} ${c.apellido} ${c.locker_id} ${c.email}`.toLowerCase().includes(clientSearchTerm.toLowerCase()))
+                                        .map(c => (
+                                            <option key={c.id} value={c.id} className="p-2 border-b border-slate-100 last:border-0 hover:bg-slate-100 cursor-pointer">
+                                                {c.locker_id} - {c.nombre} {c.apellido} ({c.email})
+                                            </option>
+                                        ))
+                                    }
+                                    {clientes.filter(c => `${c.nombre} ${c.apellido} ${c.locker_id} ${c.email}`.toLowerCase().includes(clientSearchTerm.toLowerCase())).length === 0 && (
+                                        <option disabled className="p-2 text-slate-500 text-center">No se encontraron clientes</option>
+                                    )}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Facturación *</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej. Consumidor Final o Nombre"
+                                        value={manualName}
+                                        onChange={(e) => setManualName(e.target.value)}
+                                        className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">NIT</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Opcional"
+                                        value={manualNit}
+                                        onChange={(e) => setManualNit(e.target.value)}
+                                        className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Cargar Tarifas de Bodega</label>
                             <select
@@ -307,6 +393,10 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                         </div>
 
                         <datalist id="tarifas-list">
+                            <option value="Servicios de Compras">Servicios Extras de Bodega</option>
+                            <option value="Seguro de Envío">Cargo Fijo</option>
+                            <option value="Tarifa de Manejo">Cargo Administrativo</option>
+                            <option value="Otros Cargos">Cargo Variable</option>
                             {tarifas.map(t => (
                                 <option key={t.id} value={t.nombre_servicio}>Q{t.tarifa_q} ({t.tipo_cobro.replace('_', ' ')})</option>
                             ))}
@@ -323,7 +413,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                             />
                             <label htmlFor="sendEmail" className="text-sm text-slate-700 font-medium">
-                                Enviar Notificación por Correo al Cliente
+                                Enviar Notificación por Correo al Cliente (Si está registrado)
                             </label>
                         </div>
                         <div className="text-right">
@@ -344,7 +434,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={loading || conceptos.length === 0 || !selectedCliente}
+                        disabled={loading || conceptos.length === 0 || (!isManualClient && !selectedCliente) || (isManualClient && !manualName.trim())}
                         className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50"
                     >
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
