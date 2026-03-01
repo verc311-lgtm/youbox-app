@@ -153,7 +153,7 @@ export function QuickEntry() {
     try {
       const { data, error } = await supabase
         .from('clientes')
-        .select('id, nombre, apellido, locker_id')
+        .select('id, locker_id, nombre, apellido')
         .or(`locker_id.ilike.%${query}%,nombre.ilike.%${query}%,apellido.ilike.%${query}%`)
         .eq('activo', true)
         .limit(8);
