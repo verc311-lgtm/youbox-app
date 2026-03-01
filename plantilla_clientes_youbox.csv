@@ -1,0 +1,5 @@
+nombre,apellido,locker_id,email,telefono,nit,departamento,municipio,direccion_linea1,direccion_linea2,referencia,notas,activo,acepto_tyc,sucursal_id
+Juan,Pérez García,YBG1,juan@correo.com,50255551234,CF,Quetzaltenango,Quetzaltenango,5ta Calle 10-25 Zona 1,Residencial Las Flores Casa 3,Frente al parque central,contrasena123,true,true,9c4bf811-5a12-4c44-a99a-418b289154cb
+María,López Ramírez,YBG2,maria@correo.com,50266667890,1234567-8,Quetzaltenango,Quetzaltenango,10ma Avenida 5-50 Zona 10,Edificio Torres Reforma Apto 202,A un lado del banco,mipassword,true,true,9c4bf811-5a12-4c44-a99a-418b289154cb
+Carlos,Méndez Xoc,YBQ1,carlos@correo.com,50277778901,CF,Quiché,Santa Cruz del Quiché,Avenida Principal 5-10 Z1,,Enfrente de la municipalidad,pass2024,true,true,fe88dcfb-df66-400d-be57-91acb25c4dd7
+Ana,García López,YBQ2,ana@correo.com,50288889012,2345678-9,Quiché,Chichicastenango,3ra Calle 8-42 Zona 3,Colonia La Florida,Casa azul portón de metal,clave456,true,true,fe88dcfb-df66-400d-be57-91acb25c4dd7

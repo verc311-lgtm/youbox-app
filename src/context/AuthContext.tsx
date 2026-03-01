@@ -121,14 +121,23 @@ async function generateNextLocker(prefix: string = 'YBG'): Promise<string> {
             .select('locker_id')
             .like('locker_id', `${prefix}%`)
             .order('locker_id', { ascending: false })
-            .limit(1);
+            .limit(50); // fetch more to sort numerically, not lexicographically
 
-        if (!data || data.length === 0) return `${prefix}4000`;
+        if (!data || data.length === 0) return `${prefix}1`;
 
-        const lastNum = parseInt(data[0].locker_id.replace(prefix, ''), 10);
-        return `${prefix}${lastNum + 1}`;
+        // Parse numeric suffix and find the actual highest number
+        const maxNum = data.reduce((max, row) => {
+            const match = row.locker_id.replace(prefix, '').match(/^(\d+)$/);
+            if (match) {
+                const num = parseInt(match[1], 10);
+                return num > max ? num : max;
+            }
+            return max;
+        }, 0);
+
+        return `${prefix}${maxNum + 1}`;
     } catch {
-        return `${prefix}4000`;
+        return `${prefix}1`;
     }
 }
 
