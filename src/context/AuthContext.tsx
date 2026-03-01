@@ -116,18 +116,20 @@ Tel: ${a.tapachula.telefono}
 // ─── Locker ID Generator ─────────────────────────────────────────────────────
 async function generateNextLocker(prefix: string = 'YBG'): Promise<string> {
     try {
+        // Obtenemos todos los casilleros porque el ordenamiento lexicográfico
+        // de Supabase ('YBG99' vs 'YBG100') no nos daría el verdadero máximo si usamos un limit pequeño
         const { data } = await supabase
             .from('clientes')
             .select('locker_id')
             .like('locker_id', `${prefix}%`)
             .order('locker_id', { ascending: false })
-            .limit(50); // fetch more to sort numerically, not lexicographically
+            .limit(5000);
 
         if (!data || data.length === 0) return `${prefix}1`;
 
         // Parse numeric suffix and find the actual highest number
         const maxNum = data.reduce((max, row) => {
-            const match = row.locker_id.replace(prefix, '').match(/^(\d+)$/);
+            const match = row.locker_id?.replace(prefix, '').match(/^(\d+)$/);
             if (match) {
                 const num = parseInt(match[1], 10);
                 return num > max ? num : max;
