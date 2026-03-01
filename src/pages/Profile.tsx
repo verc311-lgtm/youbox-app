@@ -74,9 +74,9 @@ export function Profile() {
                             direccion_linea1: data.direccion_linea1 || '',
                             direccion_linea2: data.direccion_linea2 || '',
                             referencia: data.referencia || '',
-                            password: data.password_hash || data.notas || ''
+                            password: data.notas || ''
                         });
-                        setOriginalPassword(data.password_hash || data.notas || '');
+                        setOriginalPassword(data.notas || '');
                     }
                 } else {
                     const { data, error } = await supabase
@@ -145,7 +145,7 @@ export function Profile() {
                     referencia: form.referencia,
                     ...(form.password !== originalPassword && {
                         notas: form.password, // Keep fallback support
-                        password_hash: form.password
+                        // password_hash: form.password // Removed as per instruction
                     })
                 };
 
