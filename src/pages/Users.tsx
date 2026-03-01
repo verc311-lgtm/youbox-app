@@ -129,7 +129,7 @@ export function Users() {
                 .from('clientes')
                 .select(`*, sucursales ( nombre )`)
                 .order('created_at', { ascending: false })
-                .limit(5000);
+                .limit(100000);
 
             if (error) throw error;
             setClientes(data || []);

@@ -77,7 +77,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
     const fetchInitialData = async () => {
         try {
             const [clientesRes, bodegasRes] = await Promise.all([
-                supabase.from('clientes').select('id, nombre, apellido, locker_id, email').eq('activo', true).order('nombre').limit(5000),
+                supabase.from('clientes').select('id, nombre, apellido, locker_id, email').eq('activo', true).order('nombre').limit(100000),
                 supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
             ]);
 

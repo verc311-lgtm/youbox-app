@@ -123,7 +123,7 @@ async function generateNextLocker(prefix: string = 'YBG'): Promise<string> {
             .select('locker_id')
             .like('locker_id', `${prefix}%`)
             .order('locker_id', { ascending: false })
-            .limit(5000);
+            .limit(100000);
 
         if (!data || data.length === 0) return `${prefix}1`;
 
