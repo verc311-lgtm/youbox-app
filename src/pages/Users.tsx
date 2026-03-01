@@ -217,7 +217,7 @@ export function Users() {
                     sucursal_id: formData.sucursal_id,
                     departamento: formData.departamento,
                     municipio: formData.municipio,
-                    ...(formData.password ? { password_hash: formData.password, notas: formData.password } : {})
+                    ...(formData.password ? { notas: formData.password } : {})
                 };
 
                 if (editingId) {
@@ -254,7 +254,7 @@ export function Users() {
                 const { error } = await supabase.from('usuarios').update({ password_hash: newPass }).eq('id', id);
                 if (error) throw error;
             } else {
-                const { error } = await supabase.from('clientes').update({ password_hash: newPass, notas: newPass }).eq('id', id);
+                const { error } = await supabase.from('clientes').update({ notas: newPass }).eq('id', id);
                 if (error) throw error;
             }
             alert("Contraseña actualizada exitosamente.");
