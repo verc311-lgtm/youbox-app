@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Users as UsersIcon, Plus, Shield, ShieldCheck, Mail, Phone, Trash2, KeyRound } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { UserRole } from '../context/AuthContext';
@@ -44,7 +45,11 @@ interface Cliente {
 }
 
 export function Users() {
-    const [activeTab, setActiveTab] = useState<'staff' | 'clients'>('staff');
+    const [searchParams] = useSearchParams();
+    const initialSearch = searchParams.get('search') || '';
+
+    // Automatically switch to 'clients' tab if there's a search term, since global search mostly targets clients
+    const [activeTab, setActiveTab] = useState<'staff' | 'clients'>(initialSearch ? 'clients' : 'staff');
     const [users, setUsers] = useState<StaffUser[]>([]);
     const [clientes, setClientes] = useState<Cliente[]>([]);
     const [roles, setRoles] = useState<Rol[]>([]);
@@ -52,7 +57,7 @@ export function Users() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(initialSearch);
     const [editingId, setEditingId] = useState<string | null>(null);
 
     // New user form state

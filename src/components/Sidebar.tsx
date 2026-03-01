@@ -61,10 +61,20 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
     { name: 'Pagos', href: '/payments', icon: CreditCard, section: 'Mis Servicios' },
   ];
 
-  const currentNav = user?.role === 'admin' ? navigation : customerNavigation;
-  const sections = user?.role === 'admin'
-    ? Array.from(new Set(navigation.map(item => item.section)))
-    : customerNavSections;
+  const currentNav = user?.role === 'cliente' || user?.role === 'viewer'
+    ? customerNavigation
+    : navigation.filter(item => {
+      if (user?.role === 'admin') return true;
+      if (user?.role === 'operador') {
+        return item.section === 'General' || item.section === 'Operaciones';
+      }
+      if (user?.role === 'facturador') {
+        return item.section === 'General' || item.section === 'Finanzas';
+      }
+      return false;
+    });
+
+  const sections = Array.from(new Set(currentNav.map(item => item.section)));
 
   return (
     <>

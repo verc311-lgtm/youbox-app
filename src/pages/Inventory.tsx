@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -32,6 +33,9 @@ export function Inventory() {
   const { user, isAdmin } = useAuth();
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get('search') || '';
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
 
   const [printingLabel, setPrintingLabel] = useState<any>(null);
 
@@ -66,6 +70,11 @@ export function Inventory() {
       setLoading(false);
     }
   }
+
+  const filteredPaquetes = paquetes.filter(p =>
+    p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -120,7 +129,7 @@ export function Inventory() {
                     </div>
                   </td>
                 </tr>
-              ) : paquetes.length === 0 ? (
+              ) : filteredPaquetes.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 7 : 6} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
@@ -135,7 +144,7 @@ export function Inventory() {
                   </td>
                 </tr>
               ) : (
-                paquetes.map((p, index) => (
+                filteredPaquetes.map((p, index) => (
                   <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                       <div className="flex items-center gap-4">

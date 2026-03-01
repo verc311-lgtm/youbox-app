@@ -33,12 +33,38 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Admin route wrapper
-function AdminRoute({ children }: { children: React.ReactNode }) {
+// Staff route (Admin, Operador, Facturador)
+function StaffRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  // If not admin, restrict access and redirect to their main view
   if (user?.role !== 'admin' && user?.role !== 'operador' && user?.role !== 'facturador') {
     return <Navigate to="/inventory" replace />;
+  }
+  return <>{children}</>;
+}
+
+// Operador Route (Admin, Operador)
+function OperadorRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'admin' && user?.role !== 'operador') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
+// Facturador Route (Admin, Facturador)
+function FacturadorRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'admin' && user?.role !== 'facturador') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
+// Admin Only Route (Admin)
+function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }
@@ -67,22 +93,22 @@ function AppRoutes() {
           index
           element={!isClient ? <Dashboard /> : <Navigate to="/inventory" replace />}
         />
-        <Route path="entry" element={<AdminRoute><QuickEntry /></AdminRoute>} />
-        <Route path="warehouse" element={<AdminRoute><Warehouse /></AdminRoute>} />
+        <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
+        <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
         <Route path="inventory" element={<Inventory />} />
-        <Route path="consolidation" element={<AdminRoute><Consolidation /></AdminRoute>} />
+        <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
         <Route path="billing" element={<Billing />} />
-        <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
-        <Route path="tariffs" element={<AdminRoute><Tariffs /></AdminRoute>} />
-        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
-        <Route path="branches" element={<AdminRoute><Branches /></AdminRoute>} />
-        <Route path="expenses" element={<AdminRoute><Expenses /></AdminRoute>} />
-        <Route path="reports" element={<AdminRoute><Reports /></AdminRoute>} />
+        <Route path="settings" element={<AdminOnlyRoute><Settings /></AdminOnlyRoute>} />
+        <Route path="tariffs" element={<AdminOnlyRoute><Tariffs /></AdminOnlyRoute>} />
+        <Route path="users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
+        <Route path="branches" element={<AdminOnlyRoute><Branches /></AdminOnlyRoute>} />
+        <Route path="expenses" element={<FacturadorRoute><Expenses /></FacturadorRoute>} />
+        <Route path="reports" element={<FacturadorRoute><Reports /></FacturadorRoute>} />
 
         {/* Pages under development or placeholders */}
         <Route path="profile" element={<Profile />} />
         <Route path="payments" element={<Navigate to="/billing" replace />} />
-        <Route path="geography" element={<AdminRoute><Navigate to="/settings" replace /></AdminRoute>} />
+        <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
       </Route>
 
       {/* Fallback */}
