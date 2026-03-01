@@ -85,9 +85,11 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
       >
         <div className="flex h-16 shrink-0 items-center justify-between px-6">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500">
-              <Boxes className="h-5 w-5 text-white" />
-            </div>
+            <img
+              src="https://youboxgt.online/wp-content/uploads/2024/10/Manual-de-logo-YouBoxGt-03-1.png"
+              alt="YOUBOX GT"
+              className="h-8 w-auto object-contain"
+            />
             <span className="text-xl font-bold text-white tracking-tight">YOUBOX GT</span>
           </div>
           {/* Close button strictly for mobile */}

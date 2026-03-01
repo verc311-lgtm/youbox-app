@@ -282,9 +282,11 @@ export function Register() {
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-6">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-500 shadow-lg shadow-blue-500/30 mb-3">
-                            <Boxes className="h-7 w-7 text-white" />
-                        </div>
+                        <img
+                            src="https://youboxgt.online/wp-content/uploads/2024/10/Manual-de-logo-YouBoxGt-03-1.png"
+                            alt="YOUBOX GT Logo"
+                            className="h-20 w-auto object-contain mb-3"
+                        />
                         <h1 className="text-2xl font-black text-white tracking-tight">YOUBOX GT</h1>
                         <p className="text-slate-400 text-sm">Crear cuenta de cliente</p>
                     </div>

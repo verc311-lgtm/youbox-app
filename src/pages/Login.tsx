@@ -37,9 +37,11 @@ export function Login() {
                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
                     {/* Logo */}
                     <div className="flex flex-col items-center mb-8">
-                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500 shadow-lg shadow-blue-500/30 mb-4">
-                            <Boxes className="h-8 w-8 text-white" />
-                        </div>
+                        <img
+                            src="https://youboxgt.online/wp-content/uploads/2024/10/Manual-de-logo-YouBoxGt-03-1.png"
+                            alt="YOUBOX GT Logo"
+                            className="h-24 w-auto object-contain mb-4"
+                        />
                         <h1 className="text-3xl font-black text-white tracking-tight">YOUBOX GT</h1>
                         <p className="text-slate-400 text-sm mt-1">Sistema de Gestión de Paquetes</p>
                     </div>
