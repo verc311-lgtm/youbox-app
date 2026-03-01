@@ -144,14 +144,31 @@ export function Users() {
     async function fetchClientes() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('clientes')
-                .select(`*, sucursales ( nombre )`)
-                .order('created_at', { ascending: false })
-                .limit(100000);
+            // Supabase has a hard limit of 1000 rows per request.
+            // We fetch in batches of 1000 until all records are loaded.
+            const BATCH_SIZE = 1000;
+            let allClientes: Cliente[] = [];
+            let from = 0;
 
-            if (error) throw error;
-            setClientes(data || []);
+            while (true) {
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select(`*, sucursales ( nombre )`)
+                    .order('created_at', { ascending: false })
+                    .range(from, from + BATCH_SIZE - 1);
+
+                if (error) throw error;
+                if (!data || data.length === 0) break;
+
+                allClientes = [...allClientes, ...data];
+
+                // If we got fewer rows than batch size, we've reached the end
+                if (data.length < BATCH_SIZE) break;
+
+                from += BATCH_SIZE;
+            }
+
+            setClientes(allClientes);
         } catch (e) {
             console.error('Error fetching clients:', e);
         } finally {
