@@ -96,8 +96,8 @@ export function Login() {
             }, 5000);
 
         } catch (err: any) {
-            console.error(err);
-            setError('Ocurrió un error al procesar tu solicitud.');
+            console.error('FORGOT PASSWORD ERROR:', err);
+            setError(`Error: ${err?.message || 'Ocurrió un error al procesar tu solicitud.'}`);
         } finally {
             setLoading(false);
         }
