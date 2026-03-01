@@ -144,12 +144,16 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
 
         {/* User info + logout */}
         <div className="border-t border-slate-800 p-4">
-          <div className="flex items-center gap-3 mb-3">
+          <Link
+            to="/profile"
+            onClick={() => setIsOpen?.(false)}
+            className="flex items-center gap-3 mb-3 p-2 -mx-2 rounded-md hover:bg-slate-800 transition-colors group"
+          >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold shrink-0">
               {user?.nombre?.[0]?.toUpperCase() ?? 'U'}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-sm font-medium text-white truncate">{user?.nombre} {user?.apellido}</p>
+            <div className="overflow-hidden flex-1">
+              <p className="text-sm font-medium text-white truncate group-hover:text-blue-400 transition-colors">{user?.nombre} {user?.apellido}</p>
               {user?.locker_id && (
                 <p className="text-xs text-blue-400 truncate">{user.locker_id}</p>
               )}
@@ -157,10 +161,10 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
                 <p className="text-xs text-amber-400">Administrador</p>
               )}
             </div>
-          </div>
+          </Link>
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-x-2 rounded-md p-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            className="flex w-full items-center gap-x-2 rounded-md p-2 -mx-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
           >
             <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" />
             Cerrar Sesión
