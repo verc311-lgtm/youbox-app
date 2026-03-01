@@ -73,7 +73,7 @@ export function PublicTracking() {
                         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                     );
                 }
-                setResult(data as PackageResult);
+                setResult(data as unknown as PackageResult);
             } else {
                 setNotFound(true);
             }

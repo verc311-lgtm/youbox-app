@@ -160,28 +160,35 @@ export function Reports() {
 
     if (loading) {
         return (
-            <div className="flex h-[80vh] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <div className="flex h-[80vh] flex-col items-center justify-center gap-4 animate-fade-in relative z-10 w-full">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent shadow-sm"></div>
+                <p className="text-sm font-bold text-slate-500">Analizando datos financieros...</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-10">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 max-w-7xl mx-auto pb-10 animate-fade-in relative z-10 w-full">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard Financiero</h1>
-                    <p className="text-sm text-slate-500">Métricas clave e historial de utilidad de los últimos 6 meses.</p>
+                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                        Dashboard Financiero
+                    </h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
+                        Métricas clave e historial de utilidad de los últimos 6 meses.
+                    </p>
                 </div>
                 {user?.role === 'admin' && (
-                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                        <Building className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                            <Building className="h-4.5 w-4.5" />
+                        </div>
                         <select
                             value={selectedFilterBranch}
                             onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                            className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                            className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full min-w-[180px]"
                         >
-                            <option value="all">Todas las Sedes</option>
+                            <option value="all">Todas las Sedes (Global)</option>
                             {sucursales.map(s => (
                                 <option key={s.id} value={s.id}>{s.nombre}</option>
                             ))}
@@ -191,32 +198,33 @@ export function Reports() {
             </div>
 
             {/* KPIs */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-                    <div className="rounded-full bg-emerald-100 p-3">
-                        <TrendingUp className="h-6 w-6 text-emerald-600" />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+                <div className="glass rounded-2xl border border-slate-200/60 p-6 shadow-sm flex items-center gap-5 hover:shadow-md transition-all hover:-translate-y-0.5 animate-slide-up" style={{ animationDelay: '0ms' }}>
+                    <div className="rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 p-3.5 shadow-lg shadow-emerald-500/20 text-white">
+                        <TrendingUp className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Ingresos (Este Mes)</p>
-                        <p className="text-2xl font-semibold text-slate-900">{formatQ(kpis.ingresosMesActual)}</p>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Ingresos (Este Mes)</p>
+                        <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.ingresosMesActual)}</p>
                     </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-                    <div className="rounded-full bg-red-100 p-3">
-                        <TrendingDown className="h-6 w-6 text-red-600" />
+                <div className="glass rounded-2xl border border-slate-200/60 p-6 shadow-sm flex items-center gap-5 hover:shadow-md transition-all hover:-translate-y-0.5 animate-slide-up" style={{ animationDelay: '50ms' }}>
+                    <div className="rounded-xl bg-gradient-to-br from-red-400 to-red-600 p-3.5 shadow-lg shadow-red-500/20 text-white">
+                        <TrendingDown className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">Gastos (Este Mes)</p>
-                        <p className="text-2xl font-semibold text-slate-900">{formatQ(kpis.gastosMesActual)}</p>
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Gastos (Este Mes)</p>
+                        <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.gastosMesActual)}</p>
                     </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-                    <div className={`rounded-full p-3 ${kpis.balanceMesActual >= 0 ? 'bg-blue-100' : 'bg-orange-100'}`}>
-                        <DollarSign className={`h-6 w-6 ${kpis.balanceMesActual >= 0 ? 'text-blue-600' : 'text-orange-600'}`} />
+                <div className="glass rounded-2xl border border-slate-200/60 p-6 shadow-sm flex items-center gap-5 hover:shadow-md transition-all hover:-translate-y-0.5 animate-slide-up relative overflow-hidden group" style={{ animationDelay: '100ms' }}>
+                    <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl -mr-10 -mt-10 transition-colors duration-500 ${kpis.balanceMesActual >= 0 ? 'bg-blue-500/10 group-hover:bg-blue-500/20' : 'bg-orange-500/10 group-hover:bg-orange-500/20'}`}></div>
+                    <div className={`rounded-xl p-3.5 shadow-lg text-white relative z-10 ${kpis.balanceMesActual >= 0 ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/20' : 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-orange-500/20'}`}>
+                        <DollarSign className="h-6 w-6" />
                     </div>
-                    <div>
-                        <p className="text-sm font-medium text-slate-500">Utilidad (Neta)</p>
-                        <p className={`text-2xl font-semibold ${kpis.balanceMesActual >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                    <div className="relative z-10">
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Utilidad (Neta)</p>
+                        <p className={`text-2xl font-black tracking-tight font-mono ${kpis.balanceMesActual >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
                             {formatQ(kpis.balanceMesActual)}
                         </p>
                     </div>
@@ -224,13 +232,15 @@ export function Reports() {
             </div>
 
             {/* Charts Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up" style={{ animationDelay: '150ms' }}>
 
                 {/* Bar Chart */}
-                <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-base font-semibold text-slate-900 mb-6 flex items-center gap-2">
-                        <Calendar className="h-5 w-5 text-blue-500" />
-                        Ingresos vs Egresos (Últimos 6 meses)
+                <div className="lg:col-span-2 glass rounded-2xl border border-slate-200/60 p-6 sm:p-8 shadow-sm">
+                    <h2 className="text-xl font-extrabold text-slate-900 mb-6 flex items-center gap-3">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                            <Calendar className="h-4.5 w-4.5" />
+                        </span>
+                        Ingresos vs Egresos <span className="text-sm font-bold text-slate-400 font-normal hidden sm:inline">(Últimos 6 meses)</span>
                     </h2>
                     <div className="h-[350px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -252,12 +262,13 @@ export function Reports() {
                 </div>
 
                 {/* Pie Chart */}
-                <div className="lg:col-span-1 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-base font-semibold text-slate-900 mb-6">Distribución de Gastos (Mes Actual)</h2>
+                <div className="lg:col-span-1 glass rounded-2xl border border-slate-200/60 p-6 sm:p-8 shadow-sm flex flex-col">
+                    <h2 className="text-xl font-extrabold text-slate-900 mb-6">Distribución de Gastos</h2>
 
                     {categoryData.length === 0 ? (
-                        <div className="h-[300px] flex items-center justify-center text-slate-400 text-sm">
-                            No hay gastos registrados este mes.
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                            <DollarSign className="w-10 h-10 text-slate-300 mb-3" />
+                            <p className="text-sm font-bold text-slate-500">No hay gastos en el mes actual.</p>
                         </div>
                     ) : (
                         <>
@@ -282,14 +293,14 @@ export function Reports() {
                                 </ResponsiveContainer>
                             </div>
 
-                            <div className="mt-4 space-y-2">
+                            <div className="mt-6 space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                 {categoryData.map((cat, index) => (
-                                    <div key={cat.name} className="flex justify-between items-center text-sm">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                                            <span className="text-slate-600">{cat.name}</span>
+                                    <div key={cat.name} className="flex justify-between items-center text-sm p-3 rounded-xl bg-white/60 border border-slate-100 hover:border-slate-300 hover:shadow-sm transition-all group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-3.5 h-3.5 rounded-full shadow-sm group-hover:scale-110 transition-transform" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                                            <span className="text-slate-700 font-bold">{cat.name}</span>
                                         </div>
-                                        <span className="font-semibold text-slate-900">{formatQ(cat.value)}</span>
+                                        <span className="font-black text-slate-900 font-mono tracking-tight">{formatQ(cat.value)}</span>
                                     </div>
                                 ))}
                             </div>

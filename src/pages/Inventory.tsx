@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Filter, Download, Inbox, Package as PkgIcon } from 'lucide-react';
+import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -68,23 +68,23 @@ export function Inventory() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
             {isAdmin ? 'Control de Inventario' : 'Mis Paquetes'}
           </h1>
-          <p className="text-sm text-slate-500">
-            {isAdmin ? 'Gestión de paquetes en almacén (Warehouses).' : 'Rastrea el estado de tus compras.'}
+          <p className="text-sm font-medium text-slate-500 mt-1">
+            {isAdmin ? 'Gestión de paquetes en almacén (Warehouses).' : 'Rastrea el estado de tus compras en tiempo real.'}
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-            <Filter className="h-4 w-4" />
+          <button className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-white/70 backdrop-blur-sm px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm border border-slate-200/80 hover:bg-white hover:shadow-md transition-all duration-200">
+            <Filter className="h-4 w-4 text-blue-500" />
             Filtros
           </button>
           {isAdmin && (
-            <button className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+            <button className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
               <Download className="h-4 w-4" />
               Exportar
             </button>
@@ -92,80 +92,104 @@ export function Inventory() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-2xl glass overflow-hidden flex flex-col min-w-0">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
+          <table className="min-w-full divide-y divide-slate-200/60">
+            <thead className="bg-slate-50/50 backdrop-blur-sm">
               <tr>
-                <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Tracking / Envío</th>
-                {isAdmin && <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Cliente</th>}
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Ingreso</th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Peso</th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden md:table-cell">Ubicación</th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estatus</th>
+                <th scope="col" className="py-4 pl-4 pr-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 sm:pl-6">Tracking / Envío</th>
+                {isAdmin && <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</th>}
+                <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Ingreso</th>
+                <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Peso</th>
+                <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500 hidden md:table-cell">Ubicación</th>
+                <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Estatus</th>
                 {isAdmin && (
-                  <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                  <th scope="col" className="relative py-4 pl-3 pr-4 sm:pr-6">
                     <span className="sr-only">Acciones</span>
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 bg-white">
+            <tbody className="divide-y divide-slate-100 bg-white/40">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-slate-500 text-sm">Cargando paquetes...</td>
+                  <td colSpan={isAdmin ? 7 : 6} className="py-20 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                      <p className="text-sm font-medium text-slate-500">Sincronizando inventario...</p>
+                    </div>
+                  </td>
                 </tr>
               ) : paquetes.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <Inbox className="h-10 w-10 text-slate-300" />
-                      <p className="text-sm font-medium text-slate-500">No hay paquetes registrados</p>
-                      <p className="text-xs">Los paquetes aparecerán aquí cuando lleguen a nuestras bodegas.</p>
+                  <td colSpan={isAdmin ? 7 : 6} className="py-20 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center">
+                        <Inbox className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-slate-700">No hay paquetes registrados</p>
+                        <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">Los paquetes aparecerán aquí en cuanto sean procesados en nuestras bodegas.</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : (
-                paquetes.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
+                paquetes.map((p, index) => (
+                  <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-md bg-blue-50 p-2 hidden sm:block">
-                          <PkgIcon className="h-4 w-4 text-blue-600" />
+                      <div className="flex items-center gap-4">
+                        <div className="rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 p-2.5 hidden sm:block shadow-sm group-hover:scale-105 transition-transform">
+                          <PkgIcon className="h-5 w-5 text-blue-600" />
                         </div>
                         <div>
-                          <div className="font-medium text-slate-900 text-sm">{p.tracking}</div>
-                          <div className="text-xs text-slate-500">{p.transportistas?.nombre || 'Carrier'}</div>
+                          <div className="font-bold text-slate-900 text-sm tracking-tight">{p.tracking}</div>
+                          <div className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1.5">
+                            <Truck className="h-3 w-3" />
+                            {p.transportistas?.nombre || 'Carrier'}
+                          </div>
                           {/* Mobile only details */}
-                          <div className="sm:hidden text-xs text-slate-400 mt-1">
-                            {p.peso_lbs} lbs • {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM', { locale: es }) : 'N/A'}
+                          <div className="sm:hidden flex items-center gap-2 text-xs font-medium text-slate-400 mt-1.5">
+                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">{p.peso_lbs} lbs</span>
+                            <span>•</span>
+                            <span>{p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM', { locale: es }) : 'N/A'}</span>
                           </div>
                         </div>
                       </div>
                     </td>
                     {isAdmin && (
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
-                        {p.clientes?.nombre} {p.clientes?.apellido} <br />
-                        <span className="text-xs text-blue-600 font-medium">{p.clientes?.locker_id}</span>
+                      <td className="whitespace-nowrap px-3 py-4">
+                        <div className="text-sm font-semibold text-slate-700">
+                          {p.clientes?.nombre} {p.clientes?.apellido}
+                        </div>
+                        <div className="text-xs font-bold text-blue-600 bg-blue-50 inline-flex items-center px-2 py-0.5 rounded-md mt-1">
+                          {p.clientes?.locker_id}
+                        </div>
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden sm:table-cell">
+                    <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-600 hidden sm:table-cell">
                       {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 font-medium hidden sm:table-cell">
-                      {p.peso_lbs} lbs
+                    <td className="whitespace-nowrap px-3 py-4 hidden sm:table-cell">
+                      <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        {p.peso_lbs} <span className="text-slate-400 ml-1">lbs</span>
+                      </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden md:table-cell">
-                      {p.bodegas?.nombre || 'Bodega General'}
+                    <td className="whitespace-nowrap px-3 py-4 hidden md:table-cell">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        <span className="text-sm font-medium text-slate-700">{p.bodegas?.nombre || 'Bodega General'}</span>
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
-                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${ESTADOS[p.estado]?.color || 'bg-slate-50 text-slate-600 ring-slate-500/10'}`}>
+                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shadow-sm ${ESTADOS[p.estado]?.color || 'bg-slate-50 text-slate-600 ring-slate-500/10'}`}>
+                        <div className={`h-1.5 w-1.5 rounded-full bg-current opacity-70`} />
                         {ESTADOS[p.estado]?.label || p.estado}
                       </span>
                     </td>
                     {isAdmin && (
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <div className="flex items-center justify-end gap-3">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => setPrintingLabel({
                               remitenteInfo: p.transportistas?.nombre || '',
@@ -176,12 +200,14 @@ export function Inventory() {
                               pesoLbs: p.peso_lbs,
                               piezas: 1
                             })}
-                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
                             title="Imprimir Etiqueta"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                           </button>
-                          <button className="text-blue-600 hover:text-blue-900">Editar</button>
+                          <button className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200" title="Editar Paquete">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                          </button>
                         </div>
                       </td>
                     )}

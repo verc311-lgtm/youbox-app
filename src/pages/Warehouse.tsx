@@ -110,20 +110,24 @@ export function Warehouse() {
     });
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto pb-10">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 max-w-7xl mx-auto animate-fade-in relative z-10 w-full pb-10">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Warehouse</h1>
-                    <p className="text-sm text-slate-500">Agrupación temporal de paquetes por cliente y bodega.</p>
+                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                        Warehouse
+                    </h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
+                        Agrupación temporal de paquetes por cliente y bodega.
+                    </p>
                 </div>
 
-                <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                <div className="relative group/search outline-none">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                        <Search className="h-4.5 w-4.5 text-slate-400 group-focus-within/search:text-blue-500 transition-colors" aria-hidden="true" />
                     </div>
                     <input
                         type="text"
-                        className="block w-full rounded-full border-0 py-2 pl-10 pr-4 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 min-w-[300px]"
+                        className="block w-full rounded-2xl border border-slate-200/80 bg-white/70 py-2.5 pl-11 pr-5 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 font-medium sm:text-sm min-w-[320px] backdrop-blur-xl hover:border-slate-300 hover:bg-white/90"
                         placeholder="Buscar casillero, nombre, bodega o tracking..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -132,62 +136,67 @@ export function Warehouse() {
             </div>
 
             {loading ? (
-                <div className="flex justify-center items-center py-20">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+                <div className="flex justify-center flex-col items-center py-20 gap-4">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent shadow-sm"></div>
+                    <p className="text-sm font-bold text-slate-500">Cargando inventario...</p>
                 </div>
             ) : filteredLockers.length === 0 ? (
-                <div className="text-center bg-white rounded-xl border border-slate-200 py-16 px-6 shadow-sm">
-                    <Inbox className="mx-auto h-12 w-12 text-slate-300" />
-                    <h3 className="mt-4 text-sm font-semibold text-slate-900">No hay paquetes en bodega</h3>
-                    <p className="mt-2 text-sm text-slate-500">
-                        Todos los paquetes han sido consolidados o la búsqueda no arrojó resultados.
+                <div className="text-center glass rounded-2xl border border-slate-200/60 py-20 px-8 shadow-sm">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 shadow-inner mb-5">
+                        <Inbox className="h-10 w-10 text-slate-300" />
+                    </div>
+                    <h3 className="mt-4 text-lg font-extrabold text-slate-800 tracking-tight">No hay paquetes en bodega</h3>
+                    <p className="mt-2 text-sm font-medium text-slate-500 max-w-md mx-auto">
+                        Todos los paquetes han sido consolidados o la búsqueda actual no arrojó resultados. Intenta ajustar tus filtros.
                     </p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredLockers.map(([groupKey, group]) => {
+                    {filteredLockers.map(([groupKey, group], idx) => {
                         const isExpanded = !!expandedCards[groupKey];
                         const lockerDisplay = group.cliente?.locker_id || 'SIN_LOCKER';
                         return (
                             <div
                                 key={groupKey}
-                                className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-200 flex flex-col"
+                                className="glass rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden hover:shadow-lg transition-all duration-300 flex flex-col hover:-translate-y-1 animate-fade-in"
+                                style={{ animationDelay: `${idx * 40}ms` }}
                             >
                                 <div
-                                    className="p-5 cursor-pointer flex-none select-none hover:bg-slate-50/50"
+                                    className="p-5 cursor-pointer flex-none select-none hover:bg-white/40 transition-colors duration-200"
                                     onClick={() => toggleExpand(groupKey)}
                                 >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0">
-                                                <MapPin className="h-5 w-5 text-blue-600" />
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md shadow-blue-500/20 text-white flex-shrink-0 group-hover:scale-105 transition-transform">
+                                                <MapPin className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <div className="flex items-center gap-2">
-                                                    <h3 className="text-lg font-bold text-slate-900 transition-colors">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">
                                                         {lockerDisplay}
                                                     </h3>
-                                                    <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                                    <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2 py-0.5 text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider border border-indigo-100 shadow-sm">
                                                         {group.bodega?.nombre || 'Desconocida'}
                                                     </span>
                                                 </div>
                                                 {group.cliente ? (
-                                                    <p className="text-sm font-medium text-slate-600 mt-0.5">
+                                                    <p className="text-sm font-semibold text-slate-500 flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                                                         {group.cliente.nombre} {group.cliente.apellido}
                                                     </p>
                                                 ) : (
-                                                    <p className="text-sm text-red-500 font-medium mt-0.5">Cliente Desconocido</p>
+                                                    <p className="text-sm text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-red-100 shadow-sm">Cliente Desconocido</p>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between text-xs font-medium text-slate-500 uppercase tracking-wider border-t border-slate-100 pt-3">
-                                        <div className="flex items-center gap-2 text-slate-600">
-                                            <Package className="h-4 w-4" />
-                                            <span className="font-bold">{group.paquetes.length} pz</span>
+                                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider border-t border-slate-200/60 pt-4">
+                                        <div className="flex items-center gap-2 text-slate-600 bg-white/60 px-2.5 py-1 rounded-lg shadow-sm border border-slate-100">
+                                            <Package className="h-4.5 w-4.5 text-blue-500" />
+                                            <span className="font-extrabold text-blue-900">{group.paquetes.length} pz</span>
                                         </div>
-                                        <div className="flex items-center gap-1 text-blue-600">
+                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border ${isExpanded ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
                                             <span>{isExpanded ? 'Ocultar' : 'Ver Contenido'}</span>
                                             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                         </div>
@@ -195,28 +204,30 @@ export function Warehouse() {
                                 </div>
 
                                 {isExpanded && (
-                                    <div className="bg-slate-50 border-t border-slate-200 p-4 flex-1">
+                                    <div className="bg-slate-50/50 backdrop-blur-sm border-t border-slate-200/60 p-5 flex-1 animate-slide-up origin-top">
                                         <div className="space-y-3">
                                             {group.paquetes.map((paquete) => (
-                                                <div key={paquete.id} className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm flex flex-col gap-2">
+                                                <div key={paquete.id} className="bg-white/80 rounded-xl p-3.5 border border-slate-200/80 shadow-sm flex flex-col gap-2.5 hover:shadow-md hover:-translate-y-0.5 transition-all">
                                                     <div className="flex justify-between items-start">
-                                                        <div className="flex items-center gap-2">
-                                                            <Package className="h-4 w-4 text-slate-400" />
-                                                            <span className="text-sm font-bold text-slate-800 break-all">{paquete.tracking}</span>
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-500 shadow-sm border border-blue-100/50">
+                                                                <Package className="h-4 w-4" />
+                                                            </div>
+                                                            <span className="text-sm font-extrabold text-slate-900 break-all tracking-tight selection:bg-blue-100 font-mono">{paquete.tracking}</span>
                                                         </div>
                                                         {paquete.peso_lbs && (
-                                                            <span className="text-xs font-semibold bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 whitespace-nowrap">
+                                                            <span className="text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/60 rounded-lg px-2 py-0.5 whitespace-nowrap shadow-sm font-mono">
                                                                 {paquete.peso_lbs} lbs
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center justify-between text-xs text-slate-500">
-                                                        <div className="flex items-center gap-1">
-                                                            <Truck className="h-3 w-3" />
+                                                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                                                        <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                                            <Truck className="h-3.5 w-3.5 text-slate-400" />
                                                             <span>{paquete.transportistas?.nombre || 'Desconocido'}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <Calendar className="h-3 w-3" />
+                                                        <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
                                                             <span>
                                                                 {paquete.fecha_recepcion ? format(new Date(paquete.fecha_recepcion), 'dd/MM/yyyy') : 'N/A'}
                                                             </span>

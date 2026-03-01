@@ -188,97 +188,104 @@ export function Profile() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center h-64">
-                <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="flex justify-center flex-col items-center py-20 gap-4 animate-fade-in relative z-10">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent shadow-sm"></div>
+                <p className="text-sm font-bold text-slate-500">Cargando perfil...</p>
             </div>
         );
     }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
+        <div className="max-w-3xl mx-auto space-y-6 animate-fade-in relative z-10 w-full pb-10">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Mi Perfil</h1>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                        Mi Perfil
+                    </h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
                         Actualiza tu información personal y de entrega.
                     </p>
                 </div>
             </div>
 
             {error && (
-                <div className="rounded-lg bg-red-50 p-4 border border-red-200">
+                <div className="rounded-xl bg-red-50/80 backdrop-blur-sm p-4.5 border border-red-200 shadow-sm animate-slide-up">
                     <div className="flex items-center">
-                        <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                        <span className="text-sm text-red-700">{error}</span>
+                        <AlertCircle className="h-5 w-5 text-red-500 mr-2.5 flex-shrink-0" />
+                        <span className="text-sm font-bold text-red-700">{error}</span>
                     </div>
                 </div>
             )}
 
             {success && (
-                <div className="rounded-lg bg-green-50 p-4 border border-green-200">
+                <div className="rounded-xl bg-emerald-50/80 backdrop-blur-sm p-4.5 border border-emerald-200 shadow-sm animate-slide-up">
                     <div className="flex items-center">
-                        <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                        <span className="text-sm text-green-700">{success}</span>
+                        <CheckCircle className="h-5 w-5 text-emerald-500 mr-2.5 flex-shrink-0" />
+                        <span className="text-sm font-bold text-emerald-700">{success}</span>
                     </div>
                 </div>
             )}
 
-            <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden">
-                <div className="p-6">
-                    <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="glass rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                <div className="p-6 sm:p-8">
+                    <form onSubmit={handleSubmit} className="space-y-8">
 
                         {/* ── Readonly fields ── */}
-                        <div className="flex gap-4">
-                            <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-100 flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1 bg-gradient-to-br from-indigo-50 to-blue-50/50 p-5 rounded-2xl border border-indigo-100/60 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
                                 <div>
-                                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Tu Casillero</p>
-                                    <p className="text-lg font-bold text-blue-600">{user?.locker_id || 'N/A'}</p>
+                                    <p className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-widest mb-1.5">Tu Casillero</p>
+                                    <p className="text-2xl font-black text-indigo-700 tracking-tight font-mono">{user?.locker_id || 'N/A'}</p>
                                 </div>
-                                <AlertCircle className="h-5 w-5 text-slate-400" />
+                                <div className="h-12 w-12 rounded-xl bg-white shadow-sm flex items-center justify-center border border-indigo-100">
+                                    <AlertCircle className="h-6 w-6 text-indigo-500" />
+                                </div>
                             </div>
-                            <div className="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Correo Electrónico</p>
-                                <p className="text-slate-700 mt-1 font-medium">{user?.email}</p>
+                            <div className="flex-1 bg-white/60 p-5 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Correo Electrónico</p>
+                                <p className="text-slate-800 mt-1 font-bold text-lg truncate" title={user?.email || ''}>{user?.email}</p>
                             </div>
                         </div>
 
                         {/* ── Personal Info ── */}
                         <div>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                                <User className="h-5 w-5 text-blue-600" />
+                            <h3 className="text-xl font-extrabold text-slate-900 mb-5 flex items-center gap-3">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                                    <User className="h-4.5 w-4.5" />
+                                </span>
                                 Información Personal
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Nombre</label>
                                     <input
                                         type="text"
                                         name="nombre"
                                         value={form.nombre}
                                         onChange={handleChange}
-                                        className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                        className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Apellido</label>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Apellido</label>
                                     <input
                                         type="text"
                                         name="apellido"
                                         value={form.apellido}
                                         onChange={handleChange}
-                                        className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                        className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                     />
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1">
-                                        <Phone className="h-4 w-4 text-slate-400" /> WhatsApp / Teléfono
+                                    <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1 flex items-center gap-2">
+                                        <Phone className="h-4 w-4 text-emerald-500" /> WhatsApp / Teléfono
                                     </label>
                                     <input
                                         type="text"
                                         name="telefono"
                                         value={form.telefono}
                                         onChange={handleChange}
-                                        className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                        className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                     />
                                 </div>
                             </div>
@@ -287,19 +294,22 @@ export function Profile() {
                         {/* ── Address (Only for clients) ── */}
                         {user?.role === 'cliente' && (
                             <div>
-                                <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2 mt-8 pt-6 border-t border-slate-100">
-                                    <MapPin className="h-5 w-5 text-blue-600" />
+                                <h3 className="text-xl font-extrabold text-slate-900 mb-5 flex items-center gap-3 mt-10 pt-8 border-t border-slate-200/60 relative">
+                                    <span className="absolute -top-px left-0 w-24 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500"></span>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                                        <MapPin className="h-4.5 w-4.5" />
+                                    </span>
                                     Dirección de Entrega
                                 </h3>
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Departamento</label>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Departamento</label>
                                             <select
                                                 name="departamento"
                                                 value={form.departamento}
                                                 onChange={handleChange}
-                                                className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                                className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium"
                                             >
                                                 <option value="">— Selecciona —</option>
                                                 {DEPARTAMENTOS.map(dep => (
@@ -308,13 +318,13 @@ export function Profile() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-slate-700 mb-1">Municipio</label>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Municipio</label>
                                             <select
                                                 name="municipio"
                                                 value={form.municipio}
                                                 onChange={handleChange}
                                                 disabled={!form.departamento}
-                                                className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border disabled:bg-slate-50"
+                                                className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium disabled:bg-slate-50/50 disabled:text-slate-400 disabled:cursor-not-allowed"
                                             >
                                                 <option value="">— Selecciona —</option>
                                                 {municipios.map(mun => (
@@ -325,33 +335,34 @@ export function Profile() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Calle / Avenida / Zona</label>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Calle / Avenida / Zona</label>
                                         <input
                                             type="text"
                                             name="direccion_linea1"
                                             value={form.direccion_linea1}
                                             onChange={handleChange}
-                                            className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                            className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Colonia / Residencial / Apartamento</label>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Colonia / Residencial / Apartamento</label>
                                         <input
                                             type="text"
                                             name="direccion_linea2"
                                             value={form.direccion_linea2}
                                             onChange={handleChange}
-                                            className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                            className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Referencia</label>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Referencia</label>
                                         <textarea
                                             name="referencia"
                                             value={form.referencia}
                                             onChange={handleChange}
                                             rows={2}
-                                            className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                            className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400 resize-none min-h-[80px]"
+                                            placeholder="Detalles adicionales para encontrar tu dirección..."
                                         />
                                     </div>
                                 </div>
@@ -360,38 +371,41 @@ export function Profile() {
 
                         {/* ── Security ── */}
                         <div>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2 mt-8 pt-6 border-t border-slate-100">
-                                <Lock className="h-5 w-5 text-blue-600" />
+                            <h3 className="text-xl font-extrabold text-slate-900 mb-5 flex items-center gap-3 mt-10 pt-8 border-t border-slate-200/60 relative">
+                                <span className="absolute -top-px left-0 w-24 h-0.5 bg-gradient-to-r from-red-500 to-orange-500"></span>
+                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+                                    <Lock className="h-4.5 w-4.5" />
+                                </span>
                                 Seguridad
                             </h3>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nueva Contraseña</label>
+                                <label className="block text-sm font-bold text-slate-700 mb-1.5 pl-1">Nueva Contraseña</label>
                                 <input
                                     type="password"
                                     name="password"
                                     value={form.password}
                                     onChange={handleChange}
-                                    className="w-full rounded-lg border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
+                                    className="w-full rounded-xl border border-slate-200/80 bg-white/70 py-2.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm font-medium placeholder:text-slate-400"
                                     placeholder="Deja en blanco si no quieres cambiarla"
                                 />
-                                <p className="text-xs text-slate-500 mt-1">
+                                <p className="text-xs font-semibold text-slate-500 mt-2 bg-slate-50 border border-slate-100 p-2 rounded-lg">
                                     Modifica este campo solo si quieres cambiar tu contraseña actual.
                                 </p>
                             </div>
                         </div>
 
-                        <div className="pt-6 border-t border-slate-100 flex justify-end">
+                        <div className="pt-8 border-t border-slate-200/60 flex justify-end">
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 w-full sm:w-auto justify-center"
                             >
                                 {saving ? (
-                                    <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                                    <span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
-                                    <Save className="h-4 w-4 mr-2" />
+                                    <Save className="h-5 w-5" />
                                 )}
-                                Guardar Cambios
+                                {saving ? "Guardando..." : "Guardar Cambios"}
                             </button>
                         </div>
                     </form>

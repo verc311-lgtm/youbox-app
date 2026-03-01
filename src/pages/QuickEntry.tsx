@@ -320,57 +320,62 @@ export function QuickEntry() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-[1400px] mx-auto animate-fade-in relative z-10 w-full max-w-full pb-10">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Multi-Entry (Bulk)</h1>
-          <p className="text-sm text-slate-500">Ingreso masivo de paquetes en matriz optimizada para lectores <Keyboard className="inline h-3 w-3 mx-0.5 text-slate-400" /> y cámara.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+            Multi-Entry (Bulk)
+          </h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">
+            Ingreso masivo de paquetes en matriz optimizada para lectores <Keyboard className="inline h-3 w-3 mx-0.5 text-slate-400" /> y cámara.
+          </p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={addRow}
-            className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
-            <Plus className="h-4 w-4" />
+            className="inline-flex items-center gap-2 rounded-xl bg-white/80 px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm border border-slate-200/60 hover:bg-white hover:-translate-y-0.5 hover:shadow-md transition-all focus:outline-none"
+          >
+            <Plus className="h-4 w-4 text-blue-500" />
             Añadir Fila
           </button>
           <button
             disabled={saving}
             onClick={handleSaveBatch}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
             {saving ? 'Procesando...' : 'Guardar Lote Completo'}
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="glass border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+            <thead className="bg-slate-50/50 backdrop-blur-md text-xs font-extrabold text-slate-500 uppercase tracking-wider border-b border-slate-200/60 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 font-semibold w-12 text-center">#</th>
-                <th className="px-4 py-3 font-semibold w-40">Bodega de Salida</th>
-                <th className="px-4 py-3 font-semibold min-w-[200px]">Tracking Number <span className="text-red-500">*</span></th>
-                <th className="px-4 py-3 font-semibold min-w-[240px]">Cliente / Locker <span className="text-red-500">*</span></th>
-                <th className="px-4 py-3 font-semibold w-24">Peso(lbs)</th>
-                <th className="px-4 py-3 font-semibold w-36">Dim(L,W,H)</th>
-                <th className="px-4 py-3 font-semibold w-20">Pz</th>
-                <th className="px-4 py-3 font-semibold w-24">Frágil/Re</th>
-                <th className="px-4 py-3 font-semibold w-12 text-center"></th>
+                <th className="px-4 py-3.5 w-12 text-center text-slate-400">#</th>
+                <th className="px-4 py-3.5 w-40">Bodega de Salida</th>
+                <th className="px-4 py-3.5 min-w-[200px]">Tracking Number <span className="text-red-500 text-base">*</span></th>
+                <th className="px-4 py-3.5 min-w-[240px]">Cliente / Locker <span className="text-red-500 text-base">*</span></th>
+                <th className="px-4 py-3.5 w-24">Peso(lbs)</th>
+                <th className="px-4 py-3.5 w-36 text-center">Dim(L,W,H)</th>
+                <th className="px-4 py-3.5 w-20 text-center">Pz</th>
+                <th className="px-4 py-3.5 w-24 text-center">Frágil/Re</th>
+                <th className="px-4 py-3.5 w-12 text-center"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100/50 bg-white/40">
               {rows.map((row, index) => (
-                <tr key={row.id} className="hover:bg-blue-50/10 transition-colors group">
-                  <td className="px-4 py-2 text-center text-slate-400 font-medium">{index + 1}</td>
+                <tr key={row.id} className="hover:bg-blue-50/40 transition-colors group">
+                  <td className="px-4 py-2.5 text-center text-slate-400 font-bold font-mono text-xs">{index + 1}</td>
 
                   {/* Bodega */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <select
                       value={row.bodega_id}
                       onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
-                      className="block w-full rounded-md border-0 py-1.5 px-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs"
+                      className="block w-full rounded-lg border-slate-200/80 bg-slate-50/50 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-xs font-semibold"
                     >
                       {bodegas.map(b => (
                         <option key={b.id} value={b.id}>{b.nombre}</option>
@@ -379,12 +384,12 @@ export function QuickEntry() {
                   </td>
 
                   {/* Tracking */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <div className="flex gap-1.5">
                       <input
                         id={`tracking-${row.id}`}
                         type="text"
-                        className="block w-full rounded-md border-0 py-1.5 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm font-medium"
+                        className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase"
                         placeholder="Escanea o escribe..."
                         value={row.tracking}
                         onChange={(e) => {
@@ -396,7 +401,7 @@ export function QuickEntry() {
                       <button
                         type="button"
                         onClick={() => openScanner(row.id)}
-                        className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200/60 shadow-sm transition-all hover:border-blue-200 active:scale-95"
                         title="Usar Cámara (Scan Óptico)"
                       >
                         <ScanLine className="h-4 w-4" />
@@ -405,15 +410,15 @@ export function QuickEntry() {
                   </td>
 
                   {/* Client Autocomplete */}
-                  <td className="px-4 py-2">
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                        <Search className="h-3 w-3 text-slate-400" />
+                  <td className="px-4 py-2.5">
+                    <div className="relative group/search">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <Search className="h-3.5 w-3.5 text-slate-400 group-focus-within/search:text-blue-500 transition-colors" />
                       </div>
                       <input
                         id={`client-${row.id}`}
                         type="text"
-                        className={`block w-full rounded-md border-0 py-1.5 pl-7 pr-3 text-slate-900 shadow-sm ring-1 ring-inset focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm ${!row.cliente_id && row.clientSearch ? 'ring-yellow-400' : 'ring-slate-300'}`}
+                        className={`block w-full rounded-lg py-1.5 pl-8 pr-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold ${!row.cliente_id && row.clientSearch ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/10 text-amber-900' : 'border border-slate-200/80 bg-white/80'}`}
                         placeholder="Buscar YBG..."
                         value={row.clientSearch}
                         onChange={(e) => handleClientSearchChange(row.id, e.target.value)}
@@ -449,12 +454,12 @@ export function QuickEntry() {
                   </td>
 
                   {/* Peso */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <input
                       id={`peso-${row.id}`}
                       type="number"
                       step="0.01"
-                      className="block w-full rounded-md border-0 py-1.5 px-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs"
+                      className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 text-right sm:text-sm font-mono font-bold"
                       placeholder="0.00"
                       value={row.peso_lbs}
                       onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
@@ -463,11 +468,11 @@ export function QuickEntry() {
                   </td>
 
                   {/* Dimensiones (L W H) */}
-                  <td className="px-4 py-2">
-                    <div className="flex items-center gap-1">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1.5 bg-slate-50/50 p-1 rounded-lg border border-slate-200/60 shadow-inner">
                       <input
                         type="number"
-                        className="block w-1/3 rounded-md border-0 py-1.5 px-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs text-center"
+                        className="block w-1/3 rounded-md border-0 py-1 px-1.5 text-slate-900 bg-white shadow-sm ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-xs text-center font-mono font-bold"
                         placeholder="L"
                         value={row.largo_in}
                         onChange={(e) => updateRow(row.id, 'largo_in', e.target.value)}
@@ -475,7 +480,7 @@ export function QuickEntry() {
                       />
                       <input
                         type="number"
-                        className="block w-1/3 rounded-md border-0 py-1.5 px-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs text-center"
+                        className="block w-1/3 rounded-md border-0 py-1 px-1.5 text-slate-900 bg-white shadow-sm ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-xs text-center font-mono font-bold"
                         placeholder="W"
                         value={row.ancho_in}
                         onChange={(e) => updateRow(row.id, 'ancho_in', e.target.value)}
@@ -483,7 +488,7 @@ export function QuickEntry() {
                       />
                       <input
                         type="number"
-                        className="block w-1/3 rounded-md border-0 py-1.5 px-1.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs text-center"
+                        className="block w-1/3 rounded-md border-0 py-1 px-1.5 text-slate-900 bg-white shadow-sm ring-1 ring-inset ring-slate-200 focus:ring-2 focus:ring-inset focus:ring-blue-500 sm:text-xs text-center font-mono font-bold"
                         placeholder="H"
                         value={row.alto_in}
                         onChange={(e) => updateRow(row.id, 'alto_in', e.target.value)}
@@ -493,46 +498,46 @@ export function QuickEntry() {
                   </td>
 
                   {/* Piezas */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <input
                       type="number"
                       min="1"
-                      className="block w-full rounded-md border-0 py-1.5 px-2 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-xs text-center"
+                      className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm text-center font-bold"
                       value={row.piezas}
                       onChange={(e) => updateRow(row.id, 'piezas', e.target.value)}
                     />
                   </td>
 
                   {/* Opciones (Frágil / Reempaque) */}
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2.5">
                     <div className="flex items-center gap-3 justify-center">
-                      <label title="Frágil" className="flex items-center cursor-pointer">
+                      <label title="Frágil" className="flex items-center cursor-pointer group/cb">
                         <input
                           type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-red-500 focus:ring-red-500 cursor-pointer"
+                          className="h-4 w-4 rounded-md border-slate-300 text-red-500 focus:ring-red-500 focus:ring-offset-1 cursor-pointer transition-all"
                           checked={row.es_fragil}
                           onChange={(e) => updateRow(row.id, 'es_fragil', e.target.checked)}
                         />
-                        <span className="ml-1 text-[10px] uppercase text-slate-500 hidden sm:inline">Fg</span>
+                        <span className="ml-1.5 text-xs font-bold uppercase text-slate-400 group-hover/cb:text-slate-600 transition-colors hidden sm:inline">Fg</span>
                       </label>
-                      <label title="Reempaque" className="flex items-center cursor-pointer">
+                      <label title="Reempaque" className="flex items-center cursor-pointer group/cb">
                         <input
                           type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                          className="h-4 w-4 rounded-md border-slate-300 text-blue-600 focus:ring-blue-600 focus:ring-offset-1 cursor-pointer transition-all"
                           checked={row.reempaque}
                           onChange={(e) => updateRow(row.id, 'reempaque', e.target.checked)}
                         />
-                        <span className="ml-1 text-[10px] uppercase text-slate-500 hidden sm:inline">Rm</span>
+                        <span className="ml-1.5 text-xs font-bold uppercase text-slate-400 group-hover/cb:text-slate-600 transition-colors hidden sm:inline">Rm</span>
                       </label>
                     </div>
                   </td>
 
                   {/* Delete Button */}
-                  <td className="px-4 py-2 text-center">
+                  <td className="px-4 py-2.5 text-center">
                     <button
                       onClick={() => removeRow(row.id)}
                       disabled={rows.length === 1}
-                      className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-30 disabled:hover:text-slate-400"
+                      className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
                       title="Eliminar fila"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -545,12 +550,12 @@ export function QuickEntry() {
         </div>
 
         {/* Footer Info */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between">
-          <p className="text-sm text-slate-500">
-            Mostrando <span className="font-medium text-slate-900">{rows.length}</span> fila(s) para captura de datos.
+        <div className="bg-slate-50/80 backdrop-blur-sm border-t border-slate-200/60 p-4.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-sm text-slate-500 font-medium">
+            Mostrando <span className="font-extrabold text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md border border-blue-200/50">{rows.length}</span> fila(s) para captura de datos.
           </p>
-          <p className="text-sm text-slate-500">
-            Puedes conectar una pistola de código de barras láser. El sistema usará la tecla <kbd className="font-mono bg-white border border-slate-300 px-1 rounded mx-1">Enter</kbd> para saltar ágilmente.
+          <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5 bg-white border border-slate-200/60 px-3 py-1.5 rounded-lg shadow-sm">
+            Compatible con lector láser. Presiona <kbd className="font-mono bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs font-bold text-slate-700 shadow-sm">Enter</kbd> para saltar.
           </p>
         </div>
       </div>

@@ -202,19 +202,23 @@ export function Expenses() {
     };
 
     return (
-        <div className="space-y-6 max-w-6xl mx-auto pb-10">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 max-w-7xl mx-auto animate-fade-in relative z-10 w-full max-w-full pb-10">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Control de Gastos</h1>
-                    <p className="text-sm text-slate-500">Registra y verifica pagos de renta, salarios, proveedores y más.</p>
+                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                        Control de Gastos
+                    </h1>
+                    <p className="text-sm font-medium text-slate-500 mt-1">
+                        Registra y verifica pagos de renta, salarios, proveedores y más.
+                    </p>
                 </div>
                 {user?.role === 'admin' && (
-                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                        <Building className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md">
+                        <Building className="h-4 w-4 text-blue-500" />
                         <select
                             value={selectedFilterBranch}
                             onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                            className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                            className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer appearance-none pr-4"
                         >
                             <option value="all">Todas las Sedes</option>
                             {sucursales.map(s => (
@@ -228,25 +232,28 @@ export function Expenses() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 {/* Formulario de Nuevo Gasto */}
-                <div className="lg:col-span-1 border border-slate-200 bg-white rounded-xl shadow-sm p-6 space-y-5 h-fit">
-                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                        <Receipt className="h-5 w-5 text-blue-500" />
+                <div className="lg:col-span-1 glass border border-slate-200/60 rounded-2xl shadow-sm p-6 space-y-5 h-fit relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3 tracking-tight">
+                        <div className="p-2 bg-blue-100/50 rounded-lg text-blue-600">
+                            <Receipt className="h-5 w-5" />
+                        </div>
                         Nuevo Gasto
                     </h2>
 
                     <form onSubmit={handleSave} className="space-y-4">
 
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-slate-700">Categoría <span className="text-red-500">*</span></label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Tag className="h-4 w-4 text-slate-400" />
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">Categoría <span className="text-rose-500">*</span></label>
+                            <div className="relative group/input">
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <Tag className="h-4 w-4 text-slate-400 group-focus-within/input:text-blue-500 transition-colors" />
                                 </div>
                                 <select
                                     required
                                     value={formData.categoria}
                                     onChange={e => setFormData({ ...formData, categoria: e.target.value })}
-                                    className="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                    className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 pl-10 pr-3 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
                                 >
                                     {CategoriasGastos.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -254,17 +261,17 @@ export function Expenses() {
                         </div>
 
                         {user?.role === 'admin' && sucursales.length > 0 && (
-                            <div className="space-y-1">
-                                <label className="text-sm font-medium text-slate-700">Sucursal <span className="text-red-500">*</span></label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Building className="h-4 w-4 text-slate-400" />
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Sucursal <span className="text-rose-500">*</span></label>
+                                <div className="relative group/input">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <Building className="h-4 w-4 text-slate-400 group-focus-within/input:text-blue-500 transition-colors" />
                                     </div>
                                     <select
                                         required
                                         value={formData.sucursal_id}
                                         onChange={e => setFormData({ ...formData, sucursal_id: e.target.value })}
-                                        className="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                        className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 pl-10 pr-3 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
                                     >
                                         {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                                     </select>
@@ -272,24 +279,24 @@ export function Expenses() {
                             </div>
                         )}
 
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-slate-700">Concepto / Referencia <span className="text-red-500">*</span></label>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">Concepto / Referencia <span className="text-rose-500">*</span></label>
                             <input
                                 required
                                 type="text"
                                 placeholder="Ej. Renta Febrero Almacén B"
                                 value={formData.concepto}
                                 onChange={e => setFormData({ ...formData, concepto: e.target.value })}
-                                className="block w-full rounded-md border-0 py-2 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 px-3.5 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm sm:leading-6"
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <label className="text-sm font-medium text-slate-700">Monto (GTQ) <span className="text-red-500">*</span></label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <span className="text-slate-400 font-semibold text-sm">Q</span>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Monto (GTQ) <span className="text-rose-500">*</span></label>
+                                <div className="relative group/input">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <span className="text-slate-400 font-bold text-sm group-focus-within/input:text-blue-500 transition-colors">Q</span>
                                     </div>
                                     <input
                                         required
@@ -299,51 +306,58 @@ export function Expenses() {
                                         placeholder="0.00"
                                         value={formData.monto_q}
                                         onChange={e => setFormData({ ...formData, monto_q: e.target.value })}
-                                        className="block w-full rounded-md border-0 py-2 pl-9 pr-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                        className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 pl-9 pr-3 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm sm:leading-6 font-mono font-bold"
                                     />
                                 </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <label className="text-sm font-medium text-slate-700">Fecha de Pago <span className="text-red-500">*</span></label>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Fecha de Pago <span className="text-rose-500">*</span></label>
                                 <input
                                     required
                                     type="date"
                                     value={formData.fecha_pago}
                                     onChange={e => setFormData({ ...formData, fecha_pago: e.target.value })}
-                                    className="block w-full rounded-md border-0 py-2 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                    className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 px-3.5 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-slate-700">N° Cuenta o Cheque (Opcional)</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Building className="h-4 w-4 text-slate-400" />
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">N° Cuenta o Cheque <span className="text-slate-400 font-normal text-xs">(Opcional)</span></label>
+                            <div className="relative group/input">
+                                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <Building className="h-4 w-4 text-slate-400 group-focus-within/input:text-blue-500 transition-colors" />
                                 </div>
                                 <input
                                     type="text"
                                     placeholder="Ej. Cheque Bi #010101"
                                     value={formData.numero_cuenta}
                                     onChange={e => setFormData({ ...formData, numero_cuenta: e.target.value })}
-                                    className="block w-full rounded-md border-0 py-2 pl-10 pr-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600 sm:text-sm sm:leading-6"
+                                    className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 pl-10 pr-3 text-slate-900 shadow-sm transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm sm:leading-6"
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium text-slate-700">Comprobante de Pago (Recibo)</label>
-                            <div className="mt-2 flex justify-center rounded-lg border border-dashed border-slate-300 px-6 py-4 hover:bg-slate-50 transition-colors">
-                                <div className="text-center">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-bold text-slate-700">Comprobante de Pago (Recibo)</label>
+                            <div className="mt-2 flex justify-center rounded-xl border-2 border-dashed border-slate-200/80 bg-slate-50/50 px-6 py-5 cursor-pointer hover:bg-white hover:border-blue-400/50 transition-all duration-300 group/upload" onClick={() => fileInputRef.current?.click()}>
+                                <div className="text-center w-full">
                                     {filePreview ? (
-                                        <img src={filePreview} alt="Preview" className="mx-auto h-24 object-contain mb-2 rounded border border-slate-200" />
+                                        <div className="relative inline-block mt-2 mb-4">
+                                            <img src={filePreview} alt="Preview" className="mx-auto h-28 object-cover rounded-lg border border-slate-200 shadow-sm transform group-hover/upload:scale-105 transition-transform duration-300" />
+                                            <div className="absolute inset-0 bg-slate-900/10 rounded-lg flex items-center justify-center opacity-0 group-hover/upload:opacity-100 transition-opacity">
+                                                <Upload className="h-6 w-6 text-white drop-shadow-md" />
+                                            </div>
+                                        </div>
                                     ) : (
-                                        <Upload className="mx-auto h-8 w-8 text-slate-300 mb-2" />
+                                        <div className="mx-auto h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3 group-hover/upload:bg-blue-100 transition-colors">
+                                            <Upload className="h-6 w-6 text-blue-500" />
+                                        </div>
                                     )}
-                                    <div className="flex text-sm leading-6 text-slate-600 justify-center">
-                                        <label htmlFor="recibo-upload" className="relative cursor-pointer rounded-md font-semibold text-blue-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-600 hover:text-blue-500">
-                                            <span>{selectedFile ? 'Cambiar archivo' : 'Subir archivo'}</span>
+                                    <div className="flex flex-col text-sm leading-6 text-slate-600 justify-center items-center">
+                                        <label htmlFor="recibo-upload" className="relative cursor-pointer rounded-md font-bold text-blue-600 focus-within:outline-none hover:text-blue-500">
+                                            <span>{selectedFile ? 'Cambiar archivo' : 'Seleccionar archivo'}</span>
                                             <input
                                                 id="recibo-upload"
                                                 ref={fileInputRef}
@@ -351,10 +365,11 @@ export function Expenses() {
                                                 className="sr-only"
                                                 accept="image/*,application/pdf"
                                                 onChange={handleFileChange}
+                                                onClick={(e) => e.stopPropagation()}
                                             />
                                         </label>
+                                        <p className="text-xs font-medium text-slate-500 mt-1">{selectedFile ? selectedFile.name : 'PNG, JPG, PDF hasta 5MB'}</p>
                                     </div>
-                                    <p className="text-xs leading-5 text-slate-500">{selectedFile ? selectedFile.name : 'PNG, JPG, PDF hasta 5MB'}</p>
                                 </div>
                             </div>
                         </div>
@@ -362,7 +377,7 @@ export function Expenses() {
                         <button
                             type="submit"
                             disabled={saving}
-                            className="mt-6 w-full flex justify-center items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:opacity-50"
+                            className="mt-6 w-full flex justify-center items-center gap-2 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3 text-sm font-bold text-white shadow-md shadow-slate-900/20 hover:from-slate-700 hover:to-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:opacity-50 transition-all hover:shadow-lg hover:-translate-y-0.5"
                         >
                             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                             {saving ? (uploadingImage ? 'Subiendo recibo...' : 'Guardando...') : 'Registrar Gasto Verificado'}
@@ -371,74 +386,89 @@ export function Expenses() {
                 </div>
 
                 {/* Tabla Historial */}
-                <div className="lg:col-span-2 border border-slate-200 bg-white rounded-xl shadow-sm overflow-hidden flex flex-col">
-                    <div className="border-b border-slate-200 px-6 py-4 bg-slate-50">
-                        <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <div className="lg:col-span-2 glass border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+                    <div className="border-b border-slate-200/60 px-6 py-5 bg-slate-50/50 backdrop-blur-sm flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 tracking-tight">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-100/80 flex items-center justify-center text-emerald-600">
+                                <CheckCircle2 className="h-5 w-5" />
+                            </div>
                             Pagos Verificados
                         </h2>
                     </div>
-                    <div className="flex-1 overflow-auto p-0">
+                    <div className="flex-1 overflow-auto p-0 custom-scrollbar relative">
                         {loading ? (
-                            <div className="flex justify-center items-center h-40">
-                                <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
+                            <div className="absolute inset-0 flex justify-center items-center bg-white/40 backdrop-blur-sm z-10">
+                                <div className="flex flex-col items-center gap-3">
+                                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+                                    <p className="text-sm font-bold text-slate-500">Cargando pagos...</p>
+                                </div>
                             </div>
                         ) : gastos.length === 0 ? (
                             <div className="flex flex-col items-center justify-center p-12 text-center h-full">
-                                <Receipt className="h-10 w-10 text-slate-300 mb-3" />
-                                <h3 className="text-sm font-medium text-slate-900">No hay gastos registrados</h3>
-                                <p className="text-sm text-slate-500 mt-1">Registra aquí los primeros gastos del negocio.</p>
+                                <div className="h-20 w-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                                    <Receipt className="h-10 w-10 text-slate-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800 tracking-tight">No hay gastos registrados</h3>
+                                <p className="text-sm font-medium text-slate-500 mt-2 max-w-sm">Registra aquí los primeros gastos del negocio para llevar un control financiero.</p>
                             </div>
                         ) : (
-                            <table className="w-full text-left text-sm whitespace-nowrap">
-                                <thead className="bg-white border-b border-slate-200 sticky top-0 z-10">
+                            <table className="w-full text-left text-sm whitespace-nowrap min-w-[700px]">
+                                <thead className="bg-slate-50/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-6 py-3 font-semibold text-slate-900">Fecha</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-900">Concepto</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-900">Categoría</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-900 text-right">Monto</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-900">N° Cuenta/Ref</th>
-                                        <th className="px-6 py-3 font-semibold text-slate-900 text-center">Recibo</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs">Fecha</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs">Concepto</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs">Categoría</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs text-right">Monto</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs">N° Cuenta/Ref</th>
+                                        <th className="px-6 py-3.5 font-bold text-slate-600 uppercase tracking-wider text-xs text-center">Recibo</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {gastos.map((gasto) => (
-                                        <tr key={gasto.id} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-3 text-slate-500">
-                                                {new Date(gasto.fecha_pago).toLocaleDateString('es-ES')}
+                                <tbody className="divide-y divide-slate-100 bg-white/40">
+                                    {gastos.map((gasto, idx) => (
+                                        <tr key={gasto.id} className="hover:bg-blue-50/40 transition-colors animate-fade-in" style={{ animationDelay: `${idx * 50}ms` }}>
+                                            <td className="px-6 py-4 text-slate-600 font-medium">
+                                                {new Date(gasto.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
                                             </td>
-                                            <td className="px-6 py-3 font-medium text-slate-900">
-                                                {gasto.concepto}
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-900 truncate max-w-[200px]" title={gasto.concepto}>
+                                                    {gasto.concepto}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-3">
-                                                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                                    {gasto.categoria}
-                                                </span>
-                                                {gasto.sucursales?.nombre && (
-                                                    <span className="ml-2 inline-flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-700/10 hidden sm:inline-flex">
-                                                        {gasto.sucursales.nombre}
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-inset ring-indigo-600/20 shadow-sm">
+                                                        {gasto.categoria}
                                                     </span>
-                                                )}
+                                                    {gasto.sucursales?.nombre && (
+                                                        <span className="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 shadow-sm hidden sm:inline-flex truncate max-w-[100px]" title={gasto.sucursales.nombre}>
+                                                            {gasto.sucursales.nombre}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-3 font-bold text-slate-800 text-right">
-                                                {formatQ(gasto.monto_q)}
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="font-mono font-bold text-slate-800 text-sm">
+                                                    {formatQ(gasto.monto_q)}
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-3 text-slate-500 font-mono text-xs">
-                                                {gasto.numero_cuenta || '------'}
+                                            <td className="px-6 py-4 text-slate-500 font-mono text-xs font-medium">
+                                                {gasto.numero_cuenta || <span className="text-slate-300">------</span>}
                                             </td>
-                                            <td className="px-6 py-3 text-center">
+                                            <td className="px-6 py-4 text-center">
                                                 {gasto.recibo_url ? (
                                                     <a
                                                         href={gasto.recibo_url}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex items-center justify-center p-1.5 rounded-full bg-slate-100 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:text-white hover:bg-blue-600 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
                                                         title="Ver Recibo"
                                                     >
                                                         <ImageIcon className="h-4 w-4" />
                                                     </a>
                                                 ) : (
-                                                    <span className="text-slate-300 text-xs">-</span>
+                                                    <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-50 text-slate-300">
+                                                        -
+                                                    </span>
                                                 )}
                                             </td>
                                         </tr>
