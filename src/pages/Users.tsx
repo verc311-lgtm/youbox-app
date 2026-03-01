@@ -244,13 +244,18 @@ export function Users() {
         }
     }
 
-    async function resetPassword(id: string) {
+    async function resetPassword(id: string, tipo: 'staff' | 'clients' = 'staff') {
         const newPass = prompt("Ingresa la nueva contraseña temporal para este usuario:");
         if (!newPass) return;
 
         try {
-            const { error } = await supabase.from('usuarios').update({ password_hash: newPass }).eq('id', id);
-            if (error) throw error;
+            if (tipo === 'staff') {
+                const { error } = await supabase.from('usuarios').update({ password_hash: newPass }).eq('id', id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('clientes').update({ password_hash: newPass, notas: newPass }).eq('id', id);
+                if (error) throw error;
+            }
             alert("Contraseña actualizada exitosamente.");
         } catch (error) {
             alert("Error al actualizar la contraseña.");
@@ -481,8 +486,11 @@ export function Users() {
                                                 </button>
                                             </td>
                                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                <button onClick={() => handleEditClick(c, 'clients')} className="text-slate-400 hover:text-blue-600 mr-4">
+                                                <button onClick={() => handleEditClick(c, 'clients')} className="text-slate-400 hover:text-blue-600 mr-4" title="Editar Cliente">
                                                     Editar
+                                                </button>
+                                                <button onClick={() => resetPassword(c.id, 'clients')} className="text-slate-400 hover:text-amber-600 mr-4" title="Cambiar Contraseña">
+                                                    <KeyRound className="w-4 h-4" />
                                                 </button>
                                             </td>
                                         </tr>
