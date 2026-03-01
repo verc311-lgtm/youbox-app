@@ -216,7 +216,8 @@ export function Users() {
                     locker_id: formData.locker_id,
                     sucursal_id: formData.sucursal_id,
                     departamento: formData.departamento,
-                    municipio: formData.municipio
+                    municipio: formData.municipio,
+                    ...(formData.password ? { password_hash: formData.password, notas: formData.password } : {})
                 };
 
                 if (editingId) {
@@ -579,12 +580,12 @@ export function Users() {
 
                             {activeTab === 'staff' ? (
                                 <>
-                                    {!editingId && (
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Contraseña (Obligatoria)</label>
-                                            <input required={!editingId} type="text" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" placeholder="Contraseña temporal" />
-                                        </div>
-                                    )}
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                            {editingId ? 'Nueva Contraseña (opcional)' : 'Contraseña (Obligatoria)'}
+                                        </label>
+                                        <input required={!editingId} type="text" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" placeholder={editingId ? "Dejar en blanco para mantener la actual" : "Contraseña temporal"} />
+                                    </div>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1.5">Rol / Jerarquía</label>
                                         <select required value={formData.rol_id} onChange={e => setFormData({ ...formData, rol_id: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all capitalize">
@@ -602,13 +603,19 @@ export function Users() {
                                             <input required type="text" placeholder="Ej: YBG123" value={formData.locker_id} onChange={e => setFormData({ ...formData, locker_id: e.target.value.toUpperCase() })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all font-mono uppercase" />
                                         </div>
                                         <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Nueva Contraseña (opcional)</label>
+                                            <input type="text" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" placeholder="Dejar en blanco si no cambia" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
                                             <label className="block text-sm font-bold text-slate-700 mb-1.5">Departamento</label>
                                             <input type="text" value={formData.departamento} onChange={e => setFormData({ ...formData, departamento: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" />
                                         </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Municipio</label>
-                                        <input type="text" value={formData.municipio} onChange={e => setFormData({ ...formData, municipio: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" />
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-1.5">Municipio</label>
+                                            <input type="text" value={formData.municipio} onChange={e => setFormData({ ...formData, municipio: e.target.value })} className="w-full rounded-xl border-slate-200 bg-slate-50/50 shadow-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 text-sm p-2.5 border transition-all" />
+                                        </div>
                                     </div>
                                 </>
                             )}
