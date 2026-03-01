@@ -144,8 +144,7 @@ export function Profile() {
                     direccion_linea2: form.direccion_linea2,
                     referencia: form.referencia,
                     ...(form.password !== originalPassword && {
-                        notas: form.password, // Keep fallback support
-                        // password_hash: form.password // Removed as per instruction
+                        notas: form.password // Keep fallback support
                     })
                 };
 
