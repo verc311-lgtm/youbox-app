@@ -280,8 +280,8 @@ export function Users() {
                             <thead className="bg-slate-50">
                                 <tr>
                                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Usuario</th>
-                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Contacto</th>
-                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Rol & Sucursal</th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden md:table-cell">Contacto</th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Rol & Sucursal</th>
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estado</th>
                                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                                         <span className="sr-only">Acciones</span>
@@ -308,14 +308,18 @@ export function Users() {
                                                     <div>
                                                         <div className="font-medium text-slate-900">{u.nombre} {u.apellido}</div>
                                                         {u.email === 'admin@youbox.gt' && <div className="text-xs text-blue-600 font-medium tracking-wide">MASTER O SUPERADMIN</div>}
+                                                        <div className="sm:hidden text-xs text-slate-500 mt-1">
+                                                            {u.email} <br />
+                                                            <span className="capitalize">{u.roles?.nombre || 'Sin Rol'}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 hidden md:table-cell">
                                                 <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {u.email}</div>
                                                 {u.telefono && <div className="flex items-center gap-1.5 mt-1"><Phone className="w-3.5 h-3.5" /> {u.telefono}</div>}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 space-y-2">
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 space-y-2 hidden sm:table-cell">
                                                 <div>
                                                     <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/20 capitalize">
                                                         <ShieldCheck className="w-3.5 h-3.5" />
@@ -359,8 +363,8 @@ export function Users() {
                                 <tr>
                                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Cliente</th>
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Casillero</th>
-                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Contacto</th>
-                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Sucursal</th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden md:table-cell">Contacto</th>
+                                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Sucursal</th>
                                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estado</th>
                                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                                         <span className="sr-only">Acciones</span>
@@ -381,20 +385,25 @@ export function Users() {
                                         <tr key={c.id} className="hover:bg-slate-50">
                                             <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-10 w-10 shrink-0 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+                                                    <div className="h-10 w-10 shrink-0 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold hidden sm:flex">
                                                         {c.nombre[0]}{c.apellido ? c.apellido[0] : ''}
                                                     </div>
-                                                    <div className="font-medium text-slate-900">{c.nombre} {c.apellido}</div>
+                                                    <div>
+                                                        <div className="font-medium text-slate-900">{c.nombre} {c.apellido}</div>
+                                                        <div className="sm:hidden text-xs text-slate-500 mt-1">
+                                                            {c.email}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm font-mono font-medium text-blue-600">
                                                 {c.locker_id}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 hidden md:table-cell">
                                                 {c.email && <div className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {c.email}</div>}
                                                 {c.telefono && <div className="flex items-center gap-1.5 mt-1"><Phone className="w-3.5 h-3.5" /> {c.telefono}</div>}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden sm:table-cell">
                                                 {c.sucursales?.nombre && (
                                                     <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
                                                         {c.sucursales.nombre}

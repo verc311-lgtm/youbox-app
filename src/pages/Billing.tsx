@@ -121,8 +121,8 @@ export function Billing() {
             <thead className="bg-white">
               <tr>
                 <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Factura</th>
-                {isAdmin && <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Cliente</th>}
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Fecha</th>
+                {isAdmin && <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Cliente</th>}
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden md:table-cell">Fecha</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Monto</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estado</th>
                 <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -149,14 +149,18 @@ export function Billing() {
                 facturas.map((f) => (
                   <tr key={f.id} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6 font-medium text-slate-900">
-                      {f.numero}
+                      <div>{f.numero}</div>
+                      <div className="sm:hidden text-xs text-slate-500 mt-1">
+                        {isAdmin && <>{f.clientes?.nombre} {f.clientes?.apellido} <br /></>}
+                        {f.fecha_emision ? format(new Date(f.fecha_emision), 'dd/MM/yy') : 'N/A'}
+                      </div>
                     </td>
                     {isAdmin && (
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden sm:table-cell">
                         {f.clientes?.nombre} {f.clientes?.apellido}
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
+                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden md:table-cell">
                       {f.fecha_emision ? format(new Date(f.fecha_emision), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-900 font-medium">

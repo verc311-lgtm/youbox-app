@@ -99,9 +99,9 @@ export function Inventory() {
               <tr>
                 <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Tracking / Envío</th>
                 {isAdmin && <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Cliente</th>}
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Ingreso</th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Peso</th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Ubicación</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Ingreso</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden sm:table-cell">Peso</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 hidden md:table-cell">Ubicación</th>
                 <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Estatus</th>
                 {isAdmin && (
                   <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -130,12 +130,16 @@ export function Inventory() {
                   <tr key={p.id} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                       <div className="flex items-center gap-3">
-                        <div className="rounded-md bg-blue-50 p-2">
+                        <div className="rounded-md bg-blue-50 p-2 hidden sm:block">
                           <PkgIcon className="h-4 w-4 text-blue-600" />
                         </div>
                         <div>
                           <div className="font-medium text-slate-900 text-sm">{p.tracking}</div>
                           <div className="text-xs text-slate-500">{p.transportistas?.nombre || 'Carrier'}</div>
+                          {/* Mobile only details */}
+                          <div className="sm:hidden text-xs text-slate-400 mt-1">
+                            {p.peso_lbs} lbs • {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM', { locale: es }) : 'N/A'}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -145,13 +149,13 @@ export function Inventory() {
                         <span className="text-xs text-blue-600 font-medium">{p.clientes?.locker_id}</span>
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
+                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden sm:table-cell">
                       {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 font-medium">
+                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 font-medium hidden sm:table-cell">
                       {p.peso_lbs} lbs
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
+                    <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600 hidden md:table-cell">
                       {p.bodegas?.nombre || 'Bodega General'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
