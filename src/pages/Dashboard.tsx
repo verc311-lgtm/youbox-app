@@ -62,7 +62,7 @@ export function Dashboard() {
         const bodegasMap = new Map<string, { name: string, lbs: number, count: number }>();
         let laredoCount = 0;
 
-        paquetes.forEach(p => {
+        paquetes.forEach((p: any) => {
           const bName = p.bodegas?.nombre || 'General';
           if (bName.toLowerCase().includes('laredo')) laredoCount++;
 
@@ -101,30 +101,33 @@ export function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Dashboard de Control</h1>
-        <p className="text-sm text-slate-500">Resumen general de operaciones y finanzas.</p>
+    <div className="space-y-8 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">Dashboard de Control</h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">Visión general en tiempo real de operaciones y finanzas.</p>
+        </div>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { name: 'Facturación Mensual', icon: DollarSign, value: `Q ${facturacionMes.toFixed(2)}` },
-          { name: 'Ticket Promedio', icon: FileText, value: `Q ${promedioFactura.toFixed(2)}` },
-          { name: 'Paquetes Procesados', icon: Package, value: totalPaquetes.toString() },
-          { name: 'Carga Laredo (Tx)', icon: Truck, value: enviosLaredo.toString() },
-        ].map((stat) => (
-          <div key={stat.name} className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          { name: 'Facturación Mensual', icon: DollarSign, value: `Q ${facturacionMes.toFixed(2)}`, color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50 text-emerald-600' },
+          { name: 'Ticket Promedio', icon: FileText, value: `Q ${promedioFactura.toFixed(2)}`, color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-50 text-blue-600' },
+          { name: 'Paquetes Procesados', icon: Package, value: totalPaquetes.toString(), color: 'from-violet-500 to-purple-500', bg: 'bg-violet-50 text-violet-600' },
+          { name: 'Carga Laredo (Tx)', icon: Truck, value: enviosLaredo.toString(), color: 'from-amber-500 to-orange-500', bg: 'bg-amber-50 text-amber-600' },
+        ].map((stat, i) => (
+          <div key={stat.name} className="relative overflow-hidden rounded-2xl glass p-6 card-hover group" style={{ animationDelay: `${i * 100}ms` }}>
+            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${stat.color} opacity-10 rounded-bl-full -z-10 transition-transform group-hover:scale-110`} />
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">{stat.name}</p>
-              <div className="rounded-md bg-blue-50 p-2">
-                <stat.icon className="h-4 w-4 text-blue-600" />
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{stat.name}</p>
+              <div className={`rounded-xl p-2.5 shadow-sm ${stat.bg}`}>
+                <stat.icon className="h-5 w-5" />
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-2xl font-semibold text-slate-900">{stat.value}</p>
-              <p className="text-xs text-slate-400 mt-1">Acumulado mes actual</p>
+              <p className="text-3xl font-bold text-slate-900 tracking-tight">{stat.value}</p>
+              <p className="text-xs font-medium text-slate-400 mt-1 drop-shadow-sm">Acumulado mes actual</p>
             </div>
           </div>
         ))}
@@ -132,32 +135,45 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Lbs Bar Chart */}
-        <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900 mb-4">Volumen (Libras) por Bodega Matriz</h2>
-          <div className="h-80 w-full">
+        <div className="col-span-1 lg:col-span-2 rounded-2xl glass p-6 card-hover min-w-0">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-slate-900 tracking-tight">Volumen Operativo por Bodega</h2>
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-100">Libras (Lbs)</span>
+          </div>
+          <div className="h-[300px] w-full">
             {ingresosData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={ingresosData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
+                  <defs>
+                    <linearGradient id="colorLbs" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.9} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 500 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                   <Tooltip
-                    cursor={{ fill: '#F1F5F9' }}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px', fontWeight: 600 }}
                   />
-                  <Bar dataKey="LIBRAS" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                  <Bar dataKey="LIBRAS" fill="url(#colorLbs)" radius={[6, 6, 0, 0]} maxBarSize={50} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sin datos suficientes este mes</div>
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm">
+                <BarChart className="h-12 w-12 text-slate-200 mb-2 opacity-50" />
+                <span>Sin datos suficientes este mes</span>
+              </div>
             )}
           </div>
         </div>
 
         {/* Volume Pie Chart */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col">
-          <h2 className="text-base font-semibold text-slate-900 mb-4">Distribución de Paquetes</h2>
-          <div className="h-64 w-full flex-1">
+        <div className="rounded-2xl glass p-6 card-hover flex flex-col min-w-0">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-2">Distribución Logística</h2>
+          <p className="text-xs font-medium text-slate-400 mb-6">Proporción de paquetes por destino</p>
+          <div className="h-[220px] w-full flex-1">
             {cargaData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -165,18 +181,18 @@ export function Dashboard() {
                     data={cargaData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
+                    innerRadius={70}
+                    outerRadius={95}
                     paddingAngle={5}
                     dataKey="value"
                     stroke="none"
                   >
                     {cargaData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity outline-none" style={{ filter: `drop-shadow(0px 4px 6px rgba(0,0,0,0.1))` }} />
                     ))}
                   </Pie>
                   <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 600 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -184,11 +200,11 @@ export function Dashboard() {
               <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sin paquetes</div>
             )}
           </div>
-          <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
             {cargaData.map((entry, index) => (
               <div key={entry.name} className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                <span className="text-xs font-medium text-slate-600">{entry.name} ({entry.value})</span>
+                <div className="h-3.5 w-3.5 rounded-full shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                <span className="text-xs font-bold text-slate-700">{entry.name} <span className="text-slate-400 font-medium ml-1">({entry.value})</span></span>
               </div>
             ))}
           </div>
