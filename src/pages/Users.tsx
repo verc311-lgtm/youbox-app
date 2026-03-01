@@ -53,6 +53,7 @@ export function Users() {
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     // New user form state
     const [formData, setFormData] = useState({
@@ -138,25 +139,75 @@ export function Users() {
         }
     }
 
+    const handleEditClick = (entity: any, type: 'staff' | 'clients') => {
+        setEditingId(entity.id);
+        setActiveTab(type);
+
+        if (type === 'staff') {
+            setFormData({
+                nombre: entity.nombre || '',
+                apellido: entity.apellido || '',
+                email: entity.email || '',
+                telefono: entity.telefono || '',
+                rol_id: entity.rol_id || roles[0]?.id || '',
+                sucursal_id: entity.sucursal_id || sucursales[0]?.id || '',
+                password: '', // Leave password empty on edit
+                locker_id: '',
+                departamento: '',
+                municipio: ''
+            });
+        } else {
+            setFormData({
+                nombre: entity.nombre || '',
+                apellido: entity.apellido || '',
+                email: entity.email || '',
+                telefono: entity.telefono || '',
+                rol_id: roles[0]?.id || '',
+                sucursal_id: entity.sucursal_id || sucursales[0]?.id || '',
+                password: '',
+                locker_id: entity.locker_id || '',
+                departamento: entity.departamento || '',
+                municipio: entity.municipio || ''
+            });
+        }
+        setShowModal(true);
+    };
+
+    const handleNewClick = () => {
+        setEditingId(null);
+        setFormData({
+            nombre: '', apellido: '', email: '', telefono: '',
+            rol_id: roles[0]?.id || '', sucursal_id: sucursales[0]?.id || '',
+            password: '', locker_id: '', departamento: '', municipio: ''
+        });
+        setShowModal(true);
+    };
+
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
         try {
             setSaving(true);
             if (activeTab === 'staff') {
-                const { error } = await supabase.from('usuarios').insert([{
+                const userData = {
                     nombre: formData.nombre,
                     apellido: formData.apellido,
                     email: formData.email.toLowerCase(),
                     telefono: formData.telefono,
                     rol_id: formData.rol_id,
                     sucursal_id: formData.sucursal_id,
-                    password_hash: formData.password,
-                    activo: true
-                }]);
-                if (error) throw error;
+                    ...(formData.password ? { password_hash: formData.password } : {})
+                };
+
+                if (editingId) {
+                    const { error } = await supabase.from('usuarios').update(userData).eq('id', editingId);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('usuarios').insert([{ ...userData, activo: true }]);
+                    if (error) throw error;
+                }
                 fetchUsers();
             } else {
-                const { error } = await supabase.from('clientes').insert([{
+                const clientData = {
                     nombre: formData.nombre,
                     apellido: formData.apellido,
                     email: formData.email?.toLowerCase() || null,
@@ -164,14 +215,21 @@ export function Users() {
                     locker_id: formData.locker_id,
                     sucursal_id: formData.sucursal_id,
                     departamento: formData.departamento,
-                    municipio: formData.municipio,
-                    activo: true
-                }]);
-                if (error) throw error;
+                    municipio: formData.municipio
+                };
+
+                if (editingId) {
+                    const { error } = await supabase.from('clientes').update(clientData).eq('id', editingId);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('clientes').insert([{ ...clientData, activo: true }]);
+                    if (error) throw error;
+                }
                 fetchClientes();
             }
 
             setShowModal(false);
+            setEditingId(null);
             setFormData({
                 nombre: '', apellido: '', email: '', telefono: '',
                 rol_id: roles[0]?.id || '', sucursal_id: sucursales[0]?.id || '',
@@ -232,7 +290,7 @@ export function Users() {
                     <p className="text-sm text-slate-500">Administra tanto a tu equipo de trabajo como a tu base de clientes.</p>
                 </div>
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={handleNewClick}
                     className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 w-fit"
                 >
                     <Plus className="h-4 w-4" />
@@ -343,7 +401,10 @@ export function Users() {
                                                 </button>
                                             </td>
                                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                <button onClick={() => resetPassword(u.id)} className="text-slate-400 hover:text-blue-600 mr-4" title="Cambiar Contraseña">
+                                                <button onClick={() => handleEditClick(u, 'staff')} className="text-slate-400 hover:text-blue-600 mr-4" title="Editar Miembro">
+                                                    Editar
+                                                </button>
+                                                <button onClick={() => resetPassword(u.id)} className="text-slate-400 hover:text-amber-600 mr-4" title="Cambiar Contraseña">
                                                     <KeyRound className="w-4 h-4" />
                                                 </button>
                                                 {u.email !== 'admin@youbox.gt' && (
@@ -419,9 +480,8 @@ export function Users() {
                                                 </button>
                                             </td>
                                             <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                                {/* Actions for clients later */}
-                                                <button className="text-slate-400 hover:text-blue-600 mr-4">
-                                                    Ver
+                                                <button onClick={() => handleEditClick(c, 'clients')} className="text-slate-400 hover:text-blue-600 mr-4">
+                                                    Editar
                                                 </button>
                                             </td>
                                         </tr>
@@ -439,7 +499,11 @@ export function Users() {
                         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
                             <UsersIcon className="w-5 h-5 text-blue-600" />
                             <h2 className="text-lg font-semibold text-slate-800">
-                                {activeTab === 'staff' ? 'Crear Miembro del Equipo' : 'Nuevo Cliente'}
+                                {editingId ? (
+                                    activeTab === 'staff' ? 'Editar Miembro de Equipo' : 'Editar Cliente'
+                                ) : (
+                                    activeTab === 'staff' ? 'Crear Miembro del Equipo' : 'Nuevo Cliente'
+                                )}
                             </h2>
                         </div>
                         <form onSubmit={handleSave} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
@@ -467,10 +531,12 @@ export function Users() {
 
                             {activeTab === 'staff' ? (
                                 <>
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña de Ingreso</label>
-                                        <input required type="text" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border" placeholder="Contraseña temporal" />
-                                    </div>
+                                    {!editingId && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña de Ingreso</label>
+                                            <input required={!editingId} type="text" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border" placeholder="Contraseña temporal" />
+                                        </div>
+                                    )}
                                     <div>
                                         <label className="block text-sm font-medium text-slate-700 mb-1">Rol / Jerarquía</label>
                                         <select required value={formData.rol_id} onChange={e => setFormData({ ...formData, rol_id: e.target.value })} className="w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2 border capitalize">
@@ -514,7 +580,7 @@ export function Users() {
                                 </button>
                                 <button type="submit" disabled={saving} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 flex items-center gap-2">
                                     {saving && <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                                    {activeTab === 'staff' ? 'Guardar Perfil' : 'Guardar Cliente'}
+                                    {editingId ? 'Guardar Cambios' : (activeTab === 'staff' ? 'Guardar Perfil' : 'Guardar Cliente')}
                                 </button>
                             </div>
                         </form>
