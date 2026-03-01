@@ -71,7 +71,7 @@ export function Login() {
             // Update client password
             const { error: updateError } = await supabase
                 .from('clientes')
-                .update({ password_hash: tempPassword, notas: tempPassword })
+                .update({ notas: tempPassword })
                 .eq('id', client.id);
 
             if (updateError) throw updateError;
