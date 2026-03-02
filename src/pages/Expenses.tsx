@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     Receipt, Plus, Loader2, Upload, Calendar,
     DollarSign, CheckCircle2, Image as ImageIcon,
-    Tag, Building, BarChart2, ChevronDown, ChevronUp, AlertCircle
+    Tag, Building, BarChart2, ChevronDown, ChevronUp, AlertCircle, FileDown
 } from 'lucide-react';
 
 interface Gasto {
@@ -243,6 +243,116 @@ export function Expenses() {
 
         return { byMonth, grandTotal, byCategoria };
     }, [gastos, reportYear]);
+
+    const downloadMonthPDF = (mesIdx: number, mesNombre: string) => {
+        const mesData = reportData.byMonth[mesIdx];
+        if (!mesData) return;
+
+        const formatQLocal = (val: number) =>
+            new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(val);
+
+        const rowsHtml = mesData.items.map(g => `
+            <tr>
+                <td>${new Date(g.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                <td>${g.concepto}</td>
+                <td>${g.categoria}</td>
+                <td style="text-align:right;font-weight:700;">${formatQLocal(g.monto_q)}</td>
+                <td>${g.numero_cuenta || '—'}</td>
+            </tr>
+        `).join('');
+
+        const catRows = Object.entries(mesData.byCategoria)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat, total]) => `
+                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                    <span style="color:#475569;font-size:13px;">${cat}</span>
+                    <span style="font-weight:700;color:#1e293b;font-size:13px;">${formatQLocal(total)}</span>
+                </div>
+            `).join('');
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Reporte ${mesNombre} ${reportYear} - Youbox GT</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; padding: 36px; }
+                    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 3px solid #2563eb; }
+                    .logo { font-size: 24px; font-weight: 900; color: #2563eb; letter-spacing: -0.5px; }
+                    .logo span { color: #1e293b; }
+                    .title { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+                    .subtitle { font-size: 12px; color: #64748b; }
+                    .total-box { background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 24px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }
+                    .total-label { font-size: 12px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; }
+                    .total-amount { font-size: 28px; font-weight: 900; color: #1e293b; }
+                    .section-title { font-size: 13px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; margin: 20px 0 10px; }
+                    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 24px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+                    thead tr { background: #2563eb; color: #fff; }
+                    thead th { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                    tbody tr:nth-child(even) { background: #f8fafc; }
+                    tbody td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; }
+                    .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+                    @media print { body { padding: 20px; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div>
+                        <div class="logo">Youbox <span>GT</span></div>
+                        <div style="font-size:11px;color:#64748b;margin-top:4px;">Sistema de Gestión de Paquetes</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="title">Reporte de Gastos</div>
+                        <div class="subtitle">${mesNombre} ${reportYear}</div>
+                        <div class="subtitle">Generado: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                    </div>
+                </div>
+
+                <div class="total-box">
+                    <div>
+                        <div class="total-label">Total del Mes</div>
+                        <div class="total-amount">${formatQLocal(mesData.total)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:13px;color:#64748b;">${mesData.items.length} gasto(s) registrado(s)</div>
+                    </div>
+                </div>
+
+                <div class="section-title">Resumen por Categoría</div>
+                <div class="cat-grid">${catRows}</div>
+
+                <div class="section-title">Detalle de Gastos</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Concepto</th>
+                            <th>Categoría</th>
+                            <th style="text-align:right;">Monto</th>
+                            <th>N° Cuenta/Ref</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+
+                <div class="footer">
+                    Youbox GT — Reporte generado automáticamente. Este documento es de uso interno.
+                </div>
+            </body>
+            </html>
+        `;
+
+        const win = window.open('', '_blank');
+        if (win) {
+            win.document.write(html);
+            win.document.close();
+            win.focus();
+            setTimeout(() => { win.print(); }, 500);
+        }
+    };
 
     const availableYears = useMemo(() => {
         const years = new Set<number>();
@@ -631,19 +741,29 @@ export function Expenses() {
 
                                 return (
                                     <div key={mesIdx}>
-                                        <button
-                                            onClick={() => setExpandedMonth(isExpanded ? null : `${reportYear}-${mesIdx}`)}
-                                            className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50/60 transition-colors text-left"
-                                        >
-                                            <div className="flex items-center gap-4">
+                                        <div className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50/60 transition-colors">
+                                            <button
+                                                onClick={() => setExpandedMonth(isExpanded ? null : `${reportYear}-${mesIdx}`)}
+                                                className="flex items-center gap-4 flex-1 text-left"
+                                            >
                                                 <div className="w-24 text-sm font-bold text-slate-700">{mesNombre}</div>
                                                 <div className="text-xs text-slate-500">{mesData.items.length} gasto(s)</div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
+                                            </button>
+                                            <div className="flex items-center gap-3">
                                                 <span className="font-mono font-black text-slate-900 text-base">{formatQ(mesData.total)}</span>
-                                                {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); downloadMonthPDF(mesIdx, mesNombre); }}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all hover:shadow-sm"
+                                                    title="Descargar PDF"
+                                                >
+                                                    <FileDown className="h-3.5 w-3.5" />
+                                                    PDF
+                                                </button>
+                                                <button onClick={() => setExpandedMonth(isExpanded ? null : `${reportYear}-${mesIdx}`)}>
+                                                    {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                                </button>
                                             </div>
-                                        </button>
+                                        </div>
 
                                         {isExpanded && (
                                             <div className="bg-slate-50/40 border-t border-slate-100 px-6 py-4 space-y-3">
