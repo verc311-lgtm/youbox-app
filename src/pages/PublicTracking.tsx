@@ -4,6 +4,7 @@ import { Boxes, Search, Loader2, Package, CheckCircle, Truck, WarehouseIcon, Ale
 import { supabase } from '../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAuth } from '../context/AuthContext';
 
 interface PackageResult {
     id: string;
@@ -37,6 +38,7 @@ const ESTADO_CONFIG: Record<string, { label: string; color: string; bg: string; 
 const TRACKING_STEPS = ['recibido', 'en_bodega', 'listo_consolidar', 'en_transito', 'entregado'];
 
 export function PublicTracking() {
+    const { user } = useAuth();
     const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<PackageResult | null>(null);
@@ -106,11 +108,11 @@ export function PublicTracking() {
                         <span className="text-xl font-black text-white tracking-tight">YOUBOX GT</span>
                     </div>
                     <Link
-                        to="/login"
+                        to={user ? "/" : "/login"}
                         className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
                     >
                         <ArrowLeft className="h-4 w-4" />
-                        Acceso Clientes
+                        {user ? "Volver al Dashboard" : "Acceso Clientes"}
                     </Link>
                 </div>
             </header>

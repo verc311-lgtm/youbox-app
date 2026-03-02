@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -80,6 +80,12 @@ export function Inventory() {
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          {!isAdmin && (
+            <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:text-blue-700 hover:-translate-x-1 transition-all mb-3 animate-fade-in group">
+              <ArrowLeft className="h-4 w-4 group-hover:stroke-[3px]" />
+              Volver al Dashboard
+            </Link>
+          )}
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
             {isAdmin ? 'Control de Inventario' : 'Mis Paquetes'}
           </h1>
