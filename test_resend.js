@@ -8,10 +8,10 @@ async function testResend() {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            from: 'Youbox GT <onboarding@resend.dev>',
-            to: 'coastalvavictor@gmail.com',
-            subject: 'Test API',
-            html: '<p>Test</p>'
+            from: 'Youbox GT <no-reply@youboxgt.com>',
+            to: 'verc311@gmail.com',
+            subject: 'Prueba de Correo - Youbox GT',
+            html: '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1e293b;"><h2 style="color:#2563eb;">✅ Prueba de Correo Exitosa</h2><p>Si recibes este correo, el sistema de notificaciones de Youbox GT está funcionando correctamente.</p><p style="color:#64748b;font-size:12px;margin-top:30px;">Este es un mensaje de prueba automático.</p></div>'
         })
     });
 
