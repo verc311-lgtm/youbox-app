@@ -66,6 +66,7 @@ export function QuickEntry() {
   // Scanner state
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [activeScannerRowId, setActiveScannerRowId] = useState<string | null>(null);
+  const [scannerMode, setScannerMode] = useState(true); // Modo pistola activo por defecto
 
   // Fetch Catalogs initially
   useEffect(() => {
@@ -194,21 +195,40 @@ export function QuickEntry() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
-    // Hardware Scanner (or user) pressed Enter
+    // Block Tab completely on tracking field to prevent jumping to wrong fields
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       if (type === 'tracking') {
-        const el = document.getElementById(`client-${currentId}`);
-        if (el) el.focus();
+        if (scannerMode) {
+          // Scanner mode: after scan go to NEXT row's tracking (not the client field)
+          const isLastRow = index === rows.length - 1;
+          if (isLastRow) {
+            const lastRow = rows[index];
+            if (lastRow.tracking.trim() !== '') {
+              addRow();
+            }
+          } else {
+            const nextRowId = rows[index + 1].id;
+            const el = document.getElementById(`tracking-${nextRowId}`);
+            if (el) el.focus();
+          }
+        } else {
+          // Normal mode: go to client field
+          const el = document.getElementById(`client-${currentId}`);
+          if (el) el.focus();
+        }
       } else if (type === 'client') {
         const el = document.getElementById(`peso-${currentId}`);
         if (el) el.focus();
       } else if (type === 'peso') {
-        // Try to go to next row
         const isLastRow = index === rows.length - 1;
         if (isLastRow) {
           const lastRow = rows[index];
-          // Solo agregar si la fila actual ya tiene tracking válido
           if (lastRow.tracking.trim() !== '') {
             addRow();
           }
@@ -331,6 +351,18 @@ export function QuickEntry() {
           </p>
         </div>
         <div className="flex gap-3">
+          {/* Scanner Mode Toggle */}
+          <button
+            onClick={() => setScannerMode(prev => !prev)}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm border transition-all focus:outline-none ${scannerMode
+                ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-200'
+                : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
+              }`}
+            title={scannerMode ? 'Modo Pistola ACTIVO: Enter salta al siguiente tracking' : 'Modo Normal: Enter avanza al campo siguiente'}
+          >
+            <ScanBarcode className="h-4 w-4" />
+            {scannerMode ? 'Modo Pistola ON' : 'Modo Pistola OFF'}
+          </button>
           <button
             onClick={addRow}
             className="inline-flex items-center gap-2 rounded-xl bg-white/80 px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm border border-slate-200/60 hover:bg-white hover:-translate-y-0.5 hover:shadow-md transition-all focus:outline-none"
