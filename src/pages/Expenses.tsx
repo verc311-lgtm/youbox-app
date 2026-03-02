@@ -244,114 +244,164 @@ export function Expenses() {
         return { byMonth, grandTotal, byCategoria };
     }, [gastos, reportYear]);
 
-    const downloadMonthPDF = (mesIdx: number, mesNombre: string) => {
+    const downloadMonthPDF = async (mesIdx: number, mesNombre: string) => {
         const mesData = reportData.byMonth[mesIdx];
         if (!mesData) return;
 
-        const formatQLocal = (val: number) =>
-            new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(val);
+        const { jsPDF } = await import('jspdf');
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-        const rowsHtml = mesData.items.map(g => `
-            <tr>
-                <td>${new Date(g.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                <td>${g.concepto}</td>
-                <td>${g.categoria}</td>
-                <td style="text-align:right;font-weight:700;">${formatQLocal(g.monto_q)}</td>
-                <td>${g.numero_cuenta || '—'}</td>
-            </tr>
-        `).join('');
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 16;
+        const colW = pageW - margin * 2;
 
-        const catRows = Object.entries(mesData.byCategoria)
-            .sort((a, b) => b[1] - a[1])
-            .map(([cat, total]) => `
-                <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;">
-                    <span style="color:#475569;font-size:13px;">${cat}</span>
-                    <span style="font-weight:700;color:#1e293b;font-size:13px;">${formatQLocal(total)}</span>
-                </div>
-            `).join('');
+        const fmtQ = (val: number) =>
+            `Q ${Number(val).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 
-        const html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>Reporte ${mesNombre} ${reportYear} - Youbox GT</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; padding: 36px; }
-                    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 3px solid #2563eb; }
-                    .logo { font-size: 24px; font-weight: 900; color: #2563eb; letter-spacing: -0.5px; }
-                    .logo span { color: #1e293b; }
-                    .title { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
-                    .subtitle { font-size: 12px; color: #64748b; }
-                    .total-box { background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 24px; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; }
-                    .total-label { font-size: 12px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.5px; }
-                    .total-amount { font-size: 28px; font-weight: 900; color: #1e293b; }
-                    .section-title { font-size: 13px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; margin: 20px 0 10px; }
-                    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; margin-bottom: 24px; }
-                    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-                    thead tr { background: #2563eb; color: #fff; }
-                    thead th { padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-                    tbody tr:nth-child(even) { background: #f8fafc; }
-                    tbody td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; }
-                    .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-                    @media print { body { padding: 20px; } }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div>
-                        <div class="logo">Youbox <span>GT</span></div>
-                        <div style="font-size:11px;color:#64748b;margin-top:4px;">Sistema de Gestión de Paquetes</div>
-                    </div>
-                    <div style="text-align:right;">
-                        <div class="title">Reporte de Gastos</div>
-                        <div class="subtitle">${mesNombre} ${reportYear}</div>
-                        <div class="subtitle">Generado: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                    </div>
-                </div>
+        const blue: [number, number, number] = [37, 99, 235];
+        const dark: [number, number, number] = [15, 23, 42];
+        const mid: [number, number, number] = [71, 85, 105];
+        const light: [number, number, number] = [241, 245, 249];
+        const white: [number, number, number] = [255, 255, 255];
+        const blueLight: [number, number, number] = [219, 234, 254];
 
-                <div class="total-box">
-                    <div>
-                        <div class="total-label">Total del Mes</div>
-                        <div class="total-amount">${formatQLocal(mesData.total)}</div>
-                    </div>
-                    <div style="text-align:right;">
-                        <div style="font-size:13px;color:#64748b;">${mesData.items.length} gasto(s) registrado(s)</div>
-                    </div>
-                </div>
+        let y = margin;
 
-                <div class="section-title">Resumen por Categoría</div>
-                <div class="cat-grid">${catRows}</div>
+        // HEADER BAR
+        doc.setFillColor(...blue);
+        doc.rect(0, 0, pageW, 22, 'F');
+        doc.setTextColor(...white);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Youbox GT', margin, 14);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Sistema de Gestion de Paquetes', margin, 19);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('REPORTE DE GASTOS', pageW - margin, 11, { align: 'right' });
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${mesNombre} ${reportYear}`, pageW - margin, 16, { align: 'right' });
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}`, pageW - margin, 20, { align: 'right' });
 
-                <div class="section-title">Detalle de Gastos</div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Concepto</th>
-                            <th>Categoría</th>
-                            <th style="text-align:right;">Monto</th>
-                            <th>N° Cuenta/Ref</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rowsHtml}</tbody>
-                </table>
+        y = 30;
 
-                <div class="footer">
-                    Youbox GT — Reporte generado automáticamente. Este documento es de uso interno.
-                </div>
-            </body>
-            </html>
-        `;
+        // TOTAL BOX
+        doc.setFillColor(...blueLight);
+        doc.roundedRect(margin, y, colW, 20, 3, 3, 'F');
+        doc.setDrawColor(...blue);
+        doc.setLineWidth(0.4);
+        doc.roundedRect(margin, y, colW, 20, 3, 3, 'S');
+        doc.setTextColor(...blue);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TOTAL DEL MES', margin + 6, y + 7);
+        doc.setTextColor(...dark);
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text(fmtQ(mesData.total), margin + 6, y + 16);
+        doc.setTextColor(...mid);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${mesData.items.length} gasto(s) registrado(s)`, pageW - margin - 4, y + 10, { align: 'right' });
 
-        const win = window.open('', '_blank');
-        if (win) {
-            win.document.write(html);
-            win.document.close();
-            win.focus();
-            setTimeout(() => { win.print(); }, 500);
-        }
+        y += 26;
+
+        // CATEGORY SUMMARY
+        doc.setTextColor(...mid);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMEN POR CATEGORIA', margin, y);
+        y += 4;
+
+        const cats = Object.entries(mesData.byCategoria).sort((a, b) => Number(b[1]) - Number(a[1]));
+        const halfW = (colW - 6) / 2;
+        let maxCatY = y;
+        cats.forEach((entry, i) => {
+            const [cat, total] = entry as [string, number];
+            const rowY = y + Math.floor(i / 2) * 10;
+            const cellX = i % 2 === 0 ? margin : margin + halfW + 6;
+            doc.setFillColor(...light);
+            doc.roundedRect(cellX, rowY, halfW, 8, 1.5, 1.5, 'F');
+            doc.setTextColor(...mid);
+            doc.setFontSize(7.5);
+            doc.setFont('helvetica', 'normal');
+            doc.text(cat, cellX + 4, rowY + 5.2);
+            doc.setTextColor(...dark);
+            doc.setFont('helvetica', 'bold');
+            doc.text(fmtQ(Number(total)), cellX + halfW - 4, rowY + 5.2, { align: 'right' });
+            maxCatY = Math.max(maxCatY, rowY + 10);
+        });
+
+        y = maxCatY + 6;
+
+        // DETAIL TABLE
+        doc.setTextColor(...mid);
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALLE DE GASTOS', margin, y);
+        y += 4;
+
+        const colWidths = [28, 68, 26, 32, 36];
+        const headers = ['FECHA', 'CONCEPTO', 'CATEGORIA', 'MONTO', 'N° CUENTA/REF'];
+        const rowH = 7;
+
+        doc.setFillColor(...blue);
+        doc.rect(margin, y, colW, rowH, 'F');
+        doc.setTextColor(...white);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        let hx = margin;
+        headers.forEach((h, i) => {
+            const align = i === 3 ? 'right' : 'left';
+            const tx = align === 'right' ? hx + colWidths[i] - 3 : hx + 3;
+            doc.text(h, tx, y + 4.8, { align });
+            hx += colWidths[i];
+        });
+        y += rowH;
+
+        doc.setFontSize(7);
+        mesData.items.forEach((g, idx) => {
+            if (y > pageH - 20) {
+                doc.addPage();
+                y = margin;
+            }
+            if (idx % 2 === 0) {
+                doc.setFillColor(...light);
+                doc.rect(margin, y, colW, rowH, 'F');
+            }
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.line(margin, y + rowH, margin + colW, y + rowH);
+
+            const dateStr = new Date(g.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+            const concepto = g.concepto.length > 38 ? g.concepto.substring(0, 35) + '...' : g.concepto;
+            const vals = [dateStr, concepto, g.categoria, fmtQ(Number(g.monto_q)), g.numero_cuenta || '-'];
+            let rx = margin;
+            vals.forEach((v, i) => {
+                const align = i === 3 ? 'right' : 'left';
+                const tx = align === 'right' ? rx + colWidths[i] - 3 : rx + 3;
+                if (i === 3) { doc.setFont('helvetica', 'bold'); doc.setTextColor(...blue); }
+                else { doc.setFont('helvetica', 'normal'); doc.setTextColor(...dark); }
+                doc.text(v, tx, y + 4.8, { align });
+                rx += colWidths[i];
+            });
+            y += rowH;
+        });
+
+        // FOOTER
+        const footerY = pageH - 10;
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(margin, footerY - 3, pageW - margin, footerY - 3);
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.text('Youbox GT - Reporte generado automaticamente. Documento de uso interno.', pageW / 2, footerY, { align: 'center' });
+
+        doc.save(`Reporte_Gastos_${mesNombre}_${reportYear}.pdf`);
     };
 
     const availableYears = useMemo(() => {
