@@ -204,24 +204,9 @@ export function QuickEntry() {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (type === 'tracking') {
-        if (scannerMode) {
-          // Scanner mode: after scan go to NEXT row's tracking (not the client field)
-          const isLastRow = index === rows.length - 1;
-          if (isLastRow) {
-            const lastRow = rows[index];
-            if (lastRow.tracking.trim() !== '') {
-              addRow();
-            }
-          } else {
-            const nextRowId = rows[index + 1].id;
-            const el = document.getElementById(`tracking-${nextRowId}`);
-            if (el) el.focus();
-          }
-        } else {
-          // Normal mode: go to client field
-          const el = document.getElementById(`client-${currentId}`);
-          if (el) el.focus();
-        }
+        // Always move to client/locker field after scanning
+        const el = document.getElementById(`client-${currentId}`);
+        if (el) el.focus();
       } else if (type === 'client') {
         const el = document.getElementById(`peso-${currentId}`);
         if (el) el.focus();
@@ -355,8 +340,8 @@ export function QuickEntry() {
           <button
             onClick={() => setScannerMode(prev => !prev)}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm border transition-all focus:outline-none ${scannerMode
-                ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-200'
-                : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
+              ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-200'
+              : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
               }`}
             title={scannerMode ? 'Modo Pistola ACTIVO: Enter salta al siguiente tracking' : 'Modo Normal: Enter avanza al campo siguiente'}
           >
