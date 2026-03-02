@@ -19,6 +19,7 @@ import { Reports } from './pages/Reports';
 import { PublicTracking } from './pages/PublicTracking';
 import { Profile } from './pages/Profile';
 
+import { UserDashboard } from './pages/UserDashboard';
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -91,7 +92,7 @@ function AppRoutes() {
       >
         <Route
           index
-          element={!isClient ? <Dashboard /> : <Navigate to="/inventory" replace />}
+          element={isClient ? <UserDashboard /> : <Dashboard />}
         />
         <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
         <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
