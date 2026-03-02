@@ -195,7 +195,7 @@ export function QuickEntry() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
-    // Block Tab completely on tracking field to prevent jumping to wrong fields
+    // Block Tab on ALL fields — prevents scanner or keyboard from jumping between rows
     if (e.key === 'Tab') {
       e.preventDefault();
       return;
@@ -313,16 +313,7 @@ export function QuickEntry() {
     }
   };
 
-  // Auto-add row when typing in the last row
-  const handleRowInteraction = (index: number) => {
-    if (index === rows.length - 1) {
-      const lastRow = rows[index];
-      if (lastRow.tracking !== '' || lastRow.cliente_id !== '') {
-        // Auto expand
-        addRow();
-      }
-    }
-  };
+  // (handleRowInteraction removed — was causing auto-row-add while typing)
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto animate-fade-in relative z-10 w-full max-w-full pb-10">
@@ -409,10 +400,7 @@ export function QuickEntry() {
                         className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase"
                         placeholder="Escanea o escribe..."
                         value={row.tracking}
-                        onChange={(e) => {
-                          updateRow(row.id, 'tracking', e.target.value);
-                          handleRowInteraction(index);
-                        }}
+                        onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
                         onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
                       />
                       <button
