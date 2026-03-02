@@ -3,6 +3,7 @@ import { Layers, Search, Plus, Package, MapPin, Loader2, CheckSquare, Square, Cl
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ConsolidationsList } from '../components/ConsolidationsList';
+import { sendEmail } from '../utils/sendEmail';
 
 interface Bodega { id: string; nombre: string; }
 interface Zona { id: string; nombre: string; }
@@ -192,7 +193,89 @@ export function Consolidation() {
           .eq('id', pid);
       }
 
-      alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío.');
+      // 4. Send Email Notifications to Clients
+      // Group selected packages by Client
+      const packsDetails = idsArray.map(id => paquetes.find(p => p.id === id)).filter(Boolean) as Paquete[];
+
+      const clientGroups: Record<string, { email: string, nombre: string, packages: Paquete[] }> = {};
+
+      packsDetails.forEach(p => {
+        // We need to fetch email first from profiles/clientes if not available directly in p.clientes.
+        // Assuming p.clientes.locker_id is a unique key, we can use it to fetch email if needed,
+        // but let's query the full client emails for the selected packages first
+      });
+
+      // Quick query to get client emails for all selected packages
+      const idsForEmail = idsArray;
+      const { data: paqClientesData } = await supabase
+        .from('paquetes')
+        .select('id, cliente_id, clientes(id, nombre, apellido, email)')
+        .in('id', idsForEmail);
+
+      if (paqClientesData) {
+        paqClientesData.forEach((row: any) => {
+          if (row.clientes && row.clientes.email) {
+            const cid = row.cliente_id;
+            if (!clientGroups[cid]) {
+              clientGroups[cid] = {
+                email: row.clientes.email,
+                nombre: row.clientes.nombre,
+                packages: []
+              };
+            }
+            const originalPack = packsDetails.find(p => p.id === row.id);
+            if (originalPack) {
+              clientGroups[cid].packages.push(originalPack);
+            }
+          }
+        });
+
+        // Send Email per client
+        for (const cid in clientGroups) {
+          const group = clientGroups[cid];
+          if (!group.email) continue;
+
+          let packageListHtml = `
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+              <tr style="background-color: #f8fafc; text-align: left;">
+                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Tracking</th>
+                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Lbs</th>
+                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Piezas</th>
+              </tr>
+          `;
+
+          group.packages.forEach(p => {
+            packageListHtml += `
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-family: monospace;">${p.tracking}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.peso_lbs}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.piezas || 1}</td>
+              </tr>
+            `;
+          });
+
+          packageListHtml += `</table>`;
+
+          const emailHtml = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+              <h2 style="color: #2563eb;">¡Tus paquetes están en camino! 📦</h2>
+              <p>Hola <strong>${group.nombre}</strong>,</p>
+              <p>Te notificamos que los siguientes paquetes han sido añadidos a un consolidado maestro y muy pronto comenzarán su viaje hacia Guatemala.</p>
+              ${packageListHtml}
+              <p style="margin-top: 25px;">Puedes revisar el estado en tiempo real ingresando a tu cuenta en <strong>Youbox GT</strong>.</p>
+              <p style="color: #64748b; font-size: 12px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+            </div>
+          `;
+
+          await sendEmail({
+            to: group.email,
+            subject: 'Notificación de Embarque Youbox GT',
+            html: emailHtml
+          });
+        }
+      }
+
+      alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
 
       // Refresh Data
       setFormData(f => ({ ...f, nombre_alternativo: '' }));

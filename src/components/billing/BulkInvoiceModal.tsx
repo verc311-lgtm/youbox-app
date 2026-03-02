@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Save, Loader2, Calculator, Users, Package } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { sendEmail } from '../../utils/sendEmail';
 
 interface BulkInvoiceModalProps {
     isOpen: boolean;
@@ -52,7 +53,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
 
     const [agrupados, setAgrupados] = useState<ClienteAgrupado[]>([]);
     const [tarifas, setTarifas] = useState<Tarifa[]>([]);
-    const [sendEmail, setSendEmail] = useState(true);
+    const [sendEmailFlag, setSendEmailFlag] = useState(true);
 
     useEffect(() => {
         if (isOpen && consolidacionId && bodegaId) {
@@ -65,7 +66,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
     const resetState = () => {
         setAgrupados([]);
         setTarifas([]);
-        setSendEmail(true);
+        setSendEmailFlag(true);
     };
 
     const fetchData = async () => {
@@ -211,15 +212,24 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
 
                 if (resConcepto.error) throw resConcepto.error;
 
-                // 3. Notificación
-                if (sendEmail && grupo.cliente.email) {
-                    await supabase.from('notificaciones').insert([{
-                        cliente_id: grupo.cliente.id,
-                        tipo: 'email',
-                        asunto: `Nueva Factura Generada - Lote Consolidado`,
-                        mensaje: `Hola ${grupo.cliente.nombre}, hemos generado tu factura ${numeroFactura} por procesar ${grupo.paquetes.length} paquete(s) por un monto de Q${grupo.totalQ.toFixed(2)}. Puedes revisar tu portal para realizar el pago.`,
-                        estado: 'pendiente'
-                    }]);
+                // 3. Notificación via Resend API
+                if (sendEmailFlag && grupo.cliente.email) {
+                    const emailHtml = `
+                      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+                        <h2 style="color: #2563eb;">Factura por Consolidación 🧾</h2>
+                        <p>Hola <strong>${grupo.cliente.nombre}</strong>,</p>
+                        <p>Hemos generado tu factura <strong>(${numeroFactura})</strong> correspondiente al procesamiento de <strong>${grupo.paquetes.length} paquete(s)</strong> de importación.</p>
+                        <p>El total a pagar es de <strong>Q${grupo.totalQ.toFixed(2)}</strong>.</p>
+                        <p style="margin-top: 15px;">Recuerda que puedes revisar los detalles y pagar desde tu portal de cliente en Youbox GT.</p>
+                        <p style="color: #64748b; font-size: 12px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+                      </div>
+                    `;
+
+                    await sendEmail({
+                        to: grupo.cliente.email,
+                        subject: `Factura ${numeroFactura} de Importación - Youbox GT`,
+                        html: emailHtml
+                    });
                 }
 
                 processed++;
@@ -353,8 +363,8 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                         <input
                             type="checkbox"
                             id="sendEmailBulk"
-                            checked={sendEmail}
-                            onChange={(e) => setSendEmail(e.target.checked)}
+                            checked={sendEmailFlag}
+                            onChange={(e) => setSendEmailFlag(e.target.checked)}
                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                         />
                         <label htmlFor="sendEmailBulk" className="text-sm text-slate-700 font-medium cursor-pointer">

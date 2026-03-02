@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, Loader2, Calculator } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { sendEmail } from '../../utils/sendEmail';
 
 interface Tarifa {
     id: string;
@@ -46,7 +47,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
     const [clientSearchTerm, setClientSearchTerm] = useState('');
 
     const [conceptos, setConceptos] = useState<{ id: string, descripcion: string, cantidad: number, precio_unitario: number }[]>([]);
-    const [sendEmail, setSendEmail] = useState(true);
+    const [sendEmailFlag, setSendEmailFlag] = useState(true);
 
     useEffect(() => {
         if (isOpen) {
@@ -71,7 +72,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
         setSelectedCliente('');
         setSelectedBodega('');
         setConceptos([]);
-        setSendEmail(true);
+        setSendEmailFlag(true);
     };
 
     const fetchInitialData = async () => {
@@ -184,17 +185,26 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
             const { error: conceptosError } = await supabase.from('conceptos_factura').insert(conceptosToInsert);
             if (conceptosError) throw conceptosError;
 
-            // 3. Queue Email if requested (mock saving notification logic)
-            if (sendEmail && !isManualClient) {
+            // 3. Email implementation using Resend
+            if (sendEmailFlag && !isManualClient) {
                 const targetCliente = clientes.find(c => c.id === selectedCliente);
                 if (targetCliente?.email) {
-                    await supabase.from('notificaciones').insert([{
-                        cliente_id: selectedCliente,
-                        tipo: 'email',
-                        asunto: `Nueva Factura Generada - ${numeroFactura}`,
-                        mensaje: `Se ha generado una nueva factura por el monto de Q${total.toFixed(2)}. Por favor ingrese a su portal para revisar detalles o contactarnos para el pago.`,
-                        estado: 'pendiente'
-                    }]);
+                    const emailHtml = `
+                      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+                        <h2 style="color: #2563eb;">Nueva Factura Generada 🧾</h2>
+                        <p>Hola <strong>${targetCliente.nombre}</strong>,</p>
+                        <p>Se ha generado una nueva factura <strong>(${numeroFactura})</strong> en tu cuenta por el monto de <strong>Q${total.toFixed(2)}</strong>.</p>
+                        <p style="margin-top: 15px;">Puedes revisar los detalles descargando la factura desde tu portal de cliente en Youbox GT.</p>
+                        <p style="margin-top: 15px;">Si tienes dudas sobre este cobro, no dudes en contactarnos.</p>
+                        <p style="color: #64748b; font-size: 12px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+                      </div>
+                    `;
+
+                    await sendEmail({
+                        to: targetCliente.email,
+                        subject: `Factura ${numeroFactura} - Youbox GT`,
+                        html: emailHtml
+                    });
                 }
             }
 
@@ -408,8 +418,8 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                             <input
                                 type="checkbox"
                                 id="sendEmail"
-                                checked={sendEmail}
-                                onChange={(e) => setSendEmail(e.target.checked)}
+                                checked={sendEmailFlag}
+                                onChange={(e) => setSendEmailFlag(e.target.checked)}
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                             />
                             <label htmlFor="sendEmail" className="text-sm text-slate-700 font-medium">
