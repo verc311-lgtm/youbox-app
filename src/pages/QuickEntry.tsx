@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, CheckCircle2, Upload, Printer } from 'lucide-react';
+import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, CheckCircle2, Upload, Printer, Monitor } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
+import { WebcamModal } from '../components/WebcamModal';
 
 interface Cliente {
   id: string;
@@ -67,6 +68,9 @@ export function QuickEntry() {
 
   // Label Printing state
   const [printLabelData, setPrintLabelData] = useState<any | null>(null);
+
+  // Webcam state
+  const [activeWebcamRow, setActiveWebcamRow] = useState<string | null>(null);
 
   // Photo input refs per row (we need two per row now: one for camera, one for gallery)
   const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -181,6 +185,12 @@ export function QuickEntry() {
     };
     reader.readAsDataURL(file);
     e.target.value = ''; // Reset so same file can be selected again if needed
+  };
+
+  const handleWebcamCapture = (id: string, file: File, previewUrl: string) => {
+    setRows(cur => cur.map(r =>
+      r.id === id ? { ...r, photoFile: file, photoPreview: previewUrl, showPhotoMenu: false } : r
+    ));
   };
 
   // Per-row save
@@ -522,8 +532,18 @@ export function QuickEntry() {
                             <div className="bg-blue-100/50 p-1.5 rounded-lg text-blue-600">
                               <Camera className="h-4 w-4" />
                             </div>
-                            Tomar foto
+                            Tomar foto (Móvil)
                           </label>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => { e.preventDefault(); setActiveWebcamRow(row.id); updateRow(row.id, 'showPhotoMenu', false); }}
+                            className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors cursor-pointer text-left"
+                          >
+                            <div className="bg-purple-100/50 p-1.5 rounded-lg text-purple-600">
+                              <Monitor className="h-4 w-4" />
+                            </div>
+                            Cámara PC
+                          </button>
                           <label
                             htmlFor={`gallery-${row.id}`}
                             onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)}
@@ -611,6 +631,17 @@ export function QuickEntry() {
           paquete={printLabelData}
         />
       )}
+
+      <WebcamModal
+        isOpen={!!activeWebcamRow}
+        onClose={() => setActiveWebcamRow(null)}
+        rowId={activeWebcamRow || ''}
+        onCapture={(file, previewUrl) => {
+          if (activeWebcamRow) {
+            handleWebcamCapture(activeWebcamRow, file, previewUrl);
+          }
+        }}
+      />
     </div>
   );
 }
