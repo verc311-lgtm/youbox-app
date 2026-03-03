@@ -236,7 +236,8 @@ export function QuickEntry() {
 
   // Keyboard handler
   const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
-    if (e.key === 'Tab') { e.preventDefault(); return; }
+    // Allow natural Tab key navigation
+
     if (e.key === 'Enter') {
       e.preventDefault();
       if (type === 'tracking') {
@@ -282,8 +283,8 @@ export function QuickEntry() {
           <button
             onClick={() => setScannerMode(prev => !prev)}
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm border transition-all focus:outline-none ${scannerMode
-                ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
-                : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
+              ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
+              : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
               }`}
             title={scannerMode ? 'Modo Pistola ACTIVO' : 'Modo Normal'}
           >
@@ -374,10 +375,10 @@ export function QuickEntry() {
                         id={`client-${row.id}`}
                         type="text"
                         className={`block w-full rounded-lg py-1.5 pl-8 pr-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold disabled:opacity-60 ${!row.cliente_id && row.clientSearch
-                            ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/10'
-                            : row.isSaved
-                              ? 'border border-emerald-200/80 bg-emerald-50/30'
-                              : 'border border-slate-200/80 bg-white/80'
+                          ? 'border-amber-400 ring-2 ring-amber-400/20 bg-amber-50/10'
+                          : row.isSaved
+                            ? 'border border-emerald-200/80 bg-emerald-50/30'
+                            : 'border border-slate-200/80 bg-white/80'
                           }`}
                         placeholder="Buscar por nombre, apellido o YBG..."
                         value={row.clientSearch}
