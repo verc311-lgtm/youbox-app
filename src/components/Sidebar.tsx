@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   PackagePlus,
+  UserPlus,
   Boxes,
   Layers,
   Users,
@@ -24,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, section: 'General' },
   { name: 'Quick Entry', href: '/entry', icon: PackagePlus, section: 'Operaciones' },
+  { name: 'Entrada (Cliente)', href: '/client-entry', icon: UserPlus, section: 'Operaciones' },
   { name: 'Warehouse', href: '/warehouse', icon: Inbox, section: 'Operaciones' },
   { name: 'Inventario', href: '/inventory', icon: Boxes, section: 'Operaciones' },
   { name: 'Consolidación', href: '/consolidation', icon: Layers, section: 'Operaciones' },

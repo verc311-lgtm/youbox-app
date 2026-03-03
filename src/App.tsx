@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { QuickEntry } from './pages/QuickEntry';
+import { ClientEntry } from './pages/ClientEntry';
 import { Warehouse } from './pages/Warehouse';
 import { Inventory } from './pages/Inventory';
 import { Consolidation } from './pages/Consolidation';
@@ -95,6 +96,7 @@ function AppRoutes() {
           element={isClient ? <UserDashboard /> : <Dashboard />}
         />
         <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
+        <Route path="client-entry" element={<OperadorRoute><ClientEntry /></OperadorRoute>} />
         <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
