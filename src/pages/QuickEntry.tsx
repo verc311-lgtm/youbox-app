@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, ScanBarcode, Plus, Search, Loader2, Trash2, Save, ScanLine, Keyboard, ImagePlus, CheckCircle2, Upload } from 'lucide-react';
+import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, CheckCircle2, Upload, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
+import { LabelPrinterModal } from '../components/LabelPrinterModal';
 
 interface Cliente {
   id: string;
@@ -62,10 +62,11 @@ export function QuickEntry() {
   const [globalBodega, setGlobalBodega] = useState('');
   const [globalTransportista, setGlobalTransportista] = useState('');
 
-  // Scanner
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [activeScannerRowId, setActiveScannerRowId] = useState<string | null>(null);
-  const [scannerMode, setScannerMode] = useState(true);
+  // Auto-save toggle
+  const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(true);
+
+  // Label Printing state
+  const [printLabelData, setPrintLabelData] = useState<any | null>(null);
 
   // Photo input refs per row (we need two per row now: one for camera, one for gallery)
   const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -248,50 +249,26 @@ export function QuickEntry() {
     }
   };
 
-  // Keyboard handler for STRICT Tab flow
-  const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
-    if (e.key === 'Tab') {
-      e.preventDefault(); // Take manual control of Tab
-      const isShift = e.shiftKey;
-
-      if (type === 'tracking') {
-        if (!isShift) {
-          const el = document.getElementById(`client-${currentId}`);
-          if (el) el.focus();
-        } else {
-          // If shift-tab on tracking, go to previous row's peso
-          if (index > 0) {
-            const prevId = rows[index - 1].id;
-            const el = document.getElementById(`peso-${prevId}`);
-            if (el) el.focus();
-          }
-        }
-      } else if (type === 'client') {
-        if (!isShift) {
-          const el = document.getElementById(`peso-${currentId}`);
-          if (el) el.focus();
-        } else {
-          const el = document.getElementById(`tracking-${currentId}`);
-          if (el) el.focus();
-        }
-      } else if (type === 'peso') {
-        if (!isShift) {
-          // Target next row tracking
-          if (index < rows.length - 1) {
-            const nextId = rows[index + 1].id;
-            const el = document.getElementById(`tracking-${nextId}`);
-            if (el) el.focus();
-          } else {
-            addRow(); // create and focus native handled in addRow
-          }
-        } else {
-          const el = document.getElementById(`client-${currentId}`);
-          if (el) el.focus();
-        }
-      }
+  // Label printing handler
+  const openLabelPrinter = (row: RowData) => {
+    if (!row.tracking) {
+      alert("Por favor ingresa un número de tracking primero.");
       return;
     }
+    const bodegaName = bodegas.find(b => b.id === (row.bodega_id || globalBodega))?.nombre || 'General';
+    setPrintLabelData({
+      remitenteInfo: "DESCONOCIDO", // We don't have transportista name explicitly here, could fetch if needed
+      trackingOriginal: row.tracking,
+      clienteCasillero: row.clientSearch.split(' - ')[0] || "N/A", // Extract locker ID from "Locker - Nombre"
+      clienteNombre: row.clientSearch.split(' - ')[1] || "CLIENTE NO ASIGNADO",
+      bodegaDestino: bodegaName,
+      pesoLbs: parseFloat(row.peso_lbs) || 0,
+      piezas: parseInt(row.piezas) || 1,
+    });
+  };
 
+  // Keyboard handler for ENTER only (Tab is now 100% native DOM order)
+  const handleKeyDown = (e: React.KeyboardEvent, currentId: string, type: 'tracking' | 'client' | 'peso', index: number) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (type === 'tracking') {
@@ -301,22 +278,20 @@ export function QuickEntry() {
         const el = document.getElementById(`peso-${currentId}`);
         if (el) el.focus();
       } else if (type === 'peso') {
-        handleSaveRow(currentId);
+        if (autoSaveOnEnter) {
+          handleSaveRow(currentId);
+        } else {
+          // just try to go to next row
+          const isLastRow = rows[rows.length - 1].id === currentId;
+          if (isLastRow) {
+            addRow();
+          } else {
+            const nextRowId = rows[index + 1].id;
+            const el = document.getElementById(`tracking-${nextRowId}`);
+            if (el) el.focus();
+          }
+        }
       }
-    }
-  };
-
-  const openScanner = (rowId: string) => { setActiveScannerRowId(rowId); setIsScannerOpen(true); };
-
-  const onScanSuccess = (decodedText: string) => {
-    if (activeScannerRowId) {
-      updateRow(activeScannerRowId, 'tracking', decodedText);
-      setIsScannerOpen(false);
-      setActiveScannerRowId(null);
-      setTimeout(() => {
-        const el = document.getElementById(`client-${activeScannerRowId}`);
-        if (el) el.focus();
-      }, 100);
     }
   };
 
@@ -329,21 +304,21 @@ export function QuickEntry() {
             Multi-Entry (Bulk)
           </h1>
           <p className="text-sm font-medium text-slate-500 mt-1">
-            Ingreso masivo de paquetes compatible con lectores <Keyboard className="inline h-3 w-3 mx-0.5 text-slate-400" /> y cámara.
+            Ingreso secuencial rápido y tabulado.
           </p>
         </div>
         <div className="flex gap-3">
-          {/* Scanner Mode Toggle */}
+          {/* Scanner Mode Toggle -> Renamed to Auto Save on Enter */}
           <button
-            onClick={() => setScannerMode(prev => !prev)}
-            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm border transition-all focus:outline-none ${scannerMode
+            onClick={() => setAutoSaveOnEnter(prev => !prev)}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm border transition-all focus:outline-none ${autoSaveOnEnter
                 ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
                 : 'bg-white/80 text-slate-500 border-slate-200/60 hover:bg-white'
               }`}
-            title={scannerMode ? 'Modo Pistola ACTIVO' : 'Modo Normal'}
+            title={autoSaveOnEnter ? 'Guardado Automático Activado' : 'Guardado Manual'}
           >
-            <ScanBarcode className="h-4 w-4" />
-            {scannerMode ? 'Modo Pistola ON' : 'Modo Pistola OFF'}
+            <Save className="h-4 w-4" />
+            {autoSaveOnEnter ? 'Auto-Save ON' : 'Auto-Save OFF'}
           </button>
 
           <button
@@ -369,7 +344,7 @@ export function QuickEntry() {
                 <th className="px-3 py-3.5 w-24">Peso (lbs)</th>
                 <th className="px-3 py-3.5 w-16 text-center">Pzas</th>
                 <th className="px-3 py-3.5 w-32 text-center">Foto</th>
-                <th className="px-3 py-3.5 w-28 text-center">Guardar</th>
+                <th className="px-3 py-3.5 w-28 text-center">Acciones</th>
                 <th className="px-3 py-3.5 w-10 text-center"></th>
               </tr>
             </thead>
@@ -394,7 +369,7 @@ export function QuickEntry() {
                     </select>
                   </td>
 
-                  {/* Tracking */}
+                  {/* Tracking (with Print Label button instead of Scanner) */}
                   <td className="px-3 py-2.5">
                     <div className="flex gap-1.5">
                       <input
@@ -409,12 +384,11 @@ export function QuickEntry() {
                       />
                       <button
                         type="button"
-                        onClick={() => openScanner(row.id)}
-                        disabled={row.isSaved}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200/60 shadow-sm transition-all hover:border-blue-200 active:scale-95 disabled:opacity-40 outline-none"
-                        title="Usar Cámara"
+                        onClick={() => openLabelPrinter(row)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200/60 shadow-sm transition-all hover:border-blue-200 active:scale-95 outline-none"
+                        title="Imprimir Etiqueta"
                       >
-                        <ScanLine className="h-4 w-4" />
+                        <Printer className="h-4 w-4" />
                       </button>
                     </div>
                   </td>
@@ -618,17 +592,16 @@ export function QuickEntry() {
             <span className="text-emerald-600 font-bold">{rows.filter(r => r.isSaved).length} guardado(s)</span>
           </p>
           <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5 bg-white border border-slate-200/60 px-3 py-1.5 rounded-lg shadow-sm">
-            <kbd className="font-mono bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs font-bold text-slate-700 shadow-sm">Tab</kbd> navegar &mdash;
-            <kbd className="font-mono bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs font-bold text-slate-700 shadow-sm ml-1">Enter</kbd> guardar paquete
+            <kbd className="font-mono bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs font-bold text-slate-700 shadow-sm">Tab</kbd> navegar naturalmente &mdash;
+            <kbd className="font-mono bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded text-xs font-bold text-slate-700 shadow-sm ml-1">Enter</kbd> salto rápido (y Auto-Save)
           </p>
         </div>
       </div>
 
-      {/* Scanner Modal */}
-      <BarcodeScannerModal
-        isOpen={isScannerOpen}
-        onClose={() => { setIsScannerOpen(false); setActiveScannerRowId(null); }}
-        onScan={onScanSuccess}
+      <LabelPrinterModal
+        isOpen={!!printLabelData}
+        onClose={() => setPrintLabelData(null)}
+        paquete={printLabelData!}
       />
     </div>
   );
