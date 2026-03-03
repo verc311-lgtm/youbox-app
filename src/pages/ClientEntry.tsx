@@ -217,7 +217,6 @@ export function ClientEntry() {
                 peso_lbs: parseFloat(row.peso_lbs) || null,
                 piezas: parseInt(row.piezas) || 1,
                 notas: row.notas || null,
-                foto_url,
                 estado: 'en_bodega',
                 usuario_recepcion: user?.id === 'admin-001' ? null : user?.id,
             };
