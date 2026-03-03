@@ -63,7 +63,7 @@ export function PublicTracking() {
           transportistas (nombre),
           historial_estados (id, estado_nuevo, notas, created_at)
         `)
-                .ilike('tracking', trimmed.toUpperCase()) // Case insensitive
+                .ilike('tracking', trimmed) // Case insensitive exact match
                 .maybeSingle();
 
             if (error) throw error;
