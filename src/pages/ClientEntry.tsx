@@ -275,8 +275,23 @@ export function ClientEntry() {
         if (e.key === 'Enter') {
             e.preventDefault();
             if (type === 'tracking') {
-                const el = document.getElementById(`peso-${currentId}`);
-                if (el) el.focus();
+                if (autoSaveOnEnter) {
+                    if (globalClient) {
+                        const row = rows.find(r => r.id === currentId);
+                        if (row && row.tracking.trim()) {
+                            // Automatically save the row directly from the tracking field if scanner is used
+                            handleSaveRow(currentId);
+                        } else {
+                            const el = document.getElementById(`peso-${currentId}`);
+                            if (el) el.focus();
+                        }
+                    } else {
+                        alert('Debes seleccionar un cliente antes de guardar automáticamente.');
+                    }
+                } else {
+                    const el = document.getElementById(`peso-${currentId}`);
+                    if (el) el.focus();
+                }
             } else if (type === 'peso') {
                 if (autoSaveOnEnter) {
                     if (globalClient) {
