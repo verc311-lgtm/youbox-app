@@ -369,28 +369,18 @@ export function QuickEntry() {
                     </select>
                   </td>
 
-                  {/* Tracking (with Print Label button instead of Scanner) */}
+                  {/* Tracking */}
                   <td className="px-3 py-2.5">
-                    <div className="flex gap-1.5">
-                      <input
-                        id={`tracking-${row.id}`}
-                        type="text"
-                        className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
-                        placeholder="Escanea o escribe..."
-                        value={row.tracking}
-                        onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
-                        onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
-                        disabled={row.isSaved}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => openLabelPrinter(row)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-slate-200/60 shadow-sm transition-all hover:border-blue-200 active:scale-95 outline-none"
-                        title="Imprimir Etiqueta"
-                      >
-                        <Printer className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <input
+                      id={`tracking-${row.id}`}
+                      type="text"
+                      className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
+                      placeholder="Escribe..."
+                      value={row.tracking}
+                      onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
+                      onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
+                      disabled={row.isSaved}
+                    />
                   </td>
 
                   {/* Client Search */}
@@ -471,9 +461,10 @@ export function QuickEntry() {
                     />
                   </td>
 
-                  {/* Foto con Dropdown Menu */}
+                  {/* Foto con Dropdown Menu usando Labels nativos (fixes iOS camera bug) */}
                   <td className="px-3 py-2.5 text-center relative">
                     <input
+                      id={`camera-${row.id}`}
                       ref={el => { cameraRefs.current[row.id] = el; }}
                       type="file"
                       accept="image/*"
@@ -482,6 +473,7 @@ export function QuickEntry() {
                       onChange={(e) => handlePhotoChange(row.id, e)}
                     />
                     <input
+                      id={`gallery-${row.id}`}
                       ref={el => { galleryRefs.current[row.id] = el; }}
                       type="file"
                       accept="image/*"
@@ -518,54 +510,68 @@ export function QuickEntry() {
                         </button>
                       )}
 
-                      {/* Photo Popup Dropdown */}
+                      {/* Photo Popup Dropdown - Using native labels to trigger inputs directly */}
                       {row.showPhotoMenu && (
                         <div className="absolute z-[9999] right-0 mt-2 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden"
                           style={{ bottom: 'auto', left: '50%', transform: 'translateX(-50%)' }}>
-                          <button
-                            onMouseDown={(e) => { e.preventDefault(); cameraRefs.current[row.id]?.click(); updateRow(row.id, 'showPhotoMenu', false); }}
-                            className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+                          <label
+                            htmlFor={`camera-${row.id}`}
+                            onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)}
+                            className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
                           >
                             <div className="bg-blue-100/50 p-1.5 rounded-lg text-blue-600">
                               <Camera className="h-4 w-4" />
                             </div>
                             Tomar foto
-                          </button>
-                          <button
-                            onMouseDown={(e) => { e.preventDefault(); galleryRefs.current[row.id]?.click(); updateRow(row.id, 'showPhotoMenu', false); }}
-                            className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors"
+                          </label>
+                          <label
+                            htmlFor={`gallery-${row.id}`}
+                            onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)}
+                            className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors cursor-pointer"
                           >
                             <div className="bg-emerald-100/50 p-1.5 rounded-lg text-emerald-600">
                               <Upload className="h-4 w-4" />
                             </div>
                             Subir galería
-                          </button>
+                          </label>
                         </div>
                       )}
                     </div>
                   </td>
 
-                  {/* Guardar (per-row) */}
+                  {/* Acciones (Guardar + Imprimir) */}
                   <td className="px-3 py-2.5 text-center">
-                    {row.isSaved ? (
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Guardado
-                      </div>
-                    ) : (
+                    <div className="flex items-center justify-center gap-1.5">
+                      {row.isSaved ? (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Guardado
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleSaveRow(row.id)}
+                          disabled={row.isSaving || !row.tracking.trim() || !row.cliente_id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Guardar"
+                        >
+                          {row.isSaving
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Save className="h-3.5 w-3.5" />
+                          }
+                          <span className="hidden xl:inline">{row.isSaving ? 'Guardando...' : 'Guardar'}</span>
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => handleSaveRow(row.id)}
-                        disabled={row.isSaving || !row.tracking.trim() || !row.cliente_id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                        title="Guardar este paquete"
+                        type="button"
+                        onClick={() => openLabelPrinter(row)}
+                        disabled={!row.tracking.trim()}
+                        className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 shadow-sm hover:text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all active:scale-95 outline-none disabled:opacity-40 disabled:hover:bg-white disabled:hover:border-slate-300"
+                        title="Imprimir Etiqueta"
                       >
-                        {row.isSaving
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <Save className="h-3.5 w-3.5" />
-                        }
-                        {row.isSaving ? 'Guardando...' : 'Guardar'}
+                        <Printer className="h-4 w-4" />
                       </button>
-                    )}
+                    </div>
                   </td>
 
                   {/* Delete */}
