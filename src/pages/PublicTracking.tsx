@@ -71,18 +71,20 @@ export function PublicTracking() {
           historial_estados (id, estado_nuevo, notas, created_at)
         `)
                 .ilike('tracking', `%${searchTracking}%`) // Case insensitive exact match with wildcards
-                .maybeSingle();
+                .order('created_at', { ascending: false })
+                .limit(1);
 
             if (error) throw error;
 
-            if (data) {
+            if (data && data.length > 0) {
+                const row = data[0];
                 // Sort history newest first
-                if (data.historial_estados) {
-                    (data.historial_estados as any[]).sort((a, b) =>
+                if (row.historial_estados) {
+                    (row.historial_estados as any[]).sort((a, b) =>
                         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                     );
                 }
-                setResult(data as unknown as PackageResult);
+                setResult(row as unknown as PackageResult);
             } else {
                 setNotFound(true);
             }
