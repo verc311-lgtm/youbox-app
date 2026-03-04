@@ -263,6 +263,21 @@ export function ClientEntry() {
         }
     };
 
+    const handleSaveAll = async () => {
+        if (!globalClient) { alert('Debes seleccionar un cliente general arriba.'); return; }
+
+        const unsavedRows = rows.filter(r => !r.isSaved && r.tracking.trim() !== '');
+        if (unsavedRows.length === 0) {
+            alert('No hay paquetes pendientes con tracking para guardar.');
+            return;
+        }
+
+        // We process them sequentially to avoid race conditions and respect the UI states
+        for (const row of unsavedRows) {
+            await handleSaveRow(row.id);
+        }
+    };
+
     // --- Printer ---
     const openLabelPrinter = (row: RowData) => {
         if (!row.tracking) {
@@ -405,7 +420,16 @@ export function ClientEntry() {
 
             {/* Table grid area */}
             <div className={`transition-all duration-500 ${!globalClient ? 'opacity-40 pointer-events-none grayscale-[0.5]' : 'opacity-100'}`}>
-                <div className="flex justify-end mb-3">
+                <div className="flex justify-end mb-3 gap-3">
+                    <button
+                        onClick={handleSaveAll}
+                        disabled={!globalClient || rows.filter(r => !r.isSaved && r.tracking.trim() !== '').length === 0}
+                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:from-indigo-500 hover:to-blue-500 hover:-translate-y-0.5 hover:shadow-md transition-all focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                        <Save className="h-4 w-4" />
+                        Guardar Todos
+                    </button>
+
                     <button
                         onClick={addRow}
                         disabled={!globalClient}

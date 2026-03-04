@@ -273,6 +273,19 @@ export function QuickEntry() {
     }
   };
 
+  const handleSaveAll = async () => {
+    const unsavedRows = rows.filter(r => !r.isSaved && r.tracking.trim() !== '' && r.cliente_id !== '');
+    if (unsavedRows.length === 0) {
+      alert('No hay paquetes pendientes con tracking y cliente válido para guardar.');
+      return;
+    }
+
+    // Process sequentially to prevent DB spam and UI state overlap
+    for (const row of unsavedRows) {
+      await handleSaveRow(row.id);
+    }
+  };
+
   // Label printing handler
   const openLabelPrinter = (row: RowData) => {
     if (!row.tracking) {
@@ -343,6 +356,15 @@ export function QuickEntry() {
           >
             <Save className="h-4 w-4" />
             {autoSaveOnEnter ? 'Auto-Save ON' : 'Auto-Save OFF'}
+          </button>
+
+          <button
+            onClick={handleSaveAll}
+            disabled={rows.filter(r => !r.isSaved && r.tracking.trim() !== '' && r.cliente_id !== '').length === 0}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:from-indigo-500 hover:to-blue-500 hover:-translate-y-0.5 hover:shadow-md transition-all focus:outline-none disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <Save className="h-4 w-4" />
+            Guardar Todos
           </button>
 
           <button
