@@ -12,7 +12,6 @@ interface PackageResult {
     peso_lbs: number;
     estado: string;
     fecha_recepcion: string;
-    descripcion?: string;
     bodegas?: { nombre: string };
     clientes?: { nombre: string; apellido: string; locker_id: string };
     transportistas?: { nombre: string };
@@ -68,7 +67,7 @@ export function PublicTracking() {
             const { data, error } = await supabase
                 .from('paquetes')
                 .select(`
-          id, tracking, peso_lbs, estado, fecha_recepcion, descripcion,
+          id, tracking, peso_lbs, estado, fecha_recepcion,
           bodegas (nombre),
           clientes (nombre, apellido, locker_id),
           transportistas (nombre),
