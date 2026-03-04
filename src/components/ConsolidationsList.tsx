@@ -18,7 +18,11 @@ interface Consolidacion {
     paquetes_count?: number;
 }
 
-export function ConsolidationsList() {
+interface ConsolidationsListProps {
+    onEdit?: (id: string) => void;
+}
+
+export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
     const [consolidaciones, setConsolidaciones] = useState<Consolidacion[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -193,6 +197,15 @@ export function ConsolidationsList() {
                                                         title="Generar Facturas"
                                                     >
                                                         <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
+                                                    </button>
+                                                )}
+                                                {onEdit && (
+                                                    <button
+                                                        onClick={() => onEdit(cons.id)}
+                                                        className="inline-flex items-center justify-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                        title="Editar Consolidado"
+                                                    >
+                                                        <ExternalLink className="h-4 w-4" /> <span className="hidden lg:inline">Editar</span>
                                                     </button>
                                                 )}
                                                 <button

@@ -45,37 +45,80 @@ export function Consolidation() {
     destino_id: ''
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editConsolidationId, setEditConsolidationId] = useState<string | null>(null);
+  const [originalSelectedIds, setOriginalSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchInitialData();
   }, []);
 
-  async function fetchInitialData() {
+  async function fetchInitialData(editId: string | null = null) {
     setLoading(true);
+    setEditConsolidationId(editId);
     try {
       // Fetch Catalogs
-      const [bodegasRes, zonasRes, paquetesRes] = await Promise.all([
+      const [bodegasRes, zonasRes] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('activo', true),
-        supabase.from('zonas').select('id, nombre').eq('activo', true),
-        supabase.from('paquetes')
-          .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
-          .in('estado', ['en_bodega', 'recibido'])
-          .order('fecha_recepcion', { ascending: false })
+        supabase.from('zonas').select('id, nombre').eq('activo', true)
       ]);
 
-      if (bodegasRes.data) {
-        setBodegas(bodegasRes.data);
-        if (bodegasRes.data.length > 0) setFormData(f => ({ ...f, origen_id: bodegasRes.data[0].id }));
+      let paqData: Paquete[] = [];
+      let addedIds = new Set<string>();
+
+      if (editId) {
+        // Fetch consolidation details
+        const { data: consData } = await supabase.from('consolidaciones').select('*').eq('id', editId).single();
+        if (consData) {
+          setFormData({
+            nombre_alternativo: consData.codigo,
+            origen_id: consData.bodega_id || '',
+            destino_id: consData.zona_destino_id || ''
+          });
+        }
+
+        // Fetch packages for this consolidation
+        const { data: pivotData } = await supabase.from('consolidacion_paquetes').select('paquete_id').eq('consolidacion_id', editId);
+        const ids = pivotData?.map(p => p.paquete_id) || [];
+        addedIds = new Set(ids);
+        setSelectedIds(new Set(ids));
+        setOriginalSelectedIds(new Set(ids));
+
+        // Fetch available packages
+        const { data: availData } = await supabase.from('paquetes')
+          .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
+          .in('estado', ['en_bodega', 'recibido'])
+          .order('fecha_recepcion', { ascending: false });
+
+        // Fetch already added packages
+        let addedData: any[] = [];
+        if (ids.length > 0) {
+          const { data: aData } = await supabase.from('paquetes')
+            .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
+            .in('id', ids)
+            .order('fecha_recepcion', { ascending: false });
+          addedData = aData || [];
+        }
+
+        paqData = [...(availData || []), ...addedData] as unknown as Paquete[];
+      } else {
+        const { data: availData } = await supabase.from('paquetes')
+          .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
+          .in('estado', ['en_bodega', 'recibido'])
+          .order('fecha_recepcion', { ascending: false });
+
+        paqData = (availData || []) as unknown as Paquete[];
+
+        setFormData({ nombre_alternativo: '', origen_id: '', destino_id: '' });
+        setSelectedIds(new Set());
+        setOriginalSelectedIds(new Set());
+
+        if (bodegasRes.data && bodegasRes.data.length > 0) setFormData(f => ({ ...f, origen_id: bodegasRes.data[0].id }));
+        if (zonasRes.data && zonasRes.data.length > 0) setFormData(f => ({ ...f, destino_id: zonasRes.data[0].id }));
       }
 
-      if (zonasRes.data) {
-        setZonas(zonasRes.data);
-        if (zonasRes.data.length > 0) setFormData(f => ({ ...f, destino_id: zonasRes.data[0].id }));
-      }
-
-      if (paquetesRes.data) {
-        setPaquetes(paquetesRes.data as unknown as Paquete[]);
-      }
+      setBodegas(bodegasRes.data || []);
+      setZonas(zonasRes.data || []);
+      setPaquetes(paqData);
     } catch (e) {
       console.error('Error fetching data for consolidation:', e);
     } finally {
@@ -139,7 +182,7 @@ export function Consolidation() {
     };
   }, [selectedIds, paquetes]);
 
-  const handleCreateConsolidation = async () => {
+  const handleSaveConsolidation = async () => {
     if (selectedIds.size === 0) {
       alert('Debes seleccionar al menos un paquete.');
       return;
@@ -151,136 +194,156 @@ export function Consolidation() {
 
     try {
       setSaving(true);
-      // Generate Code like CON-YYYYMMDD-RAMDOM
-      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const code = `CON-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const idsArray = Array.from(selectedIds) as string[];
+      let consId = editConsolidationId;
+      let emailIdsToNotify: string[] = [];
 
-      const newConsolidation = {
-        codigo: formData.nombre_alternativo || code,
-        bodega_id: formData.origen_id,
-        zona_destino_id: formData.destino_id,
-        estado: 'abierta',
-        peso_total_lbs: resumen.peso,
-        notas: `Consolidación generada por ${user?.nombre || 'Operador'}`,
-      };
+      if (editConsolidationId) {
+        // UPDATE EXISTING CONSOLIDATION
+        await supabase.from('consolidaciones')
+          .update({
+            codigo: formData.nombre_alternativo || undefined,
+            bodega_id: formData.origen_id,
+            zona_destino_id: formData.destino_id,
+            peso_total_lbs: resumen.peso
+          })
+          .eq('id', editConsolidationId);
 
-      // 1. Insert Consolidation
-      const { data: consData, error: consError } = await supabase
-        .from('consolidaciones')
-        .insert([newConsolidation])
-        .select()
-        .single();
+        const toAdd = idsArray.filter(id => !originalSelectedIds.has(id));
+        const toRemove = Array.from(originalSelectedIds).filter(id => !selectedIds.has(id));
 
-      if (consError || !consData) throw consError;
+        // Remove unselected packages from consolidation
+        if (toRemove.length > 0) {
+          await supabase.from('consolidacion_paquetes').delete()
+            .eq('consolidacion_id', editConsolidationId).in('paquete_id', toRemove);
+          for (const pid of toRemove) {
+            await supabase.from('paquetes').update({ estado: 'en_bodega' }).eq('id', pid);
+          }
+        }
 
-      const consId = consData.id;
-      const idsArray = Array.from(selectedIds);
+        // Add newly selected packages to consolidation
+        if (toAdd.length > 0) {
+          const pivotData = toAdd.map(pid => ({ consolidacion_id: editConsolidationId, paquete_id: pid }));
+          await supabase.from('consolidacion_paquetes').insert(pivotData);
+          for (const pid of toAdd) {
+            await supabase.from('paquetes').update({ estado: 'consolidado' }).eq('id', pid);
+          }
+          emailIdsToNotify = toAdd; // Only notify newly added packages
+        }
 
-      // 2. Pivot Table Insert
-      const pivotData = idsArray.map(pid => ({
-        consolidacion_id: consId,
-        paquete_id: pid
-      }));
+        alert('Consolidación actualizada con éxito.');
+      } else {
+        // CREATE NEW CONSOLIDATION
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const code = `CON-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      const { error: pivotError } = await supabase.from('consolidacion_paquetes').insert(pivotData);
-      if (pivotError) throw pivotError;
+        const newConsolidation = {
+          codigo: formData.nombre_alternativo || code,
+          bodega_id: formData.origen_id,
+          zona_destino_id: formData.destino_id,
+          estado: 'abierta',
+          peso_total_lbs: resumen.peso,
+          notas: `Consolidación generada por ${user?.nombre || 'Operador'}`,
+        };
 
-      // 3. Update status of Packages
-      for (const pid of idsArray) {
-        await supabase
-          .from('paquetes')
-          .update({ estado: 'consolidado' })
-          .eq('id', pid);
+        const { data: consData, error: consError } = await supabase
+          .from('consolidaciones')
+          .insert([newConsolidation])
+          .select()
+          .single();
+
+        if (consError || !consData) throw consError;
+        consId = consData.id;
+
+        const pivotData = idsArray.map(pid => ({ consolidacion_id: consId, paquete_id: pid }));
+        const { error: pivotError } = await supabase.from('consolidacion_paquetes').insert(pivotData);
+        if (pivotError) throw pivotError;
+
+        for (const pid of idsArray) {
+          await supabase.from('paquetes').update({ estado: 'consolidado' }).eq('id', pid);
+        }
+
+        emailIdsToNotify = idsArray; // Notify all packages in new consolidation
+        alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío.');
       }
 
-      // 4. Send Email Notifications to Clients
-      // Group selected packages by Client
-      const packsDetails = idsArray.map(id => paquetes.find(p => p.id === id)).filter(Boolean) as Paquete[];
+      // 4. Send Email Notifications to Clients (for new additions)
+      if (emailIdsToNotify.length > 0) {
+        const packsDetails = emailIdsToNotify.map(id => paquetes.find(p => p.id === id)).filter(Boolean) as Paquete[];
+        const clientGroups: Record<string, { email: string, nombre: string, packages: Paquete[] }> = {};
 
-      const clientGroups: Record<string, { email: string, nombre: string, packages: Paquete[] }> = {};
+        const { data: paqClientesData } = await supabase
+          .from('paquetes')
+          .select('id, cliente_id, clientes(id, nombre, apellido, email)')
+          .in('id', emailIdsToNotify);
 
-      packsDetails.forEach(p => {
-        // We need to fetch email first from profiles/clientes if not available directly in p.clientes.
-        // Assuming p.clientes.locker_id is a unique key, we can use it to fetch email if needed,
-        // but let's query the full client emails for the selected packages first
-      });
-
-      // Quick query to get client emails for all selected packages
-      const idsForEmail = idsArray;
-      const { data: paqClientesData } = await supabase
-        .from('paquetes')
-        .select('id, cliente_id, clientes(id, nombre, apellido, email)')
-        .in('id', idsForEmail);
-
-      if (paqClientesData) {
-        paqClientesData.forEach((row: any) => {
-          if (row.clientes && row.clientes.email) {
-            const cid = row.cliente_id;
-            if (!clientGroups[cid]) {
-              clientGroups[cid] = {
-                email: row.clientes.email,
-                nombre: row.clientes.nombre,
-                packages: []
-              };
+        if (paqClientesData) {
+          paqClientesData.forEach((row: any) => {
+            if (row.clientes && row.clientes.email) {
+              const cid = row.cliente_id;
+              if (!clientGroups[cid]) {
+                clientGroups[cid] = {
+                  email: row.clientes.email,
+                  nombre: row.clientes.nombre,
+                  packages: []
+                };
+              }
+              const originalPack = packsDetails.find(p => p.id === row.id);
+              if (originalPack) {
+                clientGroups[cid].packages.push(originalPack);
+              }
             }
-            const originalPack = packsDetails.find(p => p.id === row.id);
-            if (originalPack) {
-              clientGroups[cid].packages.push(originalPack);
-            }
-          }
-        });
+          });
 
-        // Send Email per client
-        for (const cid in clientGroups) {
-          const group = clientGroups[cid];
-          if (!group.email) continue;
+          for (const cid in clientGroups) {
+            const group = clientGroups[cid];
+            if (!group.email) continue;
+            // HTML template generation logic omitted for brevity in replacement chunk but preserved via append
+            // (Actually I must re-include the email logic)
 
-          let packageListHtml = `
-            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-              <tr style="background-color: #f8fafc; text-align: left;">
-                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Tracking</th>
-                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Lbs</th>
-                <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Piezas</th>
-              </tr>
-          `;
-
-          group.packages.forEach(p => {
-            packageListHtml += `
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-family: monospace;">${p.tracking}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.peso_lbs}</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.piezas || 1}</td>
-              </tr>
+            let packageListHtml = `
+              <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <tr style="background-color: #f8fafc; text-align: left;">
+                  <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Tracking</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Lbs</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #e2e8f0;">Piezas</th>
+                </tr>
             `;
-          });
 
-          packageListHtml += `</table>`;
+            group.packages.forEach(p => {
+              packageListHtml += `
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-family: monospace;">${p.tracking}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.peso_lbs}</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${p.piezas || 1}</td>
+                </tr>
+              `;
+            });
+            packageListHtml += `</table>`;
 
-          const emailHtml = `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
-              <h2 style="color: #2563eb;">¡Tus paquetes están en camino! 📦</h2>
-              <p>Hola <strong>${group.nombre}</strong>,</p>
-              <p>Te notificamos que los siguientes paquetes han sido añadidos a un consolidado maestro y muy pronto comenzarán su viaje hacia Guatemala.</p>
-              ${packageListHtml}
-              <p style="margin-top: 25px;">Puedes revisar el estado en tiempo real ingresando a tu cuenta en <strong>Youbox GT</strong>.</p>
-              <p style="color: #64748b; font-size: 12px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
-            </div>
-          `;
+            const emailHtml = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #1e293b;">
+                <h2 style="color: #2563eb;">¡Tus paquetes están en camino! 📦</h2>
+                <p>Hola <strong>${group.nombre}</strong>,</p>
+                <p>Te notificamos que paquetes asociados a tu casillero han sido añadidos a un consolidado maestro y muy pronto comenzarán su viaje hacia Guatemala.</p>
+                ${packageListHtml}
+                <p style="margin-top: 25px;">Puedes revisar el estado en tiempo real ingresando a tu cuenta en <strong>Youbox GT</strong>.</p>
+                <p style="color: #64748b; font-size: 12px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este correo.</p>
+              </div>
+            `;
 
-          await sendEmail({
-            to: group.email,
-            subject: 'Notificación de Embarque Youbox GT',
-            html: emailHtml
-          });
+            await sendEmail({
+              to: group.email,
+              subject: 'Notificación de Embarque Youbox GT',
+              html: emailHtml
+            }).catch(e => console.error("Error sending email", e));
+          }
         }
       }
 
-      alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
-
-      // Refresh Data
-      setFormData(f => ({ ...f, nombre_alternativo: '' }));
-      setSelectedIds(new Set());
-      fetchInitialData();
+      // Refresh Data and Reset state
+      fetchInitialData(null);
+      setActiveTab('list');
 
     } catch (e: any) {
       console.error('Error creating consolidation:', e);
@@ -306,14 +369,14 @@ export function Consolidation() {
 
         <div className="flex glass p-1.5 rounded-xl border border-slate-200/50 shadow-sm">
           <button
-            onClick={() => setActiveTab('create')}
+            onClick={() => { setActiveTab('create'); fetchInitialData(null); }}
             className={`px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'create' ? 'bg-white shadow-sm text-blue-600 scale-95' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'}`}
           >
             <Layers className="h-4 w-4" />
-            Crear Consolidado
+            {editConsolidationId ? 'Editando Consolidado' : 'Crear Consolidado'}
           </button>
           <button
-            onClick={() => setActiveTab('list')}
+            onClick={() => { setActiveTab('list'); setEditConsolidationId(null); fetchInitialData(null); }}
             className={`px-4 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${activeTab === 'list' ? 'bg-white shadow-sm text-blue-600 scale-95' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'}`}
           >
             <ClipboardList className="h-4 w-4" />
@@ -354,6 +417,7 @@ export function Consolidation() {
                     onChange={handleChange}
                     className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 px-3.5 text-slate-900 shadow-sm transition-all duration-300 focus:border-indigo-500/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 placeholder:text-slate-400 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
                     placeholder="Dejar vacío para auto-generar"
+                    disabled={!!editConsolidationId}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -409,12 +473,12 @@ export function Consolidation() {
                 </div>
               </dl>
               <button
-                onClick={handleCreateConsolidation}
+                onClick={handleSaveConsolidation}
                 disabled={selectedIds.size === 0 || saving}
                 className="mt-8 w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-slate-900/20 hover:from-slate-700 hover:to-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:shadow-lg hover:-translate-y-0.5"
               >
                 {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Layers className="h-5 w-5" />}
-                {saving ? 'Procesando...' : 'Crear Consolidado Maestro'}
+                {saving ? 'Procesando...' : (editConsolidationId ? 'Actualizar Consolidado' : 'Crear Consolidado Maestro')}
               </button>
             </div>
           </div>
@@ -542,7 +606,10 @@ export function Consolidation() {
         </div>
       ) : (
         <div className="animate-fade-in">
-          <ConsolidationsList />
+          <ConsolidationsList onEdit={(id) => {
+            setActiveTab('create');
+            fetchInitialData(id);
+          }} />
         </div>
       )}
     </div>
