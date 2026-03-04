@@ -4,6 +4,7 @@ import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck } f
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TrackingDialog } from './TrackingDialog';
+import { ManageConsolidationModal } from './ManageConsolidationModal';
 import { BulkInvoiceModal } from './billing/BulkInvoiceModal';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,11 +19,7 @@ interface Consolidacion {
     paquetes_count?: number;
 }
 
-interface ConsolidationsListProps {
-    onEdit?: (id: string) => void;
-}
-
-export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
+export function ConsolidationsList() {
     const [consolidaciones, setConsolidaciones] = useState<Consolidacion[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -35,6 +32,11 @@ export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
     const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
     const [selectedConsolidationId, setSelectedConsolidationId] = useState('');
     const [selectedBodegaId, setSelectedBodegaId] = useState('');
+
+    // Manage Consolidation Modal State
+    const [manageModalOpen, setManageModalOpen] = useState(false);
+    const [manageConsId, setManageConsId] = useState('');
+    const [manageConsCodigo, setManageConsCodigo] = useState('');
 
     const { user, isAdmin } = useAuth();
 
@@ -84,6 +86,12 @@ export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
         setSelectedConsolidationId(consId);
         setSelectedBodegaId(bodegaId);
         setInvoiceModalOpen(true);
+    };
+
+    const openManageModal = (consId: string, codigo: string) => {
+        setManageConsId(consId);
+        setManageConsCodigo(codigo);
+        setManageModalOpen(true);
     };
 
     const getStatusColor = (estado: string) => {
@@ -199,15 +207,13 @@ export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
                                                         <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
                                                     </button>
                                                 )}
-                                                {onEdit && (
-                                                    <button
-                                                        onClick={() => onEdit(cons.id)}
-                                                        className="inline-flex items-center justify-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
-                                                        title="Editar Consolidado"
-                                                    >
-                                                        <ExternalLink className="h-4 w-4" /> <span className="hidden lg:inline">Editar</span>
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => openManageModal(cons.id, cons.codigo)}
+                                                    className="inline-flex items-center justify-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                    title="Gestionar Carga"
+                                                >
+                                                    <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Gestionar</span>
+                                                </button>
                                                 <button
                                                     onClick={() => openTracking(cons.id, cons.codigo)}
                                                     className="inline-flex items-center justify-center gap-1.5 text-indigo-600 bg-indigo-50 border border-indigo-100 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
@@ -244,6 +250,16 @@ export function ConsolidationsList({ onEdit }: ConsolidationsListProps) {
                     bodegaId={selectedBodegaId}
                 />
             )}
+
+            <ManageConsolidationModal
+                isOpen={manageModalOpen}
+                onClose={() => setManageModalOpen(false)}
+                consolidationId={manageConsId}
+                consolidationCodigo={manageConsCodigo}
+                onSuccess={() => {
+                    fetchConsolidaciones();
+                }}
+            />
         </div>
     );
 }
