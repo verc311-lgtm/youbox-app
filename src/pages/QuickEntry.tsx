@@ -203,6 +203,21 @@ export function QuickEntry() {
     setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: true } : r));
 
     try {
+      // Check for duplicate tracking
+      const { data: existingPaquete, error: checkError } = await supabase
+        .from('paquetes')
+        .select('id')
+        .eq('tracking', row.tracking.trim())
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking tracking check:', checkError);
+      } else if (existingPaquete) {
+        alert(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
+        setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
+        return;
+      }
+
       let foto_url: string | null = null;
 
       // Upload photo if exists
