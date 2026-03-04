@@ -54,11 +54,15 @@ export function PublicTracking() {
         setResult(null);
 
         try {
-            let searchTracking = trimmed;
-            // Handle USPS barcodes that include routing codes (e.g. 420 + ZIP + 22-digit tracking)
-            if (searchTracking.startsWith('420') && searchTracking.length >= 30) {
-                // Usually the last 22 digits are the actual tracking number
-                searchTracking = searchTracking.slice(-22);
+            // Remove spaces, hyphens and any other weird characters
+            let cleanInput = trimmed.replace(/[\s\-_]/g, '');
+            let searchTarget = cleanInput;
+
+            // Aggressive fallback: If the tracking is very long (like USPS or Fedex SmartPost), 
+            // the most unique identifying part is generally the last 10 to 12 characters.
+            // By searching just for those last 12 chars with wildcards, we bypass all routing/prefix mismatches.
+            if (cleanInput.length > 15) {
+                searchTarget = cleanInput.slice(-12);
             }
 
             const { data, error } = await supabase
@@ -70,7 +74,7 @@ export function PublicTracking() {
           transportistas (nombre),
           historial_estados (id, estado_nuevo, notas, created_at)
         `)
-                .ilike('tracking', `%${searchTracking}%`) // Case insensitive exact match with wildcards
+                .ilike('tracking', `%${searchTarget}%`) // Case insensitive exact match with wildcards
                 .order('created_at', { ascending: false })
                 .limit(1);
 
