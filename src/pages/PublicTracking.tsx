@@ -54,6 +54,13 @@ export function PublicTracking() {
         setResult(null);
 
         try {
+            let searchTracking = trimmed;
+            // Handle USPS barcodes that include routing codes (e.g. 420 + ZIP + 22-digit tracking)
+            if (searchTracking.startsWith('420') && searchTracking.length >= 30) {
+                // Usually the last 22 digits are the actual tracking number
+                searchTracking = searchTracking.slice(-22);
+            }
+
             const { data, error } = await supabase
                 .from('paquetes')
                 .select(`
@@ -63,7 +70,7 @@ export function PublicTracking() {
           transportistas (nombre),
           historial_estados (id, estado_nuevo, notas, created_at)
         `)
-                .ilike('tracking', trimmed) // Case insensitive exact match
+                .ilike('tracking', `%${searchTracking}%`) // Case insensitive exact match with wildcards
                 .maybeSingle();
 
             if (error) throw error;
