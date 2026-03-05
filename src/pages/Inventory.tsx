@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -49,11 +49,17 @@ export function Inventory() {
     bodegaId: '',
     estado: '',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    cliente: '',
+    lockerId: '',
+    tracking: '',
+    minPeso: '',
+    maxPeso: '',
+    piezas: ''
   });
 
   const hasActiveFilters = Boolean(
-    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate
+    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate || activeFilters.cliente || activeFilters.lockerId || activeFilters.tracking || activeFilters.minPeso || activeFilters.maxPeso || activeFilters.piezas
   );
 
   useEffect(() => {
@@ -79,7 +85,7 @@ export function Inventory() {
       let query = supabase
         .from('paquetes')
         .select(`
-          id, tracking, peso_lbs, estado, fecha_recepcion,
+          id, tracking, peso_lbs, piezas, estado, fecha_recepcion,
           bodegas (nombre),
           clientes (nombre, apellido, locker_id),
           transportistas (nombre)
@@ -117,45 +123,27 @@ export function Inventory() {
     }
   };
 
-  const filteredPaquetes = paquetes.filter(p => {
-    // 1. Text Search Target
-    const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase());
-    if (!matchesSearch) return false;
+  const filteredPaquetes = useMemo(() => {
+    return paquetes.filter(p => {
+      // 1. Text Search Target
+      const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchesSearch) return false;
 
-    // 2. Bodega Filter
-    if (activeFilters.bodegaId) {
-      if (p.bodegas?.id !== activeFilters.bodegaId && p.bodega_id !== activeFilters.bodegaId) {
+      // 2. Bodega Filter
+      if (activeFilters.bodegaId) {
+        if (p.bodegas?.id !== activeFilters.bodegaId && p.bodega_id !== activeFilters.bodegaId) {
+          return false;
+        }
+      }
+
+      // 3. Estado Filter
+      if (activeFilters.estado && p.estado !== activeFilters.estado) {
         return false;
       }
-    }
-
-    // 3. Estado Filter
-    if (activeFilters.estado && p.estado !== activeFilters.estado) {
-      return false;
-    }
-
-    // 4. Date Range Filter
-    if (activeFilters.startDate || activeFilters.endDate) {
-      if (!p.fecha_recepcion) return false;
-
-      const pkgDate = parseISO(p.fecha_recepcion);
-
-      if (activeFilters.startDate && activeFilters.endDate) {
-        const start = startOfDay(parseISO(activeFilters.startDate));
-        const end = endOfDay(parseISO(activeFilters.endDate));
-        if (!isWithinInterval(pkgDate, { start, end })) return false;
-      } else if (activeFilters.startDate) {
-        const start = startOfDay(parseISO(activeFilters.startDate));
-        if (pkgDate < start) return false;
-      } else if (activeFilters.endDate) {
-        const end = endOfDay(parseISO(activeFilters.endDate));
-        if (pkgDate > end) return false;
-      }
-    }
-
-    return true;
-  });
+      return true;
+    });
+  }, [paquetes, searchTerm, activeFilters]);
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -178,8 +166,8 @@ export function Inventory() {
           <button
             onClick={() => setShowFilters(true)}
             className={`inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all duration-200 border relative ${hasActiveFilters
-                ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-                : 'bg-white/70 backdrop-blur-sm text-slate-700 border-slate-200/80 hover:bg-white hover:shadow-md'
+              ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+              : 'bg-white/70 backdrop-blur-sm text-slate-700 border-slate-200/80 hover:bg-white hover:shadow-md'
               }`}
           >
             <Filter className={`h-4 w-4 ${hasActiveFilters ? 'text-blue-600' : 'text-blue-500'}`} />

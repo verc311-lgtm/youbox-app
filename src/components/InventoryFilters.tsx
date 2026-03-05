@@ -11,6 +11,12 @@ export interface FilterState {
     estado: string;
     startDate: string;
     endDate: string;
+    cliente: string;
+    lockerId: string;
+    tracking: string;
+    minPeso: string;
+    maxPeso: string;
+    piezas: string;
 }
 
 interface InventoryFiltersProps {
@@ -48,7 +54,13 @@ export function InventoryFilters({
             bodegaId: '',
             estado: '',
             startDate: '',
-            endDate: ''
+            endDate: '',
+            cliente: '',
+            lockerId: '',
+            tracking: '',
+            minPeso: '',
+            maxPeso: '',
+            piezas: ''
         };
         setLocalFilters(emptyFilters);
         onApply(emptyFilters);
@@ -123,6 +135,75 @@ export function InventoryFilters({
                             <option value="devuelto">Devuelto</option>
                             <option value="perdido">Perdido</option>
                         </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Cliente</label>
+                            <input
+                                type="text"
+                                placeholder="Nombre o Apellido"
+                                value={localFilters.cliente}
+                                onChange={(e) => handleChange('cliente', e.target.value)}
+                                className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:font-normal placeholder:text-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Locker ID</label>
+                            <input
+                                type="text"
+                                placeholder="Ej. YBQ1040"
+                                value={localFilters.lockerId}
+                                onChange={(e) => handleChange('lockerId', e.target.value)}
+                                className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:font-normal placeholder:text-slate-400 uppercase"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Tracking / Guía</label>
+                        <input
+                            type="text"
+                            placeholder="Número de seguimiento"
+                            value={localFilters.tracking}
+                            onChange={(e) => handleChange('tracking', e.target.value)}
+                            className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:font-normal placeholder:text-slate-400"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2 leading-none h-6">Peso Min<br />(lbs)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0"
+                                value={localFilters.minPeso}
+                                onChange={(e) => handleChange('minPeso', e.target.value)}
+                                className="block w-full rounded-xl border border-slate-200 px-2 py-2 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:text-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2 leading-none h-6">Peso Max<br />(lbs)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                placeholder="∞"
+                                value={localFilters.maxPeso}
+                                onChange={(e) => handleChange('maxPeso', e.target.value)}
+                                className="block w-full rounded-xl border border-slate-200 px-2 py-2 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:text-slate-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2 leading-none h-6">Piezas<br />Exactas</label>
+                            <input
+                                type="number"
+                                placeholder="#"
+                                value={localFilters.piezas}
+                                onChange={(e) => handleChange('piezas', e.target.value)}
+                                className="block w-full rounded-xl border border-slate-200 px-2 py-2 sm:text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 bg-white placeholder:text-slate-400"
+                            />
+                        </div>
                     </div>
 
                     <div className="pt-4 border-t border-slate-100">
