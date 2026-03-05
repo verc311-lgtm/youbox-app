@@ -183,6 +183,10 @@ export function Dashboard() {
   };
 
   const handleModuleClick = (card: ModuleCard) => {
+    if (card.title === 'Búsqueda') {
+      window.dispatchEvent(new Event('open-global-search'));
+      return;
+    }
     const [path, query] = card.route.split('?');
     if (query) {
       navigate(`${path}?${query}`);
