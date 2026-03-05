@@ -223,7 +223,7 @@ export function Inventory() {
                     </td>
                     {isAdmin && (
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 min-w-[120px]">
                           <button
                             onClick={() => setPrintingLabel({
                               remitenteInfo: p.transportistas?.nombre || '',
