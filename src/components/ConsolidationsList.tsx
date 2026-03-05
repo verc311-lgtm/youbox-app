@@ -37,6 +37,7 @@ export function ConsolidationsList() {
     const [manageModalOpen, setManageModalOpen] = useState(false);
     const [manageConsId, setManageConsId] = useState('');
     const [manageConsCodigo, setManageConsCodigo] = useState('');
+    const [manageBodegaId, setManageBodegaId] = useState('');
 
     const { user, isAdmin } = useAuth();
 
@@ -88,9 +89,10 @@ export function ConsolidationsList() {
         setInvoiceModalOpen(true);
     };
 
-    const openManageModal = (consId: string, codigo: string) => {
+    const openManageModal = (consId: string, codigo: string, bodegaId: string) => {
         setManageConsId(consId);
         setManageConsCodigo(codigo);
+        setManageBodegaId(bodegaId);
         setManageModalOpen(true);
     };
 
@@ -208,7 +210,7 @@ export function ConsolidationsList() {
                                                     </button>
                                                 )}
                                                 <button
-                                                    onClick={() => openManageModal(cons.id, cons.codigo)}
+                                                    onClick={() => openManageModal(cons.id, cons.codigo, (cons.bodegas as any)?.id || '')}
                                                     className="inline-flex items-center justify-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
                                                     title="Gestionar Carga"
                                                 >
@@ -256,6 +258,7 @@ export function ConsolidationsList() {
                 onClose={() => setManageModalOpen(false)}
                 consolidationId={manageConsId}
                 consolidationCodigo={manageConsCodigo}
+                bodegaId={manageBodegaId}
                 onSuccess={() => {
                     fetchConsolidaciones();
                 }}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { Package, Search, Trash2, X, Plus, Loader2, ChevronsRight, CheckCircle2 } from 'lucide-react';
 
@@ -20,10 +21,11 @@ interface ManageConsolidationModalProps {
     onClose: () => void;
     consolidationId: string;
     consolidationCodigo: string;
+    bodegaId: string;
     onSuccess: () => void;
 }
 
-export function ManageConsolidationModal({ isOpen, onClose, consolidationId, consolidationCodigo, onSuccess }: ManageConsolidationModalProps) {
+export function ManageConsolidationModal({ isOpen, onClose, consolidationId, consolidationCodigo, bodegaId, onSuccess }: ManageConsolidationModalProps) {
     const [attachedPaquetes, setAttachedPaquetes] = useState<Paquete[]>([]);
     const [availablePaquetes, setAvailablePaquetes] = useState<Paquete[]>([]);
     const [loading, setLoading] = useState(true);
@@ -59,12 +61,18 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             }
             setAttachedPaquetes(attachedData);
 
-            // Fetch available packages (en_bodega or recibido)
-            const { data: availData } = await supabase
+            // Fetch available packages (en_bodega or recibido) for the specific bodega
+            let query = supabase
                 .from('paquetes')
                 .select('id, tracking, peso_lbs, piezas, estado, clientes(nombre, apellido, locker_id)')
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
+                
+            if (bodegaId) {
+                query = query.eq('bodega_id', bodegaId);
+            }
+            
+            const { data: availData } = await query;
 
             setAvailablePaquetes((availData as any) || []);
 
@@ -133,7 +141,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
 
     if (!isOpen) return null;
 
-    return (
+    const modalContent = (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl flex flex-col h-[90vh] overflow-hidden transform transition-all">
 
@@ -177,7 +185,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                                 <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
                             ) : filteredAvailable.length === 0 ? (
                                 <div className="text-center py-10 text-slate-500 text-sm">
-                                    {searchTerm ? 'No se encontraron resultados.' : 'No hay paquetes sin procesar en bodega.'}
+                                    {searchTerm ? 'No se encontraron resultados.' : 'No hay paquetes sin procesar en esta bodega.'}
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -257,4 +265,6 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             </div>
         </div>
     );
+    
+    return createPortal(modalContent, document.body);
 }
