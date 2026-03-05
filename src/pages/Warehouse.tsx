@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
@@ -39,8 +40,9 @@ interface PaquetesPorCliente {
 }
 
 export function Warehouse() {
+    const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('bodega') || '');
     const [groupedPackages, setGroupedPackages] = useState<Record<string, PaquetesPorCliente>>({});
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
