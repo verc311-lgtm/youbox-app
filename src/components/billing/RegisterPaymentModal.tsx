@@ -17,9 +17,18 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     const [loading, setLoading] = useState(false);
 
     const [monto, setMonto] = useState(facturaTotal.toString());
+    const [descuento, setDescuento] = useState('');
     const [metodo, setMetodo] = useState('transferencia');
     const [referencia, setReferencia] = useState('');
     const [notas, setNotas] = useState('');
+
+    const handleDescuentoChange = (val: string) => {
+        setDescuento(val);
+        const descVal = parseFloat(val) || 0;
+        if (descVal >= 0 && descVal <= facturaTotal) {
+            setMonto((facturaTotal - descVal).toString());
+        }
+    };
 
     const handleSave = async () => {
         if (!monto || isNaN(Number(monto)) || Number(monto) <= 0) {
@@ -30,6 +39,19 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
         setLoading(true);
         try {
             const montoFinal = parseFloat(monto);
+            const descFinal = parseFloat(descuento) || 0;
+
+            if (descFinal < 0) {
+                alert("El descuento no puede ser negativo.");
+                setLoading(false);
+                return;
+            }
+
+            let notaFinal = notas;
+            if (descFinal > 0) {
+                const descText = `(Descuento manual aplicado: Q${descFinal.toFixed(2)}. Total original: Q${facturaTotal.toFixed(2)})`;
+                notaFinal = notaFinal ? `${notaFinal} \n${descText}` : descText;
+            }
 
             // 1. Insertar el Pago
             const { error: pagoError } = await supabase
@@ -41,15 +63,20 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                     referencia: referencia,
                     estado: 'verificado', // Se da por sentado que el operador verificó antes de ingresarlo
                     verificado_por: user?.id,
-                    notas: notas
+                    notas: notaFinal
                 }]);
 
             if (pagoError) throw pagoError;
 
             // 2. Actualizar estado de Factura
+            let updatePayload: any = { estado: 'verificado' };
+            if (descFinal > 0) {
+                updatePayload.monto_total = facturaTotal - descFinal;
+            }
+
             const { error: facError } = await supabase
                 .from('facturas')
-                .update({ estado: 'verificado' })
+                .update(updatePayload)
                 .eq('id', facturaId);
 
             if (facError) throw facError;
@@ -90,16 +117,29 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Monto Recibido (Q) *</label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            required
-                            value={monto}
-                            onChange={(e) => setMonto(e.target.value)}
-                            className="w-full rounded-md border-slate-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
-                        />
+                    <div className="flex gap-4">
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Monto Recibido (Q) *</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                required
+                                value={monto}
+                                onChange={(e) => setMonto(e.target.value)}
+                                className="w-full rounded-md border-slate-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Descuento (Q)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={descuento}
+                                onChange={(e) => handleDescuentoChange(e.target.value)}
+                                className="w-full rounded-md border-slate-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm text-amber-600 font-semibold bg-amber-50"
+                            />
+                        </div>
                     </div>
 
                     <div>
