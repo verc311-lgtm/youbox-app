@@ -53,7 +53,7 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: Bell,
     gradient: 'from-amber-500 to-orange-500',
     iconBg: 'bg-amber-50 text-amber-600',
-    route: '/reports',
+    route: 'https://youboxgt.com/pre-alerts',
   },
   {
     title: 'Búsqueda',
@@ -185,6 +185,11 @@ export function Dashboard() {
   const handleModuleClick = (card: ModuleCard) => {
     if (card.title === 'Búsqueda') {
       window.dispatchEvent(new Event('open-global-search'));
+      return;
+    }
+    // External URLs open in a new tab
+    if (card.route.startsWith('http')) {
+      window.open(card.route, '_blank', 'noopener,noreferrer');
       return;
     }
     const [path, query] = card.route.split('?');
