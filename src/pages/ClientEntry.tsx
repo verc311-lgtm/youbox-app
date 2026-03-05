@@ -607,15 +607,10 @@ export function ClientEntry() {
 
                                             <td className="px-3 py-2.5 text-center">
                                                 <div className="flex items-center justify-center gap-1.5">
-                                                    {row.isSaved ? (
+                                                    {row.isSaved && (
                                                         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
                                                             <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
                                                         </div>
-                                                    ) : (
-                                                        <button onClick={() => handleSaveRow(row.id)} disabled={row.isSaving || !row.tracking.trim() || !globalClient} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40">
-                                                            {row.isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                                                            <span className="hidden xl:inline">{row.isSaving ? '...' : 'Guarda'}</span>
-                                                        </button>
                                                     )}
                                                     <button type="button" onClick={() => openLabelPrinter(row)} disabled={!row.tracking.trim() || !globalClient} className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40">
                                                         <Printer className="h-4 w-4" />
