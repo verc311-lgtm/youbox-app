@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { useAuth, YOUBOX_ADDRESSES } from '../context/AuthContext';
 import { Package, Search, Calculator, FileUp, ChevronRight, X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PreAlertModal } from '../components/PreAlertModal';
 
 export function UserDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [showAddresses, setShowAddresses] = useState(false);
+  const [showPreAlertModal, setShowPreAlertModal] = useState(false);
 
   const handeComingSoon = () => {
     setShowComingSoon(true);
@@ -43,9 +45,9 @@ export function UserDashboard() {
             <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-700">Rastrear</span>
           </button>
 
-          {/* Pre Alertar (Próximamente) */}
+          {/* Pre Alertar */}
           <button
-            onClick={handeComingSoon}
+            onClick={() => setShowPreAlertModal(true)}
             className="bg-white rounded-2xl p-6 flex flex-col items-center justify-center gap-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all active:scale-95 group"
           >
             <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -137,6 +139,12 @@ export function UserDashboard() {
           </div>
         </div>
       )}
+
+      {/* Pre-Alert Modal */}
+      <PreAlertModal
+        isOpen={showPreAlertModal}
+        onClose={() => setShowPreAlertModal(false)}
+      />
     </div>
   );
 }
