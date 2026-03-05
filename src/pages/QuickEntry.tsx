@@ -66,7 +66,8 @@ export function QuickEntry() {
   const [globalTransportista, setGlobalTransportista] = useState('');
 
   // Auto-save toggle
-  const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(true);
+  const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(false);
+
 
   // Label Printing state
   const [printLabelData, setPrintLabelData] = useState<any | null>(null);

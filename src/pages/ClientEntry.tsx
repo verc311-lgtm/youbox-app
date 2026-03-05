@@ -67,7 +67,7 @@ export function ClientEntry() {
     const [rows, setRows] = useState<RowData[]>([]);
 
     // Toggles & Modals
-    const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(true);
+    const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(false);
     const [printLabelData, setPrintLabelData] = useState<any | null>(null);
     const [activeWebcamRow, setActiveWebcamRow] = useState<string | null>(null);
 
