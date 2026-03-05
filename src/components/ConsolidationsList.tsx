@@ -17,6 +17,7 @@ interface Consolidacion {
     bodegas: { id: string, nombre: string } | null;
     zonas: { id: string, nombre: string } | null;
     paquetes_count?: number;
+    facturas_count?: number;
 }
 
 export function ConsolidationsList() {
@@ -54,7 +55,8 @@ export function ConsolidationsList() {
           id, codigo, estado, peso_total_lbs, created_at,
           bodegas(id, nombre),
           zonas(id, nombre),
-          consolidacion_paquetes(count)
+          consolidacion_paquetes(count),
+          facturas(count)
         `)
                 .order('created_at', { ascending: false });
 
@@ -68,7 +70,8 @@ export function ConsolidationsList() {
                 created_at: d.created_at,
                 bodegas: Array.isArray(d.bodegas) ? d.bodegas[0] : d.bodegas,
                 zonas: Array.isArray(d.zonas) ? d.zonas[0] : d.zonas,
-                paquetes_count: Array.isArray(d.consolidacion_paquetes) ? d.consolidacion_paquetes[0]?.count || 0 : d.consolidacion_paquetes?.count || 0
+                paquetes_count: Array.isArray(d.consolidacion_paquetes) ? d.consolidacion_paquetes[0]?.count || 0 : d.consolidacion_paquetes?.count || 0,
+                facturas_count: Array.isArray(d.facturas) ? d.facturas[0]?.count || 0 : d.facturas?.count || 0
             }));
             setConsolidaciones(formatted as Consolidacion[]);
         } catch (e) {
@@ -201,13 +204,23 @@ export function ConsolidationsList() {
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
                                                 {isAdmin && cons.bodegas && (
-                                                    <button
-                                                        onClick={() => openInvoiceModal(cons.id, (cons.bodegas as any).id)}
-                                                        className="inline-flex items-center justify-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
-                                                        title="Generar Facturas"
-                                                    >
-                                                        <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
-                                                    </button>
+                                                    (cons.facturas_count && cons.facturas_count > 0) ? (
+                                                        <button
+                                                            disabled
+                                                            className="inline-flex items-center justify-center gap-1.5 text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-bold shadow-sm opacity-60 cursor-not-allowed"
+                                                            title="Facturas ya generadas para este consolidado"
+                                                        >
+                                                            <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturado</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => openInvoiceModal(cons.id, (cons.bodegas as any).id)}
+                                                            className="inline-flex items-center justify-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                            title="Generar Facturas"
+                                                        >
+                                                            <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
+                                                        </button>
+                                                    )
                                                 )}
                                                 <button
                                                     onClick={() => openManageModal(cons.id, cons.codigo, (cons.bodegas as any)?.id || '')}
