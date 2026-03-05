@@ -72,8 +72,8 @@ export function GlobalSearch() {
                 // Parallel queries to paquetes, facturas, clientes
                 const [paquetesRes, clientesRes, facturasRes, consolRes] = await Promise.all([
                     supabase.from('paquetes')
-                        .select('id, tracking, descripcion, clientes(nombre, apellido)')
-                        .or(`tracking.ilike.${searchTerm},descripcion.ilike.${searchTerm}`)
+                        .select('id, tracking, notas, clientes(nombre, apellido)')
+                        .or(`tracking.ilike.${searchTerm},notas.ilike.${searchTerm}`)
                         .limit(5),
                     supabase.from('clientes')
                         .select('id, locker_id, nombre, apellido, email')
