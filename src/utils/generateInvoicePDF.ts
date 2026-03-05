@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
+import { YOUBOX_LOGO_BASE64 } from './logoBase64';
 
 interface FacturaDatos {
     id: string;
@@ -68,10 +69,18 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         let logoData = null;
         if (config.logo_url) {
             try {
-                logoData = await getBase64ImageFromUrl(config.logo_url);
+                // Si la URL es la del logo por defecto, usar la versión en base64 embebida para evitar CORS siempre
+                if (config.logo_url.includes('youboxgt.online/wp-content')) {
+                    logoData = YOUBOX_LOGO_BASE64;
+                } else {
+                    logoData = await getBase64ImageFromUrl(config.logo_url);
+                }
             } catch (e) {
-                console.warn("Could not load logo as base64 due to CORS or image error. Will fallback to text.", e);
+                console.warn("Could not load logo as base64 due to CORS or image error. Falling back to local Base64.", e);
+                logoData = YOUBOX_LOGO_BASE64;
             }
+        } else {
+            logoData = YOUBOX_LOGO_BASE64;
         }
 
         // --- Header Section ---
