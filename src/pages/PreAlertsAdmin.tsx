@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -12,9 +12,26 @@ export function PreAlertsAdmin() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Modal actions
+    // Admin manage modal
     const [selectedPrealerta, setSelectedPrealerta] = useState<any | null>(null);
     const [procesando, setProcesando] = useState(false);
+
+    // --- NEW: Manual pre-alert creation state ---
+    const [showNewModal, setShowNewModal] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [newTracking, setNewTracking] = useState('');
+    const [newBodegaId, setNewBodegaId] = useState('');
+    const [newValorFactura, setNewValorFactura] = useState('');
+    const [newConSeguro, setNewConSeguro] = useState(false);
+    const [bodegas, setBodegas] = useState<any[]>([]);
+
+    // Client search for new modal
+    const [newClientSearch, setNewClientSearch] = useState('');
+    const [newClientResults, setNewClientResults] = useState<any[]>([]);
+    const [newSelectedClient, setNewSelectedClient] = useState<any | null>(null);
+    const [searchingClient, setSearchingClient] = useState(false);
+    const [showClientDrop, setShowClientDrop] = useState(false);
+    const clientSearchRef = useRef<NodeJS.Timeout>();
 
     useEffect(() => {
         fetchData();
@@ -52,6 +69,10 @@ export function PreAlertsAdmin() {
             const total = fondoData?.reduce((acc, obj) => acc + Number(obj.monto_ingreso), 0) || 0;
             setFondoTotal(total);
 
+            // Fetch Bodegas for new modal
+            const { data: bodegaData } = await supabase.from('bodegas').select('id, nombre').eq('activo', true);
+            setBodegas(bodegaData || []);
+
         } catch (err) {
             console.error('Error fetching data:', err);
         } finally {
@@ -63,9 +84,7 @@ export function PreAlertsAdmin() {
         try {
             setProcesando(true);
 
-            // Si se está marcando como "procesada" y tiene seguro, ingresarlo al fondo
             if (estadoDestino === 'procesada' && prealerta.con_seguro) {
-                // Verificar si ya existe en el fondo para no duplicar
                 const { data: existing } = await supabase
                     .from('fondo_seguros')
                     .select('id')
@@ -86,7 +105,6 @@ export function PreAlertsAdmin() {
                 }
             }
 
-            // Update state
             const { error: updError } = await supabase
                 .from('prealertas')
                 .update({ estado: estadoDestino })
@@ -95,13 +113,85 @@ export function PreAlertsAdmin() {
             if (updError) throw updError;
 
             setSelectedPrealerta(null);
-            fetchData(); // Recargar todo
+            fetchData();
 
         } catch (err) {
             console.error('Error procesando:', err);
-            // alert('Error...'); (Could use an alert context here)
         } finally {
             setProcesando(false);
+        }
+    };
+
+    // --- Client search for new modal ---
+    const handleNewClientSearch = (text: string) => {
+        setNewClientSearch(text);
+        setNewSelectedClient(null);
+        if (!text) { setNewClientResults([]); setShowClientDrop(false); return; }
+        if (clientSearchRef.current) clearTimeout(clientSearchRef.current);
+        setShowClientDrop(true);
+        setSearchingClient(true);
+        clientSearchRef.current = setTimeout(async () => {
+            try {
+                const { data } = await supabase
+                    .from('clientes')
+                    .select('id, nombre, apellido, locker_id')
+                    .or(`locker_id.ilike.%${text}%,nombre.ilike.%${text}%,apellido.ilike.%${text}%`)
+                    .limit(10);
+                setNewClientResults(data || []);
+            } finally {
+                setSearchingClient(false);
+            }
+        }, 400);
+    };
+
+    const selectNewClient = (c: any) => {
+        setNewSelectedClient(c);
+        setNewClientSearch(`${c.locker_id} - ${c.nombre} ${c.apellido}`);
+        setShowClientDrop(false);
+    };
+
+    const resetNewModal = () => {
+        setNewTracking('');
+        setNewBodegaId('');
+        setNewValorFactura('');
+        setNewConSeguro(false);
+        setNewClientSearch('');
+        setNewSelectedClient(null);
+        setNewClientResults([]);
+    };
+
+    const handleCreatePrealerta = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newSelectedClient) { alert('Selecciona un cliente.'); return; }
+        if (!newTracking.trim()) { alert('El tracking es requerido.'); return; }
+        if (!newValorFactura || isNaN(Number(newValorFactura))) { alert('Ingresa un valor de factura válido.'); return; }
+
+        setSaving(true);
+        try {
+            const valorNum = parseFloat(newValorFactura);
+            const montoSeguro = newConSeguro ? parseFloat((valorNum * 0.10).toFixed(2)) : 0;
+
+            const { error } = await supabase.from('prealertas').insert({
+                cliente_id: newSelectedClient.id,
+                tracking: newTracking.trim().toUpperCase(),
+                bodega_id: newBodegaId || null,
+                valor_factura: valorNum,
+                con_seguro: newConSeguro,
+                monto_seguro: montoSeguro,
+                estado: 'pendiente',
+                factura_url: null,
+            });
+
+            if (error) throw error;
+
+            setShowNewModal(false);
+            resetNewModal();
+            fetchData();
+        } catch (err: any) {
+            console.error('Error creating prealerta:', err);
+            alert('Error al crear la pre-alerta: ' + err.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -118,6 +208,14 @@ export function PreAlertsAdmin() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-800">Control de Pre-Alertas</h1>
                     <p className="text-sm text-slate-500 mt-1">Valida prealertas y administra el Fondo Fijo de Seguros.</p>
                 </div>
+                {/* CTA button */}
+                <button
+                    onClick={() => setShowNewModal(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                >
+                    <PlusCircle className="w-4 h-4" />
+                    Nueva Pre-Alerta
+                </button>
             </div>
 
             {/* Metrics */}
@@ -230,9 +328,9 @@ export function PreAlertsAdmin() {
                                         </td>
                                         <td className="p-4">
                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize border ${p.estado === 'pendiente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                    p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                        p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                                            'bg-rose-50 text-rose-700 border-rose-200'
+                                                p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                        'bg-rose-50 text-rose-700 border-rose-200'
                                                 }`}>
                                                 {p.estado}
                                             </span>
@@ -314,6 +412,140 @@ export function PreAlertsAdmin() {
                                 )}
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── NEW MANUAL PRE-ALERT MODAL ── */}
+            {showNewModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowNewModal(false); resetNewModal(); }} />
+                    <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95">
+                        {/* Header */}
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                            <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                                    <PlusCircle className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Nueva Pre-Alerta Manual</h3>
+                                    <p className="text-xs text-slate-500">Registrar una pre-alerta en nombre de un cliente</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setShowNewModal(false); resetNewModal(); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreatePrealerta} className="p-6 space-y-4 overflow-visible">
+                            {/* Client search */}
+                            <div className="relative">
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Cliente (Casillero) *</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por casillero o nombre..."
+                                        value={newClientSearch}
+                                        onChange={e => handleNewClientSearch(e.target.value)}
+                                        onBlur={() => setTimeout(() => setShowClientDrop(false), 200)}
+                                        autoComplete="off"
+                                        className={`block w-full rounded-xl py-2.5 pl-9 pr-4 text-sm font-semibold outline-none border transition-all ${newSelectedClient ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-slate-800'
+                                            } focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500`}
+                                    />
+                                    {searchingClient && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
+                                </div>
+                                {showClientDrop && newClientResults.length > 0 && (
+                                    <div className="absolute z-[200] w-full mt-1.5 bg-white rounded-xl shadow-xl ring-1 ring-slate-200 max-h-48 overflow-auto">
+                                        {newClientResults.map(c => (
+                                            <div
+                                                key={c.id}
+                                                onMouseDown={e => { e.preventDefault(); selectNewClient(c); }}
+                                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition-colors"
+                                            >
+                                                <span className="font-extrabold text-blue-700 text-xs bg-blue-100 px-2 py-1 rounded-lg">{c.locker_id}</span>
+                                                <span className="text-sm text-slate-700 font-semibold truncate">{c.nombre} {c.apellido}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Tracking + Bodega */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tracking *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newTracking}
+                                        onChange={e => setNewTracking(e.target.value)}
+                                        placeholder="Ej: 1Z999AA10123456784"
+                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Bodega</label>
+                                    <select
+                                        value={newBodegaId}
+                                        onChange={e => setNewBodegaId(e.target.value)}
+                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                    >
+                                        <option value="">Sin bodega</option>
+                                        {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Valor + Insurance toggle */}
+                            <div className="grid grid-cols-2 gap-4 items-end">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Valor Declarado ($) *</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        required
+                                        value={newValorFactura}
+                                        onChange={e => setNewValorFactura(e.target.value)}
+                                        placeholder="0.00"
+                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (10%)</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setNewConSeguro(v => !v)}
+                                        className={`w-full py-2 rounded-xl text-sm font-bold border transition-all ${newConSeguro
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
+                                            }`}
+                                    >
+                                        {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setShowNewModal(false); resetNewModal(); }}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving || !newSelectedClient || !newTracking.trim()}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-sm hover:-translate-y-px hover:shadow-md transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                >
+                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+                                    Crear Pre-Alerta
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
