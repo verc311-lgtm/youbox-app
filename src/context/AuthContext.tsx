@@ -43,7 +43,20 @@ export interface RegisterData {
 }
 
 // ─── Addresses (from company images) ────────────────────────────────────────
-export const YOUBOX_ADDRESSES = {
+export const YOUBOX_ADDRESSES: Record<string, {
+    titulo: string;
+    bodega: string;
+    nombre: string;
+    direccion: string;
+    suiteApt?: string;
+    ciudad: string;
+    estado: string;
+    zipCode?: string;
+    telefono: string;
+    referencias?: string;
+    distrito?: string;
+    codPostal?: string;
+}> = {
     greensboro: {
         titulo: '🇺🇸 Vía Marítima — Estados Unidos',
         bodega: 'Greensboro, NC',
