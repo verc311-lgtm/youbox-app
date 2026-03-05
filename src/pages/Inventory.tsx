@@ -15,6 +15,7 @@ interface Paquete {
   peso_lbs: number;
   estado: string;
   fecha_recepcion: string;
+  notas?: string | null;
   bodegas?: { nombre: string };
   clientes?: { nombre: string; apellido: string; locker_id: string };
   transportistas?: { nombre: string };
@@ -85,7 +86,7 @@ export function Inventory() {
       let query = supabase
         .from('paquetes')
         .select(`
-          id, tracking, peso_lbs, piezas, estado, fecha_recepcion,
+          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas,
           bodegas (nombre),
           clientes (nombre, apellido, locker_id),
           transportistas (nombre)
@@ -238,8 +239,20 @@ export function Inventory() {
                         <div>
                           <div className="font-bold text-slate-900 text-sm tracking-tight">{p.tracking}</div>
                           <div className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1.5">
-                            <Truck className="h-3 w-3" />
-                            {p.transportistas?.nombre || 'Carrier'}
+                            {p.bodegas?.nombre?.toLowerCase().includes('tapachula') && p.notas ? (
+                              (() => {
+                                const m = p.notas.match(/\[Empaque:\s*([^\]]+)\]/);
+                                return m ? (
+                                  <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                                    📦 {m[1]}
+                                  </span>
+                                ) : (
+                                  <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
+                                );
+                              })()
+                            ) : (
+                              <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
+                            )}
                           </div>
                           {/* Mobile only details */}
                           <div className="sm:hidden flex items-center gap-2 text-xs font-medium text-slate-400 mt-1.5">

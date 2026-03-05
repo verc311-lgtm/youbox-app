@@ -9,6 +9,7 @@ interface PaqueteWithDetails {
     tracking: string;
     peso_lbs: number;
     piezas: number;
+    notas?: string | null;
     fecha_recepcion: string;
     transportistas: {
         nombre: string;
@@ -60,6 +61,7 @@ export function Warehouse() {
           tracking,
           peso_lbs,
           piezas,
+          notas,
           fecha_recepcion,
           transportistas(nombre),
           clientes(id, nombre, apellido, locker_id),
@@ -225,8 +227,20 @@ export function Warehouse() {
                                                     </div>
                                                     <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                                                         <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                                                            <Truck className="h-3.5 w-3.5 text-slate-400" />
-                                                            <span>{paquete.transportistas?.nombre || 'Desconocido'}</span>
+                                                            {group.bodega?.nombre?.toLowerCase().includes('tapachula') && paquete.notas ? (
+                                                                (() => {
+                                                                    const m = paquete.notas.match(/\[Empaque:\s*([^\]]+)\]/);
+                                                                    return m ? (
+                                                                        <span className="inline-flex items-center gap-1 text-teal-700 font-bold text-[10px] uppercase tracking-wide">
+                                                                            📦 {m[1]}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <><Truck className="h-3.5 w-3.5 text-slate-400" /><span>{paquete.transportistas?.nombre || 'Desconocido'}</span></>
+                                                                    );
+                                                                })()
+                                                            ) : (
+                                                                <><Truck className="h-3.5 w-3.5 text-slate-400" /><span>{paquete.transportistas?.nombre || 'Desconocido'}</span></>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                                                             <Calendar className="h-3.5 w-3.5 text-slate-400" />
