@@ -3,10 +3,11 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { format } from 'date-fns';
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
 import { EditPackageModal } from '../components/EditPackageModal';
+import { InventoryFilters, FilterState } from '../components/InventoryFilters';
 
 interface Paquete {
   id: string;
@@ -41,9 +42,35 @@ export function Inventory() {
   const [printingLabel, setPrintingLabel] = useState<any>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
+  // Filters State
+  const [showFilters, setShowFilters] = useState(false);
+  const [bodegas, setBodegas] = useState<{ id: string, nombre: string }[]>([]);
+  const [activeFilters, setActiveFilters] = useState<FilterState>({
+    bodegaId: '',
+    estado: '',
+    startDate: '',
+    endDate: ''
+  });
+
+  const hasActiveFilters = Boolean(
+    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate
+  );
+
   useEffect(() => {
     fetchPaquetes();
+    if (isAdmin) {
+      fetchBodegas();
+    }
   }, [user]);
+
+  async function fetchBodegas() {
+    try {
+      const { data } = await supabase.from('bodegas').select('id, nombre').eq('activo', true);
+      setBodegas(data || []);
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   async function fetchPaquetes() {
     if (!user) return;
@@ -90,10 +117,45 @@ export function Inventory() {
     }
   };
 
-  const filteredPaquetes = paquetes.filter(p =>
-    p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPaquetes = paquetes.filter(p => {
+    // 1. Text Search Target
+    const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    // 2. Bodega Filter
+    if (activeFilters.bodegaId) {
+      if (p.bodegas?.id !== activeFilters.bodegaId && p.bodega_id !== activeFilters.bodegaId) {
+        return false;
+      }
+    }
+
+    // 3. Estado Filter
+    if (activeFilters.estado && p.estado !== activeFilters.estado) {
+      return false;
+    }
+
+    // 4. Date Range Filter
+    if (activeFilters.startDate || activeFilters.endDate) {
+      if (!p.fecha_recepcion) return false;
+
+      const pkgDate = parseISO(p.fecha_recepcion);
+
+      if (activeFilters.startDate && activeFilters.endDate) {
+        const start = startOfDay(parseISO(activeFilters.startDate));
+        const end = endOfDay(parseISO(activeFilters.endDate));
+        if (!isWithinInterval(pkgDate, { start, end })) return false;
+      } else if (activeFilters.startDate) {
+        const start = startOfDay(parseISO(activeFilters.startDate));
+        if (pkgDate < start) return false;
+      } else if (activeFilters.endDate) {
+        const end = endOfDay(parseISO(activeFilters.endDate));
+        if (pkgDate > end) return false;
+      }
+    }
+
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -112,10 +174,19 @@ export function Inventory() {
             {isAdmin ? 'Gestión de paquetes en almacén (Warehouses).' : 'Rastrea el estado de tus compras en tiempo real.'}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-white/70 backdrop-blur-sm px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm border border-slate-200/80 hover:bg-white hover:shadow-md transition-all duration-200">
-            <Filter className="h-4 w-4 text-blue-500" />
+        <div className="flex gap-3 relative">
+          <button
+            onClick={() => setShowFilters(true)}
+            className={`inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all duration-200 border relative ${hasActiveFilters
+                ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+                : 'bg-white/70 backdrop-blur-sm text-slate-700 border-slate-200/80 hover:bg-white hover:shadow-md'
+              }`}
+          >
+            <Filter className={`h-4 w-4 ${hasActiveFilters ? 'text-blue-600' : 'text-blue-500'}`} />
             Filtros
+            {hasActiveFilters && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+            )}
           </button>
           {isAdmin && (
             <button className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
@@ -282,6 +353,16 @@ export function Inventory() {
           }}
         />
       )}
+
+      {/* Advanced Filters */}
+      <InventoryFilters
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        bodegas={bodegas}
+        currentFilters={activeFilters}
+        onApply={setActiveFilters}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
