@@ -101,7 +101,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
             // 3. Obtener los paquetes completos con cliente y peso
             const { data: paquetesData, error: paqError } = await supabase
                 .from('paquetes')
-                .select('id, peso_lbs, cliente_id, clientes(id, nombre, apellido, locker_id, email)')
+                .select('id, tracking, peso_lbs, cliente_id, clientes(id, nombre, apellido, locker_id, email)')
                 .in('id', packageIds);
 
             if (paqError) throw paqError;
@@ -147,7 +147,6 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                         t_costo = t_aplicada.tarifa_q * grupo.paquetes.length;
                     }
                 }
-
                 return {
                     ...grupo,
                     tarifaAplicada: t_aplicada,
@@ -200,11 +199,11 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 const facturaNueva = resFactura.data;
 
                 // 2. Crear un concepto agrupado. 
-                // Optimizamos poniendo 1 concepto "Flete Internacional" en vez de 1 línea por caja si están consolidadas, 
-                // o se puede crear un concepto por paquete si se desea desglosar. Aquí unificamos.
+                // Extraemos los trackings para agregarlos a la descripcion
+                const trackingsStr = grupo.paquetes.map(p => p.tracking).filter(Boolean).join(', ');
                 const resConcepto = await supabase.from('conceptos_factura').insert([{
                     factura_id: facturaNueva.id,
-                    descripcion: `Servicio de Logística (${grupo.tarifaAplicada?.nombre_servicio || 'Genérico'}) - ${grupo.totalLbs.toFixed(2)} lbs agrupadas.`,
+                    descripcion: `Servicio de Logística (${grupo.tarifaAplicada?.nombre_servicio || 'Genérico'}) - ${grupo.totalLbs.toFixed(2)} lbs agrupadas. Trackings: ${trackingsStr}`,
                     cantidad: 1, // o grupo.totalLbs si quisiéramos detallar unitariamente
                     precio_unitario: grupo.totalQ,
                     subtotal: grupo.totalQ
@@ -246,7 +245,6 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
             setSaving(false);
         }
     };
-
 
     if (!isOpen) return null;
 
