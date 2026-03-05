@@ -18,6 +18,7 @@ interface RowData {
     bodega_id: string;
     transportista_id: string;
     peso_lbs: string;
+    empaque?: string;
     piezas: string;
     notas: string;
     // Photo
@@ -36,6 +37,7 @@ const createEmptyRow = (defaultBodega = '', defaultTransportista = ''): RowData 
     bodega_id: defaultBodega,
     transportista_id: defaultTransportista,
     peso_lbs: '',
+    empaque: 'Sobre', // Default value for Tapachula
     piezas: '1',
     notas: '',
     photoFile: null,
@@ -224,14 +226,26 @@ export function ClientEntry() {
                 }
             }
 
+            // Check if it's the Tapachula warehouse
+            const bodegaRow = bodegas.find(b => b.id === (row.bodega_id || globalBodega));
+            const isTapachula = bodegaRow?.nombre?.toLowerCase().includes('tapachula');
+
+            let finalPesoResult = isTapachula ? 0 : parseFloat(row.peso_lbs) || null;
+            let finalNotas = row.notas || '';
+
+            if (isTapachula) {
+                const empaqueInfo = `[Empaque: ${row.empaque || 'Sobre'}]`;
+                finalNotas = finalNotas ? `${empaqueInfo} ${finalNotas}` : empaqueInfo;
+            }
+
             const payload = {
                 tracking: row.tracking.trim(),
-                cliente_id: globalClient.id,
+                cliente_id: globalClient.id, // Using global client
                 bodega_id: row.bodega_id || globalBodega,
                 transportista_id: row.transportista_id || globalTransportista,
-                peso_lbs: parseFloat(row.peso_lbs) || null,
+                peso_lbs: finalPesoResult,
                 piezas: parseInt(row.piezas) || 1,
-                notas: row.notas || null,
+                notas: finalNotas || null,
                 estado: 'en_bodega',
                 usuario_recepcion: user?.id === 'admin-001' ? null : user?.id,
             };
@@ -456,132 +470,151 @@ export function ClientEntry() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100/50 bg-white/40">
-                                {rows.map((row, index) => (
-                                    <tr
-                                        key={row.id}
-                                        className={`transition-colors group ${row.isSaved ? 'bg-emerald-50/60' : 'hover:bg-blue-50/30'}`}
-                                    >
-                                        <td className="px-3 py-2.5 text-center text-slate-400 font-bold font-mono text-xs">{index + 1}</td>
+                                {rows.map((row, index) => {
+                                    const currentBodega = bodegas.find(b => b.id === row.bodega_id);
+                                    const isTapachula = currentBodega?.nombre?.toLowerCase().includes('tapachula');
 
-                                        <td className="px-3 py-2.5">
-                                            <select
-                                                value={row.bodega_id}
-                                                onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
-                                                disabled={row.isSaved}
-                                                className="block w-full rounded-lg border-slate-200/80 bg-slate-50/50 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-xs font-semibold disabled:opacity-60 outline-none"
-                                            >
-                                                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-                                            </select>
-                                        </td>
+                                    return (
+                                        <tr
+                                            key={row.id}
+                                            className={`transition-colors group ${row.isSaved ? 'bg-emerald-50/60' : 'hover:bg-blue-50/30'}`}
+                                        >
+                                            <td className="px-3 py-2.5 text-center text-slate-400 font-bold font-mono text-xs">{index + 1}</td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                id={`tracking-${row.id}`}
-                                                type="text"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
-                                                placeholder="Escribe o escanea..."
-                                                value={row.tracking}
-                                                onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
-                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
+                                            <td className="px-3 py-2.5">
+                                                <select
+                                                    value={row.bodega_id}
+                                                    onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
+                                                    disabled={row.isSaved}
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-slate-50/50 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-xs font-semibold disabled:opacity-60 outline-none"
+                                                >
+                                                    {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                                                </select>
+                                            </td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                id={`peso-${row.id}`}
-                                                type="number"
-                                                step="0.01"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 text-right sm:text-sm font-mono font-bold outline-none disabled:opacity-60"
-                                                placeholder="0.00"
-                                                value={row.peso_lbs}
-                                                onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
-                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
+                                            <td className="px-3 py-2.5">
+                                                <input
+                                                    id={`tracking-${row.id}`}
+                                                    type="text"
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
+                                                    placeholder="Escribe o escanea..."
+                                                    value={row.tracking}
+                                                    onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
+                                                    onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
+                                                    disabled={row.isSaved}
+                                                />
+                                            </td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-sm text-center font-bold outline-none disabled:opacity-60"
-                                                value={row.piezas}
-                                                onChange={(e) => updateRow(row.id, 'piezas', e.target.value)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
-
-                                        <td className="px-3 py-2.5 text-center relative">
-                                            <input
-                                                id={`camera-${row.id}`}
-                                                ref={el => { cameraRefs.current[row.id] = el; }}
-                                                type="file"
-                                                accept="image/*"
-                                                capture="environment"
-                                                className="hidden"
-                                                onChange={(e) => handlePhotoChange(row.id, e)}
-                                            />
-                                            <input
-                                                id={`gallery-${row.id}`}
-                                                ref={el => { galleryRefs.current[row.id] = el; }}
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={(e) => handlePhotoChange(row.id, e)}
-                                            />
-                                            <div className="relative inline-block text-left">
-                                                {row.photoPreview ? (
-                                                    <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} disabled={row.isSaved} className="relative inline-block">
-                                                        <img src={row.photoPreview} alt="preview" className="h-9 w-9 rounded-lg object-cover shadow ring-2 ring-blue-400/40 hover:ring-blue-500/70" />
-                                                    </button>
+                                            <td className="px-3 py-2.5">
+                                                {isTapachula ? (
+                                                    <select
+                                                        value={row.empaque || 'Sobre'}
+                                                        onChange={(e) => updateRow(row.id, 'empaque', e.target.value)}
+                                                        disabled={row.isSaved}
+                                                        className="block w-full rounded-lg border-slate-200/80 bg-blue-50/50 py-1.5 px-2 text-blue-700 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 sm:text-xs font-bold disabled:opacity-60 outline-none"
+                                                    >
+                                                        <option value="Sobre">Sobre</option>
+                                                        <option value="Bolsa">Bolsa</option>
+                                                        <option value="Caja">Caja</option>
+                                                        <option value="Caja Grande">Caja Grande</option>
+                                                    </select>
                                                 ) : (
-                                                    <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} onBlur={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 200)} disabled={row.isSaved} className="inline-flex items-center justify-center gap-1.5 px-2.5 h-9 rounded-lg border border-slate-300 text-slate-600 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 text-xs font-bold">
-                                                        <ImagePlus className="h-4 w-4" /> <span className="hidden xl:inline">Foto</span>
-                                                    </button>
+                                                    <input
+                                                        id={`peso-${row.id}`}
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 text-right sm:text-sm font-mono font-bold outline-none disabled:opacity-60"
+                                                        placeholder="0.00"
+                                                        value={row.peso_lbs}
+                                                        onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
+                                                        onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
+                                                        disabled={row.isSaved}
+                                                    />
                                                 )}
-                                                {row.showPhotoMenu && (
-                                                    <div className="absolute z-[9999] right-0 mt-2 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden"
-                                                        style={{ bottom: 'auto', left: '50%', transform: 'translateX(-50%)' }}>
-                                                        <label htmlFor={`camera-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 cursor-pointer">
-                                                            <div className="bg-blue-100/50 p-1.5 rounded-lg"><Camera className="h-4 w-4" /></div>Móvil
-                                                        </label>
-                                                        <button type="button" onMouseDown={(e) => { e.preventDefault(); setActiveWebcamRow(row.id); updateRow(row.id, 'showPhotoMenu', false); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 text-left">
-                                                            <div className="bg-purple-100/50 p-1.5 rounded-lg"><Monitor className="h-4 w-4" /></div>Cámara PC
+                                            </td>
+
+                                            <td className="px-3 py-2.5">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-sm text-center font-bold outline-none disabled:opacity-60"
+                                                    value={row.piezas}
+                                                    onChange={(e) => updateRow(row.id, 'piezas', e.target.value)}
+                                                    disabled={row.isSaved}
+                                                />
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-center relative">
+                                                <input
+                                                    id={`camera-${row.id}`}
+                                                    ref={el => { cameraRefs.current[row.id] = el; }}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={(e) => handlePhotoChange(row.id, e)}
+                                                />
+                                                <input
+                                                    id={`gallery-${row.id}`}
+                                                    ref={el => { galleryRefs.current[row.id] = el; }}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={(e) => handlePhotoChange(row.id, e)}
+                                                />
+                                                <div className="relative inline-block text-left">
+                                                    {row.photoPreview ? (
+                                                        <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} disabled={row.isSaved} className="relative inline-block">
+                                                            <img src={row.photoPreview} alt="preview" className="h-9 w-9 rounded-lg object-cover shadow ring-2 ring-blue-400/40 hover:ring-blue-500/70" />
                                                         </button>
-                                                        <label htmlFor={`gallery-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 cursor-pointer">
-                                                            <div className="bg-emerald-100/50 p-1.5 rounded-lg"><Upload className="h-4 w-4" /></div>Galería
-                                                        </label>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
+                                                    ) : (
+                                                        <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} onBlur={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 200)} disabled={row.isSaved} className="inline-flex items-center justify-center gap-1.5 px-2.5 h-9 rounded-lg border border-slate-300 text-slate-600 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 text-xs font-bold">
+                                                            <ImagePlus className="h-4 w-4" /> <span className="hidden xl:inline">Foto</span>
+                                                        </button>
+                                                    )}
+                                                    {row.showPhotoMenu && (
+                                                        <div className="absolute z-[9999] right-0 mt-2 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden"
+                                                            style={{ bottom: 'auto', left: '50%', transform: 'translateX(-50%)' }}>
+                                                            <label htmlFor={`camera-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 cursor-pointer">
+                                                                <div className="bg-blue-100/50 p-1.5 rounded-lg"><Camera className="h-4 w-4" /></div>Móvil
+                                                            </label>
+                                                            <button type="button" onMouseDown={(e) => { e.preventDefault(); setActiveWebcamRow(row.id); updateRow(row.id, 'showPhotoMenu', false); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 text-left">
+                                                                <div className="bg-purple-100/50 p-1.5 rounded-lg"><Monitor className="h-4 w-4" /></div>Cámara PC
+                                                            </button>
+                                                            <label htmlFor={`gallery-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 cursor-pointer">
+                                                                <div className="bg-emerald-100/50 p-1.5 rounded-lg"><Upload className="h-4 w-4" /></div>Galería
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
 
-                                        <td className="px-3 py-2.5 text-center">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                                {row.isSaved ? (
-                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
-                                                        <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
-                                                    </div>
-                                                ) : (
-                                                    <button onClick={() => handleSaveRow(row.id)} disabled={row.isSaving || !row.tracking.trim() || !globalClient} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40">
-                                                        {row.isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                                                        <span className="hidden xl:inline">{row.isSaving ? '...' : 'Guarda'}</span>
+                                            <td className="px-3 py-2.5 text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    {row.isSaved ? (
+                                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
+                                                            <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
+                                                        </div>
+                                                    ) : (
+                                                        <button onClick={() => handleSaveRow(row.id)} disabled={row.isSaving || !row.tracking.trim() || !globalClient} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40">
+                                                            {row.isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                                                            <span className="hidden xl:inline">{row.isSaving ? '...' : 'Guarda'}</span>
+                                                        </button>
+                                                    )}
+                                                    <button type="button" onClick={() => openLabelPrinter(row)} disabled={!row.tracking.trim() || !globalClient} className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40">
+                                                        <Printer className="h-4 w-4" />
                                                     </button>
-                                                )}
-                                                <button type="button" onClick={() => openLabelPrinter(row)} disabled={!row.tracking.trim() || !globalClient} className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40">
-                                                    <Printer className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </td>
+                                                </div>
+                                            </td>
 
-                                        <td className="px-3 py-2.5 text-center">
-                                            <button onClick={() => removeRow(row.id)} disabled={rows.length === 1 || row.isSaving} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg disabled:opacity-30">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            <td className="px-3 py-2.5 text-center">
+                                                <button onClick={() => removeRow(row.id)} disabled={rows.length === 1 || row.isSaving} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg disabled:opacity-30">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
