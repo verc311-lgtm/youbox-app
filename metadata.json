@@ -1,0 +1,5 @@
+{
+  "name": "YOUBOX GT",
+  "description": "Sistema integral de logística y paquetería. Gestión de almacén, consolidación, facturación y control de inventario.",
+  "requestFramePermissions": ["camera"]
+}
