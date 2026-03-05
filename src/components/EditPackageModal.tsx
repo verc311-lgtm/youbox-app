@@ -38,6 +38,7 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
     const [transportistaId, setTransportistaId] = useState('');
     const [estado, setEstado] = useState('en_bodega');
     const [notas, setNotas] = useState('');
+    const [tapachulaTipo, setTapachulaTipo] = useState('Sobre');
 
     // Client Search State
     const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
@@ -49,6 +50,9 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
     // Catalogs
     const [bodegas, setBodegas] = useState<Bodega[]>([]);
     const [transportistas, setTransportistas] = useState<Transportista[]>([]);
+
+    // Derived: is the selected bodega Tapachula?
+    const isTapachula = bodegas.find(b => b.id === bodegaId)?.nombre.toLowerCase().includes('tapachula') ?? false;
 
     const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -95,7 +99,17 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                 setBodegaId(data.bodega_id || '');
                 setTransportistaId(data.transportista_id || '');
                 setEstado(data.estado);
-                setNotas(data.notas || '');
+
+                // Extract [Empaque: X] from notas if present
+                const rawNotas = data.notas || '';
+                const empaqueMatch = rawNotas.match(/\[Empaque:\s*([^\]]+)\]/);
+                if (empaqueMatch) {
+                    setTapachulaTipo(empaqueMatch[1].trim());
+                    setNotas(rawNotas.replace(/\[Empaque:\s*[^\]]+\]\s*/, '').trim());
+                } else {
+                    setNotas(rawNotas);
+                    setTapachulaTipo('Sobre');
+                }
 
                 if (data.clientes) {
                     const clientData = data.clientes as unknown as Cliente;
@@ -182,7 +196,9 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                     bodega_id: bodegaId || null,
                     transportista_id: transportistaId || null,
                     estado: estado,
-                    notas: notas.trim() || null
+                    notas: isTapachula
+                        ? `[Empaque: ${tapachulaTipo}] ${notas.trim()}`.trim()
+                        : notas.trim() || null
                 })
                 .eq('id', paqueteId);
 
@@ -296,7 +312,7 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                             </div>
 
                             {/* Attributes row */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className={`grid gap-4 ${isTapachula ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Peso (lbs)</label>
                                     <input
@@ -329,6 +345,22 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                                         {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
                                     </select>
                                 </div>
+                                {/* Tapachula-only: tipo empaque */}
+                                {isTapachula && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-orange-600 uppercase tracking-wider mb-2">🐊 Tipo Empaque</label>
+                                        <select
+                                            value={tapachulaTipo}
+                                            onChange={e => setTapachulaTipo(e.target.value)}
+                                            className="block w-full rounded-xl border border-orange-300 px-3 py-2 sm:text-sm font-bold text-orange-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-400/20 outline-none bg-orange-50"
+                                        >
+                                            <option value="Sobre">Sobre</option>
+                                            <option value="Bolsa">Bolsa</option>
+                                            <option value="Caja">Caja</option>
+                                            <option value="Libra">Libra</option>
+                                        </select>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Courier</label>
                                     <select
