@@ -16,7 +16,8 @@ import {
   Receipt,
   BarChart3,
   Building2,
-  X
+  X,
+  FileUp
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useAuth } from '../context/AuthContext';
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, section: 'General' },
   { name: 'Quick Entry', href: '/entry', icon: PackagePlus, section: 'Operaciones' },
   { name: 'Entrada (Cliente)', href: '/client-entry', icon: UserPlus, section: 'Operaciones' },
+  { name: 'Pre-Alertas', href: '/pre-alerts', icon: FileUp, section: 'Operaciones' },
   { name: 'Warehouse', href: '/warehouse', icon: Inbox, section: 'Operaciones' },
   { name: 'Inventario', href: '/inventory', icon: Boxes, section: 'Operaciones' },
   { name: 'Consolidación', href: '/consolidation', icon: Layers, section: 'Operaciones' },
@@ -59,6 +61,7 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
 
   const customerNavigation = [
     { name: 'Mis Paquetes', href: '/inventory', icon: Boxes, section: 'Mis Servicios' },
+    { name: 'Pre-Alertas', href: '/client-pre-alerts', icon: FileUp, section: 'Mis Servicios' },
     { name: 'Facturación', href: '/billing', icon: FileText, section: 'Mis Servicios' },
     { name: 'Pagos', href: '/payments', icon: CreditCard, section: 'Mis Servicios' },
   ];
