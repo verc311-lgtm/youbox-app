@@ -18,15 +18,27 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
 
     const [monto, setMonto] = useState(facturaTotal.toString());
     const [descuento, setDescuento] = useState('');
+    const [tipoDescuento, setTipoDescuento] = useState<'fijo' | 'porcentaje'>('fijo');
     const [metodo, setMetodo] = useState('transferencia');
     const [referencia, setReferencia] = useState('');
     const [notas, setNotas] = useState('');
 
-    const handleDescuentoChange = (val: string) => {
+    const handleDescuentoChange = (val: string, type: 'fijo' | 'porcentaje') => {
         setDescuento(val);
+        setTipoDescuento(type);
         const descVal = parseFloat(val) || 0;
-        if (descVal >= 0 && descVal <= facturaTotal) {
-            setMonto((facturaTotal - descVal).toString());
+
+        let calculatedDiscount = 0;
+        if (type === 'fijo') {
+            calculatedDiscount = descVal;
+        } else if (type === 'porcentaje') {
+            calculatedDiscount = facturaTotal * (descVal / 100);
+        }
+
+        if (calculatedDiscount >= 0 && calculatedDiscount <= facturaTotal) {
+            setMonto((facturaTotal - calculatedDiscount).toFixed(2));
+        } else {
+            setMonto(facturaTotal.toFixed(2)); // Reset si es inválido o excede
         }
     };
 
@@ -39,7 +51,14 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
         setLoading(true);
         try {
             const montoFinal = parseFloat(monto);
-            const descFinal = parseFloat(descuento) || 0;
+            const descVal = parseFloat(descuento) || 0;
+            let descFinal = 0;
+
+            if (tipoDescuento === 'fijo') {
+                descFinal = descVal;
+            } else if (tipoDescuento === 'porcentaje') {
+                descFinal = facturaTotal * (descVal / 100);
+            }
 
             if (descFinal < 0) {
                 alert("El descuento no puede ser negativo.");
@@ -49,7 +68,9 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
 
             let notaFinal = notas;
             if (descFinal > 0) {
-                const descText = `(Descuento manual aplicado: Q${descFinal.toFixed(2)}. Total original: Q${facturaTotal.toFixed(2)})`;
+                const descText = tipoDescuento === 'porcentaje'
+                    ? `(Descuento aplicado: ${descVal}% equivalente a Q${descFinal.toFixed(2)}. Total original: Q${facturaTotal.toFixed(2)})`
+                    : `(Descuento manual aplicado: Q${descFinal.toFixed(2)}. Total original: Q${facturaTotal.toFixed(2)})`;
                 notaFinal = notaFinal ? `${notaFinal} \n${descText}` : descText;
             }
 
@@ -130,15 +151,25 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                             />
                         </div>
                         <div className="flex-1">
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Descuento (Q)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={descuento}
-                                onChange={(e) => handleDescuentoChange(e.target.value)}
-                                className="w-full rounded-md border-slate-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm text-amber-600 font-semibold bg-amber-50"
-                            />
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Descuento</label>
+                            <div className="flex relative shadow-sm rounded-md">
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={descuento}
+                                    onChange={(e) => handleDescuentoChange(e.target.value, tipoDescuento)}
+                                    className="w-full rounded-none rounded-l-md border-slate-300 focus:border-green-500 focus:ring-green-500 sm:text-sm text-amber-600 font-semibold bg-amber-50"
+                                />
+                                <select
+                                    value={tipoDescuento}
+                                    onChange={(e) => handleDescuentoChange(descuento, e.target.value as 'fijo' | 'porcentaje')}
+                                    className="rounded-none rounded-r-md border-l-0 border-slate-300 bg-slate-50 text-slate-600 font-bold sm:text-sm focus:ring-green-500 focus:border-green-500 cursor-pointer"
+                                >
+                                    <option value="fijo">Q</option>
+                                    <option value="porcentaje">%</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
