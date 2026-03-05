@@ -22,11 +22,15 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     const [metodo, setMetodo] = useState('transferencia');
     const [referencia, setReferencia] = useState('');
     const [notas, setNotas] = useState('');
+    // Extra charges
+    const [cargoExtra, setCargoExtra] = useState('');
+    const [cargoExtraRef, setCargoExtraRef] = useState('');
 
     const handleDescuentoChange = (val: string, type: 'fijo' | 'porcentaje') => {
         setDescuento(val);
         setTipoDescuento(type);
         const descVal = parseFloat(val) || 0;
+        const extraVal = parseFloat(cargoExtra) || 0;
 
         let calculatedDiscount = 0;
         if (type === 'fijo') {
@@ -36,10 +40,20 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
         }
 
         if (calculatedDiscount >= 0 && calculatedDiscount <= facturaTotal) {
-            setMonto((facturaTotal - calculatedDiscount).toFixed(2));
+            setMonto((facturaTotal - calculatedDiscount + extraVal).toFixed(2));
         } else {
-            setMonto(facturaTotal.toFixed(2)); // Reset si es inválido o excede
+            setMonto((facturaTotal + extraVal).toFixed(2));
         }
+    };
+
+    // Recalculate monto when extra changes
+    const handleExtraChange = (val: string) => {
+        setCargoExtra(val);
+        const extraVal = parseFloat(val) || 0;
+        const descVal = parseFloat(descuento) || 0;
+        let disc = tipoDescuento === 'fijo' ? descVal : facturaTotal * (descVal / 100);
+        if (disc < 0 || disc > facturaTotal) disc = 0;
+        setMonto((facturaTotal - disc + extraVal).toFixed(2));
     };
 
     const handleSave = async () => {
@@ -74,6 +88,12 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 notaFinal = notaFinal ? `${notaFinal} \n${descText}` : descText;
             }
 
+            const extraVal = parseFloat(cargoExtra) || 0;
+            if (extraVal > 0) {
+                const extraText = `[Cargo Extra: Q${extraVal.toFixed(2)}${cargoExtraRef ? ` | Ref: ${cargoExtraRef}` : ''}]`;
+                notaFinal = notaFinal ? `${notaFinal}\n${extraText}` : extraText;
+            }
+
             // 1. Insertar el Pago
             const { error: pagoError } = await supabase
                 .from('pagos')
@@ -90,9 +110,10 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             if (pagoError) throw pagoError;
 
             // 2. Actualizar estado de Factura
+            const extraVal2 = parseFloat(cargoExtra) || 0;
             let updatePayload: any = { estado: 'verificado' };
-            if (descFinal > 0) {
-                updatePayload.monto_total = facturaTotal - descFinal;
+            if (descFinal > 0 || extraVal2 > 0) {
+                updatePayload.monto_total = (facturaTotal - descFinal + extraVal2);
             }
 
             const { error: facError } = await supabase
@@ -134,7 +155,12 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                         <p className="text-xs text-slate-500 uppercase font-semibold">Factura a Pagar</p>
                         <div className="flex justify-between items-center mt-1">
                             <span className="font-bold text-slate-900">{facturaNumero}</span>
-                            <span className="font-bold text-blue-600">Total: Q{facturaTotal.toFixed(2)}</span>
+                            <div className="text-right">
+                                <span className="font-bold text-blue-600">Total: Q{facturaTotal.toFixed(2)}</span>
+                                {(parseFloat(cargoExtra) || 0) > 0 && (
+                                    <div className="text-xs font-bold text-orange-600 mt-0.5">+Q{(parseFloat(cargoExtra) || 0).toFixed(2)} cargo extra → Total: Q{monto}</div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -169,6 +195,38 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                                     <option value="fijo">Q</option>
                                     <option value="porcentaje">%</option>
                                 </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cargo Extra */}
+                    <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3 space-y-2">
+                        <p className="text-xs font-bold text-orange-700 uppercase tracking-wide flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            Cargo Extra (opcional)
+                        </p>
+                        <div className="flex gap-3">
+                            <div className="w-28">
+                                <label className="block text-xs font-medium text-orange-700 mb-1">Monto (Q)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0.00"
+                                    value={cargoExtra}
+                                    onChange={(e) => handleExtraChange(e.target.value)}
+                                    className="w-full rounded-md border-orange-300 bg-white text-orange-700 font-semibold shadow-sm focus:border-orange-500 focus:ring-orange-400 sm:text-sm"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-medium text-orange-700 mb-1">Referencia / Concepto</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej. Impuesto aduana, seguro..."
+                                    value={cargoExtraRef}
+                                    onChange={(e) => setCargoExtraRef(e.target.value)}
+                                    className="w-full rounded-md border-orange-300 bg-white text-slate-700 shadow-sm focus:border-orange-500 focus:ring-orange-400 sm:text-sm"
+                                />
                             </div>
                         </div>
                     </div>
