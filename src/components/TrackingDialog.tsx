@@ -27,7 +27,7 @@ const OPCIONES_ESTADO = [
     'En tránsito',
     'SAT',
     'Pago de Impuestos',
-    'Oficina Quetzaltenango',
+    'Agencia',
     'Entregado',
     'ALERTA',
     'SEGURO',
@@ -98,7 +98,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
             const masterStateMap: Record<string, string> = {
                 'Creado': 'abierta',
                 'En tránsito': 'en_transito',
-                'Oficina Quetzaltenango': 'entregada', // This means the master voyage is complete
+                'Agencia': 'entregada', // This means the master voyage is complete
                 'Entregado': 'entregada'
             };
 
@@ -120,7 +120,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                 let paqueteEstadoDestino = '';
                 if (nuevoEstado === 'Creado') paqueteEstadoDestino = 'consolidado';
                 else if (['En tránsito', 'SAT', 'Pago de Impuestos'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
-                else if (nuevoEstado === 'Oficina Quetzaltenango') paqueteEstadoDestino = 'recibido'; // In-office, waiting for customer
+                else if (nuevoEstado === 'Agencia') paqueteEstadoDestino = 'en_bodega'; // In-office/agency, waiting for customer
                 else if (nuevoEstado === 'Entregado') paqueteEstadoDestino = 'entregado';
 
                 // C) Actualizar el estado de los paquetes 
@@ -190,7 +190,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
             case 'En tránsito': return <Truck className="h-5 w-5 text-blue-500" />;
             case 'SAT': return <Building2 className="h-5 w-5 text-orange-500" />;
             case 'Pago de Impuestos': return <ShieldCheck className="h-5 w-5 text-indigo-500" />;
-            case 'Oficina Quetzaltenango': return <MapPin className="h-5 w-5 text-teal-600" />;
+            case 'Agencia': return <Building2 className="h-5 w-5 text-teal-600" />;
             case 'Entregado': return <PackageCheck className="h-5 w-5 text-green-600" />;
             case 'ALERTA': return <AlertTriangle className="h-5 w-5 text-red-500" />;
             case 'SEGURO': return <ShieldCheck className="h-5 w-5 text-blue-700" />;
@@ -274,7 +274,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                                     <option value="Laredo, TX" />
                                     <option value="Tapachula" />
                                     <option value="Ciudad de Guatemala" />
-                                    <option value="Quetzaltenango" />
+                                    <option value="Agencia Quetzaltenango" />
                                 </datalist>
                             </div>
 
