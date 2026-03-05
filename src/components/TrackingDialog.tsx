@@ -98,6 +98,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
             const masterStateMap: Record<string, string> = {
                 'Creado': 'abierta',
                 'En tránsito': 'en_transito',
+                'Oficina Quetzaltenango': 'entregada', // This means the master voyage is complete
                 'Entregado': 'entregada'
             };
 
@@ -118,7 +119,8 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                 // B) Map intermediate states to actual `paquetes.estado` constraint states 
                 let paqueteEstadoDestino = '';
                 if (nuevoEstado === 'Creado') paqueteEstadoDestino = 'consolidado';
-                else if (['En tránsito', 'SAT', 'Pago de Impuestos', 'Oficina Quetzaltenango'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
+                else if (['En tránsito', 'SAT', 'Pago de Impuestos'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
+                else if (nuevoEstado === 'Oficina Quetzaltenango') paqueteEstadoDestino = 'recibido'; // In-office, waiting for customer
                 else if (nuevoEstado === 'Entregado') paqueteEstadoDestino = 'entregado';
 
                 // C) Actualizar el estado de los paquetes 
