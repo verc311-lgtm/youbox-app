@@ -230,10 +230,11 @@ export function ClientEntry() {
             const bodegaRow = bodegas.find(b => b.id === (row.bodega_id || globalBodega));
             const isTapachula = bodegaRow?.nombre?.toLowerCase().includes('tapachula');
 
-            let finalPesoResult = isTapachula ? 0 : parseFloat(row.peso_lbs) || null;
+            let finalPesoResult = parseFloat(row.peso_lbs) || null;
             let finalNotas = row.notas || '';
 
-            if (isTapachula) {
+            if (isTapachula && row.empaque !== 'Libra') {
+                finalPesoResult = 0;
                 const empaqueInfo = `[Empaque: ${row.empaque || 'Sobre'}]`;
                 finalNotas = finalNotas ? `${empaqueInfo} ${finalNotas}` : empaqueInfo;
             }
@@ -507,17 +508,32 @@ export function ClientEntry() {
 
                                             <td className="px-3 py-2.5">
                                                 {isTapachula ? (
-                                                    <select
-                                                        value={row.empaque || 'Sobre'}
-                                                        onChange={(e) => updateRow(row.id, 'empaque', e.target.value)}
-                                                        disabled={row.isSaved}
-                                                        className="block w-full rounded-lg border-slate-200/80 bg-blue-50/50 py-1.5 px-2 text-blue-700 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 sm:text-xs font-bold disabled:opacity-60 outline-none"
-                                                    >
-                                                        <option value="Sobre">Sobre</option>
-                                                        <option value="Bolsa">Bolsa</option>
-                                                        <option value="Caja">Caja</option>
-                                                        <option value="Caja Grande">Caja Grande</option>
-                                                    </select>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <select
+                                                            value={row.empaque || 'Sobre'}
+                                                            onChange={(e) => updateRow(row.id, 'empaque', e.target.value)}
+                                                            disabled={row.isSaved}
+                                                            className="block w-full rounded-lg border-slate-200/80 bg-blue-50/50 py-1.5 px-1 sm:px-2 text-blue-700 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 sm:text-xs font-bold disabled:opacity-60 outline-none"
+                                                        >
+                                                            <option value="Sobre">Sobre</option>
+                                                            <option value="Bolsa">Bolsa</option>
+                                                            <option value="Caja">Caja</option>
+                                                            <option value="Libra">Libra</option>
+                                                        </select>
+                                                        {row.empaque === 'Libra' && (
+                                                            <input
+                                                                id={`peso-${row.id}`}
+                                                                type="number"
+                                                                step="0.01"
+                                                                className="block w-16 rounded-lg border-blue-200/80 text-blue-700 bg-white/80 py-1.5 px-1.5 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-blue-300 hover:border-blue-300 text-right sm:text-xs font-mono font-bold outline-none disabled:opacity-60"
+                                                                placeholder="0"
+                                                                value={row.peso_lbs}
+                                                                onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
+                                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
+                                                                disabled={row.isSaved}
+                                                            />
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <input
                                                         id={`peso-${row.id}`}
