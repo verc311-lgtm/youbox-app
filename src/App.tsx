@@ -19,7 +19,8 @@ import { Register } from './pages/Register';
 import { Reports } from './pages/Reports';
 import { PublicTracking } from './pages/PublicTracking';
 import { Profile } from './pages/Profile';
-
+import { PreAlertsAdmin } from './pages/PreAlertsAdmin';
+import { ClientPreAlerts } from './pages/ClientPreAlerts';
 import { UserDashboard } from './pages/UserDashboard';
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -97,6 +98,7 @@ function AppRoutes() {
         />
         <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
         <Route path="client-entry" element={<OperadorRoute><ClientEntry /></OperadorRoute>} />
+        <Route path="pre-alerts" element={<OperadorRoute><PreAlertsAdmin /></OperadorRoute>} />
         <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
@@ -111,6 +113,7 @@ function AppRoutes() {
         {/* Pages under development or placeholders */}
         <Route path="profile" element={<Profile />} />
         <Route path="payments" element={<Navigate to="/billing" replace />} />
+        <Route path="client-pre-alerts" element={<ClientPreAlerts />} />
         <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
       </Route>
 
