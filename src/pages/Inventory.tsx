@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
+import { EditPackageModal } from '../components/EditPackageModal';
 
 interface Paquete {
   id: string;
@@ -38,6 +39,7 @@ export function Inventory() {
   const [searchTerm, setSearchTerm] = useState(initialSearch);
 
   const [printingLabel, setPrintingLabel] = useState<any>(null);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPaquetes();
@@ -70,6 +72,23 @@ export function Inventory() {
       setLoading(false);
     }
   }
+
+  const handleDeletePackage = async (paqueteId: string, tracking: string) => {
+    if (!window.confirm(`¿Estás completamente seguro de que deseas ELIMINAR el paquete con tracking: ${tracking}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('paquetes').delete().eq('id', paqueteId);
+      if (error) throw error;
+
+      // Update local state instantly
+      setPaquetes(cur => cur.filter(p => p.id !== paqueteId));
+    } catch (e: any) {
+      console.error('Error deleting package:', e);
+      alert('Hubo un error al eliminar el paquete: ' + e.message);
+    }
+  };
 
   const filteredPaquetes = paquetes.filter(p =>
     p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -220,8 +239,19 @@ export function Inventory() {
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
                           </button>
-                          <button className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200" title="Editar Paquete">
+                          <button
+                            onClick={() => setEditingPackageId(p.id)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
+                            title="Editar Paquete"
+                          >
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeletePackage(p.id, p.tracking)}
+                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+                            title="Eliminar Paquete"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
                           </button>
                         </div>
                       </td>
@@ -239,6 +269,17 @@ export function Inventory() {
           isOpen={!!printingLabel}
           onClose={() => setPrintingLabel(null)}
           paquete={printingLabel}
+        />
+      )}
+
+      {editingPackageId && (
+        <EditPackageModal
+          isOpen={!!editingPackageId}
+          onClose={() => setEditingPackageId(null)}
+          paqueteId={editingPackageId}
+          onSuccess={() => {
+            fetchPaquetes();
+          }}
         />
       )}
     </div>
