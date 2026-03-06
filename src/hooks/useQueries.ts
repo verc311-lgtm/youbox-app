@@ -52,7 +52,6 @@ export interface Bodega {
   id: string;
   nombre: string;
   activo?: boolean;
-  sucursal_id?: string;
 }
 
 export function useBodegas() {
@@ -61,7 +60,7 @@ export function useBodegas() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bodegas')
-        .select('id, nombre, activo, sucursal_id')
+        .select('id, nombre, activo')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
@@ -83,6 +82,7 @@ export function useTransportistas() {
       const { data, error } = await supabase
         .from('transportistas')
         .select('id, nombre')
+        .eq('activo', true)
         .order('nombre');
       if (error) throw error;
       return (data ?? []) as Transportista[];
