@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Inbox, CreditCard, Download } from 'lucide-react';
+import { FileText, Inbox, CreditCard, Download, Building } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -37,9 +37,24 @@ export function Billing() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
 
+  const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
+  const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+  const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchSucursales();
+    }
+  }, [user, isSuperAdmin]);
+
   useEffect(() => {
     fetchFacturas();
-  }, [user]);
+  }, [user, selectedFilterBranch]);
+
+  async function fetchSucursales() {
+    const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
+    if (data) setSucursales(data);
+  }
 
   async function fetchFacturas() {
     if (!user) return;
@@ -56,16 +71,10 @@ export function Billing() {
       if (!isAdmin) {
         query = query.eq('cliente_id', user.id);
       } else {
-        const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
-        if (!isSuperAdmin && user?.sucursal_id) {
-          // Fetch clients in this branch first to build an OR query
-          const { data: branchClients } = await supabase.from('clientes').select('id').eq('sucursal_id', user.sucursal_id);
-          const clientIds = branchClients?.map(c => c.id) || [];
-          if (clientIds.length > 0) {
-            query = query.or(`cliente_id.in.(${clientIds.join(',')}),cliente_id.is.null`);
-          } else {
-            query = query.is('cliente_id', null);
-          }
+        const activeBranch = isSuperAdmin ? selectedFilterBranch : user?.sucursal_id;
+        if (activeBranch && activeBranch !== 'all') {
+          // Inner join with clientes to filter by branch
+          query = query.eq('clientes.sucursal_id', activeBranch);
         }
       }
 
@@ -100,14 +109,33 @@ export function Billing() {
             {isAdmin ? 'Gestión centralizada del ciclo de pagos y facturación.' : 'Historial de tus facturas y cobros de envíos.'}
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setIsGenerateModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-            <FileText className="h-4 w-4" />
-            Nueva Factura
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-4">
+          {isSuperAdmin && (
+            <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                <Building className="h-4.5 w-4.5" />
+              </div>
+              <select
+                value={selectedFilterBranch}
+                onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[180px]"
+              >
+                <option value="all">Todas las Sedes (Global)</option>
+                {sucursales.map(s => (
+                  <option key={s.id} value={s.id}>{s.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setIsGenerateModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              <FileText className="h-4 w-4" />
+              Nueva Factura
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary cards */}
