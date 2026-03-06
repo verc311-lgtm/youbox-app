@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Plus, Search, Loader2, Trash2, Save, ImagePlus, CheckCircle2, Upload, Printer, Monitor, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
@@ -169,7 +170,7 @@ export function ClientEntry() {
     const handlePhotoChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (file.size > 8 * 1024 * 1024) { alert('Imagen muy grande. Máx 8MB.'); return; }
+        if (file.size > 8 * 1024 * 1024) { toast.error('Imagen muy grande. Máx 8MB.'); return; }
         const reader = new FileReader();
         reader.onloadend = () => {
             setRows(cur => cur.map(r =>
@@ -190,8 +191,8 @@ export function ClientEntry() {
     const handleSaveRow = async (rowId: string) => {
         const row = rows.find(r => r.id === rowId);
         if (!row) return;
-        if (!globalClient) { alert('Debes seleccionar un cliente general arriba.'); return; }
-        if (!row.tracking.trim()) { alert('El número de tracking es requerido.'); return; }
+        if (!globalClient) { toast.error('Debes seleccionar un cliente general arriba.'); return; }
+        if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
 
         setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: true } : r));
 
@@ -206,7 +207,7 @@ export function ClientEntry() {
             if (checkError) {
                 console.error('Error checking tracking check:', checkError);
             } else if (existingPaquete) {
-                alert(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
+                toast.error(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
                 setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
                 return;
             }
@@ -273,17 +274,17 @@ export function ClientEntry() {
 
         } catch (e: any) {
             console.error('Error saving row:', e);
-            alert('Error al guardar: ' + e.message);
+            toast.error('Error al guardar: ' + e.message);
             setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
         }
     };
 
     const handleSaveAll = async () => {
-        if (!globalClient) { alert('Debes seleccionar un cliente general arriba.'); return; }
+        if (!globalClient) { toast.error('Debes seleccionar un cliente general arriba.'); return; }
 
         const unsavedRows = rows.filter(r => !r.isSaved && r.tracking.trim() !== '');
         if (unsavedRows.length === 0) {
-            alert('No hay paquetes pendientes con tracking para guardar.');
+            toast.error('No hay paquetes pendientes con tracking para guardar.');
             return;
         }
 
@@ -296,11 +297,11 @@ export function ClientEntry() {
     // --- Printer ---
     const openLabelPrinter = (row: RowData) => {
         if (!row.tracking) {
-            alert("Por favor ingresa un número de tracking primero.");
+            toast.error("Por favor ingresa un número de tracking primero.");
             return;
         }
         if (!globalClient) {
-            alert("Por favor selecciona un cliente en la parte superior primero.");
+            toast.error("Por favor selecciona un cliente en la parte superior primero.");
             return;
         }
         const bodegaName = bodegas.find(b => b.id === (row.bodega_id || globalBodega))?.nombre || 'General';
@@ -331,7 +332,7 @@ export function ClientEntry() {
                             if (el) el.focus();
                         }
                     } else {
-                        alert('Debes seleccionar un cliente antes de guardar automáticamente.');
+                        toast.error('Debes seleccionar un cliente antes de guardar automáticamente.');
                     }
                 } else {
                     const el = document.getElementById(`peso-${currentId}`);
@@ -342,7 +343,7 @@ export function ClientEntry() {
                     if (globalClient) {
                         handleSaveRow(currentId);
                     } else {
-                        alert('Debes seleccionar un cliente antes de guardar automáticamente.');
+                        toast.error('Debes seleccionar un cliente antes de guardar automáticamente.');
                     }
                 } else {
                     const isLastRow = rows[rows.length - 1].id === currentId;

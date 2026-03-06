@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layers, Search, Plus, Package, MapPin, Loader2, CheckSquare, Square, ClipboardList, PlusCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ConsolidationsList } from '../components/ConsolidationsList';
@@ -148,11 +149,11 @@ export function Consolidation() {
 
   const handleCreateConsolidation = async () => {
     if (selectedIds.size === 0) {
-      alert('Debes seleccionar al menos un paquete.');
+      toast.error('Debes seleccionar al menos un paquete.');
       return;
     }
     if (!formData.origen_id || !formData.destino_id) {
-      alert('Origen y Destino son obligatorios.');
+      toast.error('Origen y Destino son obligatorios.');
       return;
     }
 
@@ -282,7 +283,7 @@ export function Consolidation() {
         }
       }
 
-      alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
+      toast.success('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
 
       // Refresh Data
       setFormData(f => ({ ...f, nombre_alternativo: '' }));
@@ -291,7 +292,7 @@ export function Consolidation() {
 
     } catch (e: any) {
       console.error('Error creating consolidation:', e);
-      alert('Hubo un error al crear la consolidación: ' + (e.message || 'Desconocido'));
+      toast.error('Hubo un error al crear la consolidación: ' + (e.message || 'Desconocido'));
     } finally {
       setSaving(false);
     }

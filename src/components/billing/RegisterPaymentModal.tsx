@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Save, Loader2, CheckCircle2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -58,7 +59,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
 
     const handleSave = async () => {
         if (!monto || isNaN(Number(monto)) || Number(monto) <= 0) {
-            alert("Ingrese un monto válido mayor a 0.");
+            toast.error("Ingrese un monto válido mayor a 0.");
             return;
         }
 
@@ -75,7 +76,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             }
 
             if (descFinal < 0) {
-                alert("El descuento no puede ser negativo.");
+                toast.error("El descuento no puede ser negativo.");
                 setLoading(false);
                 return;
             }
@@ -127,7 +128,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             onClose();
         } catch (error: any) {
             console.error(error);
-            alert('Error al registrar pago: ' + error.message);
+            toast.error('Error al registrar pago: ' + error.message);
         } finally {
             setLoading(false);
         }

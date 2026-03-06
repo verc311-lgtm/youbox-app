@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Save, Loader2, Calculator, Users, Package } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { sendEmail } from '../../utils/sendEmail';
@@ -197,7 +198,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
 
         } catch (error) {
             console.error("Error cargando previsualización:", error);
-            alert("Ocurrió un error leyendo los paquetes de la consolidación.");
+            toast.error("Ocurrió un error leyendo los paquetes de la consolidación.");
         } finally {
             setLoadingData(false);
         }
@@ -277,13 +278,13 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 processed++;
             }
 
-            alert(`¡Facturación Masiva Completada! Se generaron ${processed} facturas.`);
+            toast.success(`¡Facturación Masiva Completada! Se generaron ${processed} facturas.`);
             onSuccess();
             onClose();
 
         } catch (error: any) {
             console.error(error);
-            alert("Error al generar las facturas: " + error.message);
+            toast.error("Error al generar las facturas: " + error.message);
         } finally {
             setSaving(false);
         }

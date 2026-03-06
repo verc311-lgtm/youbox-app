@@ -1,27 +1,39 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
-import { QuickEntry } from './pages/QuickEntry';
-import { ClientEntry } from './pages/ClientEntry';
-import { Warehouse } from './pages/Warehouse';
-import { Inventory } from './pages/Inventory';
-import { Consolidation } from './pages/Consolidation';
-import { Billing } from './pages/Billing';
-import { Settings } from './pages/Settings';
-import { Tariffs } from './pages/Tariffs';
-import { Users } from './pages/Users';
-import { Branches } from './pages/Branches';
-import { Login } from './pages/Login';
-import { Expenses } from './pages/Expenses';
-import { Register } from './pages/Register';
-import { Reports } from './pages/Reports';
-import { PublicTracking } from './pages/PublicTracking';
-import { Profile } from './pages/Profile';
-import { PreAlertsAdmin } from './pages/PreAlertsAdmin';
-import { ClientPreAlerts } from './pages/ClientPreAlerts';
-import { UserDashboard } from './pages/UserDashboard';
+
+// Lazy loaded pages
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const QuickEntry = lazy(() => import('./pages/QuickEntry').then(m => ({ default: m.QuickEntry })));
+const ClientEntry = lazy(() => import('./pages/ClientEntry').then(m => ({ default: m.ClientEntry })));
+const Warehouse = lazy(() => import('./pages/Warehouse').then(m => ({ default: m.Warehouse })));
+const Inventory = lazy(() => import('./pages/Inventory').then(m => ({ default: m.Inventory })));
+const Consolidation = lazy(() => import('./pages/Consolidation').then(m => ({ default: m.Consolidation })));
+const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const Tariffs = lazy(() => import('./pages/Tariffs').then(m => ({ default: m.Tariffs })));
+const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users })));
+const Branches = lazy(() => import('./pages/Branches').then(m => ({ default: m.Branches })));
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Expenses = lazy(() => import('./pages/Expenses').then(m => ({ default: m.Expenses })));
+const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
+const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
+const PublicTracking = lazy(() => import('./pages/PublicTracking').then(m => ({ default: m.PublicTracking })));
+const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
+const PreAlertsAdmin = lazy(() => import('./pages/PreAlertsAdmin').then(m => ({ default: m.PreAlertsAdmin })));
+const ClientPreAlerts = lazy(() => import('./pages/ClientPreAlerts').then(m => ({ default: m.ClientPreAlerts })));
+const UserDashboard = lazy(() => import('./pages/UserDashboard').then(m => ({ default: m.UserDashboard })));
+
+// Loading Component for Suspense
+const PageLoader = () => (
+  <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
+    <div className="h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+    <p className="text-sm font-bold text-slate-500 animate-pulse">Cargando módulo...</p>
+  </div>
+);
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -77,49 +89,62 @@ function AppRoutes() {
   const isClient = user && (user.role === 'cliente');
 
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
-      <Route path="/tracking" element={<PublicTracking />} />
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: { background: '#fff', color: '#334155', fontWeight: 'bold', padding: '16px', borderRadius: '12px' },
+          success: { iconTheme: { primary: '#10B981', secondary: '#fff' } },
+          error: { iconTheme: { primary: '#EF4444', secondary: '#fff' } },
+        }}
+      />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+          <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
+          <Route path="/tracking" element={<PublicTracking />} />
 
-      {/* Protected routes */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route
-          index
-          element={isClient ? <UserDashboard /> : <Dashboard />}
-        />
-        <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
-        <Route path="client-entry" element={<OperadorRoute><ClientEntry /></OperadorRoute>} />
-        <Route path="pre-alerts" element={<OperadorRoute><PreAlertsAdmin /></OperadorRoute>} />
-        <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
-        <Route path="inventory" element={<Inventory />} />
-        <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
-        <Route path="billing" element={<Billing />} />
-        <Route path="settings" element={<AdminOnlyRoute><Settings /></AdminOnlyRoute>} />
-        <Route path="tariffs" element={<AdminOnlyRoute><Tariffs /></AdminOnlyRoute>} />
-        <Route path="users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
-        <Route path="branches" element={<AdminOnlyRoute><Branches /></AdminOnlyRoute>} />
-        <Route path="expenses" element={<FacturadorRoute><Expenses /></FacturadorRoute>} />
-        <Route path="reports" element={<FacturadorRoute><Reports /></FacturadorRoute>} />
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
+            <Route
+              index
+              element={isClient ? <UserDashboard /> : <Dashboard />}
+            />
+            <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
+            <Route path="client-entry" element={<OperadorRoute><ClientEntry /></OperadorRoute>} />
+            <Route path="pre-alerts" element={<OperadorRoute><PreAlertsAdmin /></OperadorRoute>} />
+            <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="settings" element={<AdminOnlyRoute><Settings /></AdminOnlyRoute>} />
+            <Route path="tariffs" element={<AdminOnlyRoute><Tariffs /></AdminOnlyRoute>} />
+            <Route path="users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
+            <Route path="branches" element={<AdminOnlyRoute><Branches /></AdminOnlyRoute>} />
+            <Route path="expenses" element={<FacturadorRoute><Expenses /></FacturadorRoute>} />
+            <Route path="reports" element={<FacturadorRoute><Reports /></FacturadorRoute>} />
 
-        {/* Pages under development or placeholders */}
-        <Route path="profile" element={<Profile />} />
-        <Route path="payments" element={<Navigate to="/billing" replace />} />
-        <Route path="client-pre-alerts" element={<ClientPreAlerts />} />
-        <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
-      </Route>
+            {/* Pages under development or placeholders */}
+            <Route path="profile" element={<Profile />} />
+            <Route path="payments" element={<Navigate to="/billing" replace />} />
+            <Route path="client-pre-alerts" element={<ClientPreAlerts />} />
+            <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
+          </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </>
   );
 }
 

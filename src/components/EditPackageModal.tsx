@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 import { X, Search, Loader2, Save, Package } from 'lucide-react';
 
 interface Cliente {
@@ -119,7 +120,7 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
             }
         } catch (e) {
             console.error('Error fetching package details:', e);
-            alert('Error al cargar la información del paquete.');
+            toast.error('Error al cargar la información del paquete.');
             onClose();
         } finally {
             setLoading(false);
@@ -175,12 +176,12 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
         if (!paqueteId) return;
 
         if (!selectedClient) {
-            alert('Debes asignar un cliente (Casillero) válido al paquete.');
+            toast.error('Debes asignar un cliente (Casillero) válido al paquete.');
             return;
         }
 
         if (!tracking.trim()) {
-            alert('El número de tracking es obligatorio.');
+            toast.error('El número de tracking es obligatorio.');
             return;
         }
 
@@ -208,7 +209,7 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
             onClose();
         } catch (error: any) {
             console.error('Error updating package:', error);
-            alert('Ocurrió un error al actualizar el paquete: ' + error.message);
+            toast.error('Ocurrió un error al actualizar el paquete: ' + error.message);
         } finally {
             setSaving(false);
         }

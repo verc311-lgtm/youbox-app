@@ -6,6 +6,7 @@ import {
     DollarSign, CheckCircle2, Image as ImageIcon,
     Tag, Building, BarChart2, ChevronDown, ChevronUp, AlertCircle, FileDown
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Gasto {
     id: string;
@@ -132,7 +133,7 @@ export function Expenses() {
         setUploadError(null);
 
         if (!formData.monto_q || !formData.concepto) {
-            alert('Debes indicar al menos un Concepto y Monto.');
+            toast.error('Debes indicar al menos un Concepto y Monto.');
             return;
         }
 
@@ -184,7 +185,7 @@ export function Expenses() {
             const { error } = await supabase.from('gastos_financieros').insert([newGasto]);
             if (error) throw error;
 
-            alert('Gasto registrado exitosamente!');
+            toast.success('Gasto registrado exitosamente!');
 
             setFormData({
                 categoria: 'Renta',
@@ -203,7 +204,7 @@ export function Expenses() {
 
         } catch (e: any) {
             console.error(e);
-            alert('Error guardando el gasto: ' + e.message);
+            toast.error('Error guardando el gasto: ' + e.message);
             setUploadingImage(false);
         } finally {
             setSaving(false);

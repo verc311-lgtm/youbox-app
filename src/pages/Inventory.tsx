@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -125,7 +126,7 @@ export function Inventory() {
       setPaquetes(cur => cur.filter(p => p.id !== paqueteId));
     } catch (e: any) {
       console.error('Error deleting package:', e);
-      alert('Hubo un error al eliminar el paquete: ' + e.message);
+      toast.error('Hubo un error al eliminar el paquete: ' + e.message);
     }
   };
 

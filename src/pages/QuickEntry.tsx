@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, CheckCircle2, Upload, Printer, Monitor } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
@@ -179,7 +180,7 @@ export function QuickEntry() {
   const handlePhotoChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { alert('Imagen muy grande. Máx 8MB.'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Imagen muy grande. Máx 8MB.'); return; }
     const reader = new FileReader();
     reader.onloadend = () => {
       setRows(cur => cur.map(r =>
@@ -200,8 +201,8 @@ export function QuickEntry() {
   const handleSaveRow = async (rowId: string) => {
     const row = rows.find(r => r.id === rowId);
     if (!row) return;
-    if (!row.tracking.trim()) { alert('El número de tracking es requerido.'); return; }
-    if (!row.cliente_id) { alert('Selecciona un cliente / casillero válido.'); return; }
+    if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
+    if (!row.cliente_id) { toast.error('Selecciona un cliente / casillero válido.'); return; }
 
     setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: true } : r));
 
@@ -216,7 +217,7 @@ export function QuickEntry() {
       if (checkError) {
         console.error('Error checking tracking check:', checkError);
       } else if (existingPaquete) {
-        alert(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
+        toast.error(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
         setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
         return;
       }
@@ -284,7 +285,7 @@ export function QuickEntry() {
 
     } catch (e: any) {
       console.error('Error saving row:', e);
-      alert('Error al guardar: ' + e.message);
+      toast.error('Error al guardar: ' + e.message);
       setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
     }
   };
@@ -292,7 +293,7 @@ export function QuickEntry() {
   const handleSaveAll = async () => {
     const unsavedRows = rows.filter(r => !r.isSaved && r.tracking.trim() !== '' && r.cliente_id !== '');
     if (unsavedRows.length === 0) {
-      alert('No hay paquetes pendientes con tracking y cliente válido para guardar.');
+      toast.error('No hay paquetes pendientes con tracking y cliente válido para guardar.');
       return;
     }
 
@@ -305,7 +306,7 @@ export function QuickEntry() {
   // Label printing handler
   const openLabelPrinter = (row: RowData) => {
     if (!row.tracking) {
-      alert("Por favor ingresa un número de tracking primero.");
+      toast.error("Por favor ingresa un número de tracking primero.");
       return;
     }
     const bodegaName = bodegas.find(b => b.id === (row.bodega_id || globalBodega))?.nombre || 'General';

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 import { Package, Search, Trash2, X, Plus, Loader2, ChevronsRight, CheckCircle2 } from 'lucide-react';
 
 interface Paquete {
@@ -67,11 +68,11 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                 .select('id, tracking, peso_lbs, piezas, estado, clientes(nombre, apellido, locker_id)')
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
-                
+
             if (bodegaId) {
                 query = query.eq('bodega_id', bodegaId);
             }
-            
+
             const { data: availData } = await query;
 
             setAvailablePaquetes((availData as any) || []);
@@ -104,7 +105,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Add error:', err);
-            alert('Error al agregar paquete: ' + err.message);
+            toast.error('Error al agregar paquete: ' + err.message);
         } finally {
             setActionLoading(null);
         }
@@ -125,7 +126,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Remove error:', err);
-            alert('Error al remover paquete: ' + err.message);
+            toast.error('Error al remover paquete: ' + err.message);
         } finally {
             setActionLoading(null);
         }
@@ -265,6 +266,6 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             </div>
         </div>
     );
-    
+
     return createPortal(modalContent, document.body);
 }
