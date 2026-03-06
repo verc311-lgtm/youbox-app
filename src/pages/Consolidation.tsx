@@ -54,13 +54,20 @@ export function Consolidation() {
     setLoading(true);
     try {
       // Fetch Catalogs
+      const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+      let paquetesQuery = supabase.from('paquetes')
+        .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes!inner(nombre, apellido, locker_id, sucursal_id), bodegas(id, nombre)')
+        .in('estado', ['en_bodega', 'recibido'])
+        .order('fecha_recepcion', { ascending: false });
+
+      if (!isSuperAdmin && user?.sucursal_id) {
+        paquetesQuery = paquetesQuery.eq('clientes.sucursal_id', user.sucursal_id);
+      }
+
       const [bodegasRes, zonasRes, paquetesRes] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('activo', true),
         supabase.from('zonas').select('id, nombre').eq('activo', true),
-        supabase.from('paquetes')
-          .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
-          .in('estado', ['en_bodega', 'recibido'])
-          .order('fecha_recepcion', { ascending: false })
+        paquetesQuery
       ]);
 
       if (bodegasRes.data) {

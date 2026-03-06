@@ -88,13 +88,18 @@ export function Inventory() {
         .select(`
           id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas,
           bodegas (nombre),
-          clientes (nombre, apellido, locker_id),
+          clientes!inner (nombre, apellido, locker_id, sucursal_id),
           transportistas (nombre)
         `)
         .order('fecha_recepcion', { ascending: false });
 
       if (!isAdmin) {
         query = query.eq('cliente_id', user.id);
+      } else {
+        const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+        if (!isSuperAdmin && user?.sucursal_id) {
+          query = query.eq('clientes.sucursal_id', user.sucursal_id);
+        }
       }
 
       const { data, error } = await query;

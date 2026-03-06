@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
 
 interface PaqueteWithDetails {
     id: string;
@@ -41,6 +42,7 @@ interface PaquetesPorCliente {
 }
 
 export function Warehouse() {
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(searchParams.get('bodega') || '');
@@ -54,7 +56,7 @@ export function Warehouse() {
     async function fetchWarehousePackages() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('paquetes')
                 .select(`
           id,
@@ -64,11 +66,18 @@ export function Warehouse() {
           notas,
           fecha_recepcion,
           transportistas(nombre),
-          clientes(id, nombre, apellido, locker_id),
+          clientes!inner(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre)
         `)
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
+
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            if (!isSuperAdmin && user?.sucursal_id) {
+                query = query.eq('clientes.sucursal_id', user.sucursal_id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 

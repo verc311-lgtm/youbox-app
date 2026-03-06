@@ -55,6 +55,18 @@ export function Billing() {
 
       if (!isAdmin) {
         query = query.eq('cliente_id', user.id);
+      } else {
+        const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+        if (!isSuperAdmin && user?.sucursal_id) {
+          // Fetch clients in this branch first to build an OR query
+          const { data: branchClients } = await supabase.from('clientes').select('id').eq('sucursal_id', user.sucursal_id);
+          const clientIds = branchClients?.map(c => c.id) || [];
+          if (clientIds.length > 0) {
+            query = query.or(`cliente_id.in.(${clientIds.join(',')}),cliente_id.is.null`);
+          } else {
+            query = query.is('cliente_id', null);
+          }
+        }
       }
 
       const { data, error } = await query;

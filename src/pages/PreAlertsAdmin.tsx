@@ -41,20 +41,28 @@ export function PreAlertsAdmin() {
         try {
             setLoading(true);
             // Fetch Prealertas
-            const { data: prealertaData, error: pError } = await supabase
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            let query = supabase
                 .from('prealertas')
                 .select(`
           *,
-          clientes (
+          clientes!inner (
             nombre,
             apellido,
-            locker_id
+            locker_id,
+            sucursal_id
           ),
           bodegas (
             nombre
           )
         `)
                 .order('created_at', { ascending: false });
+
+            if (!isSuperAdmin && user?.sucursal_id) {
+                query = query.eq('clientes.sucursal_id', user.sucursal_id);
+            }
+
+            const { data: prealertaData, error: pError } = await query;
 
             if (pError) throw pError;
             setPrealertas(prealertaData || []);
@@ -132,11 +140,18 @@ export function PreAlertsAdmin() {
         setSearchingClient(true);
         clientSearchRef.current = setTimeout(async () => {
             try {
-                const { data } = await supabase
+                const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+                let clientQuery = supabase
                     .from('clientes')
                     .select('id, nombre, apellido, locker_id')
                     .or(`locker_id.ilike.%${text}%,nombre.ilike.%${text}%,apellido.ilike.%${text}%`)
                     .limit(10);
+
+                if (!isSuperAdmin && user?.sucursal_id) {
+                    clientQuery = clientQuery.eq('sucursal_id', user.sucursal_id);
+                }
+
+                const { data } = await clientQuery;
                 setNewClientResults(data || []);
             } finally {
                 setSearchingClient(false);
@@ -518,8 +533,8 @@ export function PreAlertsAdmin() {
                                         type="button"
                                         onClick={() => setNewConSeguro(v => !v)}
                                         className={`w-full py-2 rounded-xl text-sm font-bold border transition-all ${newConSeguro
-                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                                : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
                                             }`}
                                     >
                                         {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}

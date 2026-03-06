@@ -26,6 +26,7 @@ export function Reports() {
     const [monthlyData, setMonthlyData] = useState<Mensual[]>([]);
     const [categoryData, setCategoryData] = useState<Categoria[]>([]);
     const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
     const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
 
@@ -36,10 +37,10 @@ export function Reports() {
     });
 
     useEffect(() => {
-        if (user?.role === 'admin') {
+        if (isSuperAdmin) {
             fetchSucursales();
         }
-    }, [user]);
+    }, [user, isSuperAdmin]);
 
     useEffect(() => {
         fetchData();
@@ -70,10 +71,10 @@ export function Reports() {
                 .gte('fecha_pago', hace6Meses.toISOString());
 
             // Filtros de Sucursal
-            if (user?.role !== 'admin' && user?.sucursal_id) {
+            if (!isSuperAdmin && user?.sucursal_id) {
                 queryFacturas = queryFacturas.eq('clientes.sucursal_id', user.sucursal_id);
                 queryGastos = queryGastos.eq('sucursal_id', user.sucursal_id);
-            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
+            } else if (isSuperAdmin && selectedFilterBranch !== 'all') {
                 queryFacturas = queryFacturas.eq('clientes.sucursal_id', selectedFilterBranch);
                 queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
             }
@@ -178,7 +179,7 @@ export function Reports() {
                         Métricas clave e historial de utilidad de los últimos 6 meses.
                     </p>
                 </div>
-                {user?.role === 'admin' && (
+                {isSuperAdmin && (
                     <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
                             <Building className="h-4.5 w-4.5" />

@@ -30,6 +30,7 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
 
 export function Expenses() {
     const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
     const [gastos, setGastos] = useState<Gasto[]>([]);
     const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
@@ -65,7 +66,7 @@ export function Expenses() {
     }, [selectedFilterBranch, user?.sucursal_id]);
 
     async function fetchSucursales() {
-        if (user?.role === 'admin') {
+        if (isSuperAdmin) {
             const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
             if (data) {
                 setSucursales(data);
@@ -86,9 +87,9 @@ export function Expenses() {
                 .select('*, sucursales(nombre)')
                 .order('fecha_pago', { ascending: false });
 
-            if (user?.role !== 'admin' && user?.sucursal_id) {
+            if (!isSuperAdmin && user?.sucursal_id) {
                 query = query.eq('sucursal_id', user.sucursal_id);
-            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
+            } else if (isSuperAdmin && selectedFilterBranch !== 'all') {
                 query = query.eq('sucursal_id', selectedFilterBranch);
             }
 
@@ -445,7 +446,7 @@ export function Expenses() {
                         </button>
                     </div>
 
-                    {user?.role === 'admin' && (
+                    {isSuperAdmin && (
                         <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md">
                             <Building className="h-4 w-4 text-blue-500" />
                             <select

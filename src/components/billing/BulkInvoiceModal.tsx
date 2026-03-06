@@ -104,10 +104,17 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
             const packageIds = pivotData.map(p => p.paquete_id);
 
             // 3. Obtener los paquetes completos con cliente y peso
-            const { data: paquetesData, error: paqError } = await supabase
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            let paqQuery = supabase
                 .from('paquetes')
-                .select('id, tracking, peso_lbs, piezas, notas, cliente_id, clientes(id, nombre, apellido, locker_id, email)')
+                .select('id, tracking, peso_lbs, piezas, notas, cliente_id, clientes!inner(id, nombre, apellido, locker_id, email, sucursal_id)')
                 .in('id', packageIds);
+
+            if (!isSuperAdmin && user?.sucursal_id) {
+                paqQuery = paqQuery.eq('clientes.sucursal_id', user.sucursal_id);
+            }
+
+            const { data: paquetesData, error: paqError } = await paqQuery;
 
             if (paqError) throw paqError;
 

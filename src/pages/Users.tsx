@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users as UsersIcon, Plus, Shield, ShieldCheck, Mail, Phone, Trash2, KeyRound, Search, X, SlidersHorizontal, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { UserRole } from '../context/AuthContext';
+import { UserRole, useAuth } from '../context/AuthContext';
 
 interface Rol {
     id: string;
@@ -45,6 +45,7 @@ interface Cliente {
 }
 
 export function Users() {
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const initialSearch = searchParams.get('search') || '';
 
@@ -127,10 +128,17 @@ export function Users() {
     async function fetchUsers() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            let query = supabase
                 .from('usuarios')
                 .select(`*, roles ( nombre ), sucursales ( nombre )`)
                 .order('created_at', { ascending: false });
+
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            if (!isSuperAdmin && user?.sucursal_id) {
+                query = query.eq('sucursal_id', user.sucursal_id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setUsers(data || []);
@@ -145,17 +153,23 @@ export function Users() {
         try {
             setLoading(true);
             // Supabase has a hard limit of 1000 rows per request.
-            // We fetch in batches of 1000 until all records are loaded.
             const BATCH_SIZE = 1000;
             let allClientes: Cliente[] = [];
             let from = 0;
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
 
             while (true) {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('clientes')
                     .select(`*, sucursales ( nombre )`)
                     .order('created_at', { ascending: false })
                     .range(from, from + BATCH_SIZE - 1);
+
+                if (!isSuperAdmin && user?.sucursal_id) {
+                    query = query.eq('sucursal_id', user.sucursal_id);
+                }
+
+                const { data, error } = await query;
 
                 if (error) throw error;
                 if (!data || data.length === 0) break;
