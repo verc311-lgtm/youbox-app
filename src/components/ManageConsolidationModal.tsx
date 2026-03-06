@@ -161,10 +161,10 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                 </div>
 
                 {/* Main Content Area: Dos Columnas */}
-                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 bg-slate-100/50">
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 bg-slate-100/50">
 
                     {/* Columna Izquierda: Paquetes Disponibles */}
-                    <div className="flex flex-col border-b lg:border-b-0 lg:border-r border-slate-200/60 bg-white">
+                    <div className="flex flex-col min-h-0 overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200/60 bg-white">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
                                 <Package className="h-4 w-4 text-blue-500" /> Paquetes sin procesar
@@ -214,7 +214,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                     </div>
 
                     {/* Columna Derecha: Paquetes en el Consolidado */}
-                    <div className="flex flex-col overflow-hidden bg-slate-50/50">
+                    <div className="flex flex-col min-h-0 overflow-hidden bg-slate-50/50">
                         <div className="p-4 border-b border-slate-200/60 bg-white flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500" /> En este Consolidado
