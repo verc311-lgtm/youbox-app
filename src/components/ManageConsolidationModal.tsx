@@ -214,7 +214,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                     </div>
 
                     {/* Columna Derecha: Paquetes en el Consolidado */}
-                    <div className="flex flex-col bg-slate-50/50">
+                    <div className="flex flex-col overflow-hidden bg-slate-50/50">
                         <div className="p-4 border-b border-slate-200/60 bg-white flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500" /> En este Consolidado
