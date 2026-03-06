@@ -3,6 +3,7 @@ import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, Check
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useBodegas, useTransportistas } from '../hooks/useQueries';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
 import { WebcamModal } from '../components/WebcamModal';
 
@@ -60,8 +61,6 @@ const createEmptyRow = (defaultBodega = '', defaultTransportista = ''): RowData 
 
 export function QuickEntry() {
   const { user } = useAuth();
-  const [bodegas, setBodegas] = useState<{ id: string; nombre: string }[]>([]);
-  const [transportistas, setTransportistas] = useState<{ id: string; nombre: string }[]>([]);
   const [rows, setRows] = useState<RowData[]>([]);
   const [globalBodega, setGlobalBodega] = useState('');
   const [globalTransportista, setGlobalTransportista] = useState('');
@@ -80,31 +79,20 @@ export function QuickEntry() {
   const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const galleryRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  useEffect(() => { fetchCatalogs(); }, []);
+  // ── React Query: cached catalogs (shared with other pages) ──────────────────
+  const { data: bodegas = [] } = useBodegas();
+  const { data: transportistas = [] } = useTransportistas();
 
-  async function fetchCatalogs() {
-    try {
-      const [bodegasRes, transpRes] = await Promise.all([
-        supabase.from('bodegas').select('id, nombre').eq('activo', true),
-        supabase.from('transportistas').select('id, nombre').eq('activo', true)
-      ]);
-      let defBodega = '';
-      let defTrans = '';
-      if (bodegasRes.data && bodegasRes.data.length > 0) {
-        setBodegas(bodegasRes.data);
-        defBodega = bodegasRes.data[0].id;
-        setGlobalBodega(defBodega);
-      }
-      if (transpRes.data && transpRes.data.length > 0) {
-        setTransportistas(transpRes.data);
-        defTrans = transpRes.data[0].id;
-        setGlobalTransportista(defTrans);
-      }
+  // Initialise the first row once catalogs are available
+  useEffect(() => {
+    if (bodegas.length > 0 && rows.length === 0) {
+      const defBodega = bodegas[0].id;
+      const defTrans = transportistas[0]?.id ?? '';
+      setGlobalBodega(defBodega);
+      setGlobalTransportista(defTrans);
       setRows([createEmptyRow(defBodega, defTrans)]);
-    } catch (e) {
-      console.error('Error fetching catalogs:', e);
     }
-  }
+  }, [bodegas, transportistas]);
 
   const addRow = () => {
     const lastRow = rows[rows.length - 1];

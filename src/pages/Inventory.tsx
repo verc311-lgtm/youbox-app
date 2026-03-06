@@ -1,9 +1,11 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useBodegas, useDeletePaquete, QUERY_KEYS } from '../hooks/useQueries';
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
@@ -35,8 +37,7 @@ const ESTADOS: Record<string, { label: string, color: string }> = {
 
 export function Inventory() {
   const { user, isAdmin } = useAuth();
-  const [paquetes, setPaquetes] = useState<Paquete[]>([]);
-  const [loading, setLoading] = useState(true);
+  const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
   const [searchParams] = useSearchParams();
   const initialSearch = searchParams.get('search') || '';
   const [searchTerm, setSearchTerm] = useState(initialSearch);
@@ -46,7 +47,6 @@ export function Inventory() {
 
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
-  const [bodegas, setBodegas] = useState<{ id: string, nombre: string }[]>([]);
   const [activeFilters, setActiveFilters] = useState<FilterState>({
     bodegaId: '',
     estado: '',
@@ -64,31 +64,20 @@ export function Inventory() {
     activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate || activeFilters.cliente || activeFilters.lockerId || activeFilters.tracking || activeFilters.minPeso || activeFilters.maxPeso || activeFilters.piezas
   );
 
-  useEffect(() => {
-    fetchPaquetes();
-    if (isAdmin) {
-      fetchBodegas();
-    }
-  }, [user]);
+  // ── React Query: bodegas (cached globally, no re-fetch on page change) ──────
+  const { data: bodegas = [] } = useBodegas();
 
-  async function fetchBodegas() {
-    try {
-      const { data } = await supabase.from('bodegas').select('id, nombre').eq('activo', true);
-      setBodegas(data || []);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function fetchPaquetes() {
-    if (!user) return;
-    try {
-      setLoading(true);
+  // ── React Query: paquetes (scoped by role) ─────────────────────────────────
+  const { data: paquetes = [], isLoading: loading, refetch: refetchPaquetes } = useQuery({
+    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id }),
+    queryFn: async () => {
+      if (!user) return [];
       let query = supabase
         .from('paquetes')
         .select(`
           id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas,
-          bodegas (nombre),
+          bodega_id,
+          bodegas (id, nombre),
           clientes!inner (nombre, apellido, locker_id, sucursal_id),
           transportistas (nombre)
         `)
@@ -96,44 +85,35 @@ export function Inventory() {
 
       if (!isAdmin) {
         query = query.eq('cliente_id', user.id);
-      } else {
-        const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
-        if (!isSuperAdmin && user?.sucursal_id) {
-          query = query.eq('clientes.sucursal_id', user.sucursal_id);
-        }
+      } else if (!isSuperAdmin && user?.sucursal_id) {
+        query = query.eq('clientes.sucursal_id', user.sucursal_id);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      setPaquetes(data || []);
-    } catch (e) {
-      console.error('Error fetching paquetes:', e);
-    } finally {
-      setLoading(false);
-    }
-  }
+      return data ?? [];
+    },
+    enabled: !!user,
+  });
+
+  // ── Delete mutation with optimistic update ─────────────────────────────────
+  const deleteMutation = useDeletePaquete();
 
   const handleDeletePackage = async (paqueteId: string, tracking: string) => {
     if (!window.confirm(`¿Estás completamente seguro de que deseas ELIMINAR el paquete con tracking: ${tracking}? Esta acción no se puede deshacer.`)) {
       return;
     }
-
     try {
-      const { error } = await supabase.from('paquetes').delete().eq('id', paqueteId);
-      if (error) throw error;
-
-      // Update local state instantly
-      setPaquetes(cur => cur.filter(p => p.id !== paqueteId));
+      await deleteMutation.mutateAsync(paqueteId);
     } catch (e: any) {
-      console.error('Error deleting package:', e);
       toast.error('Hubo un error al eliminar el paquete: ' + e.message);
     }
   };
 
   const filteredPaquetes = useMemo(() => {
-    return paquetes.filter(p => {
-      // 1. Text Search Target
-      const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    return (paquetes as any[]).filter(p => {
+      // 1. Text Search
+      const matchesSearch = p.tracking?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase());
       if (!matchesSearch) return false;
 
@@ -356,7 +336,7 @@ export function Inventory() {
           onClose={() => setEditingPackageId(null)}
           paqueteId={editingPackageId}
           onSuccess={() => {
-            fetchPaquetes();
+            refetchPaquetes();
           }}
         />
       )}
