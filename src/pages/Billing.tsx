@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Inbox, CreditCard, Download, Building } from 'lucide-react';
+import { FileText, Inbox, CreditCard, Download, Building, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -19,6 +19,7 @@ interface Factura {
   cliente_manual_nombre?: string;
   cliente_manual_nit?: string;
   clientes?: { nombre: string; apellido: string };
+  pagos?: { metodo: string }[];
 }
 
 const ESTADOS: Record<string, { label: string, color: string }> = {
@@ -39,6 +40,8 @@ export function Billing() {
 
   const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
   const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterMetodo, setFilterMetodo] = useState<string>('all');
   const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
 
   useEffect(() => {
@@ -49,7 +52,7 @@ export function Billing() {
 
   useEffect(() => {
     fetchFacturas();
-  }, [user, selectedFilterBranch]);
+  }, [user, selectedFilterBranch, filterStatus, filterMetodo]);
 
   async function fetchSucursales() {
     const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
@@ -67,7 +70,8 @@ export function Billing() {
         .from('facturas')
         .select(`
           id, numero, monto_total, moneda, estado, fecha_emision, cliente_manual_nombre, cliente_manual_nit,
-          clientes${useInnerJoin ? '!inner' : ''} (nombre, apellido, locker_id, nit, direccion_entrega)
+          clientes${useInnerJoin ? '!inner' : ''} (nombre, apellido, locker_id, nit, direccion_entrega),
+          pagos (metodo)
         `)
         .order('fecha_emision', { ascending: false });
 
@@ -75,14 +79,28 @@ export function Billing() {
         query = query.eq('cliente_id', user.id);
       } else {
         if (useInnerJoin) {
-          // Filter by branch
           query = query.eq('clientes.sucursal_id', activeBranch);
+        }
+
+        // Apply status filter via Supabase
+        if (filterStatus !== 'all') {
+          query = query.eq('estado', filterStatus);
         }
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      setFacturas(data || []);
+
+      let results = data || [];
+
+      // Manual filtering for payment method since it's a nested filter on 1:N
+      if (isAdmin && filterMetodo !== 'all') {
+        results = results.filter(f =>
+          f.pagos?.some((p: any) => p.metodo === filterMetodo)
+        );
+      }
+
+      setFacturas(results);
     } catch (e) {
       console.error('Error fetching facturas:', e);
     } finally {
@@ -111,28 +129,69 @@ export function Billing() {
             {isAdmin ? 'Gestión centralizada del ciclo de pagos y facturación.' : 'Historial de tus facturas y cobros de envíos.'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          {isSuperAdmin && (
-            <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                <Building className="h-4.5 w-4.5" />
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdmin && (
+            <>
+              {/* Branch Filter */}
+              {isSuperAdmin && (
+                <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                    <Building className="h-4.5 w-4.5" />
+                  </div>
+                  <select
+                    value={selectedFilterBranch}
+                    onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                    className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[150px]"
+                  >
+                    <option value="all">Todas las Sedes</option>
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-center p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+                  <Filter className="h-4.5 w-4.5" />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[130px]"
+                >
+                  <option value="all">Todos los Estados</option>
+                  <option value="pendiente">Pendientes</option>
+                  <option value="verificado">Pagadas</option>
+                  <option value="anulado">Anuladas</option>
+                </select>
               </div>
-              <select
-                value={selectedFilterBranch}
-                onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[180px]"
-              >
-                <option value="all">Todas las Sedes (Global)</option>
-                {sucursales.map(s => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
-                ))}
-              </select>
-            </div>
+
+              {/* Method Filter */}
+              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-center p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <CreditCard className="h-4.5 w-4.5" />
+                </div>
+                <select
+                  value={filterMetodo}
+                  onChange={(e) => setFilterMetodo(e.target.value)}
+                  className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[150px]"
+                >
+                  <option value="all">Cualquier Método</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="deposito">Depósito</option>
+                  <option value="tarjeta">Tarjeta/Link</option>
+                </select>
+              </div>
+            </>
           )}
+
           {isAdmin && (
             <button
               onClick={() => setIsGenerateModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ml-auto">
               <FileText className="h-4 w-4" />
               Nueva Factura
             </button>
