@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-import { GenerateInvoiceModal } from '../components/billing/GenerateInvoiceModal';
+import { GenerateInvoiceSlideOver } from '../components/billing/GenerateInvoiceSlideOver';
 import { RegisterPaymentModal } from '../components/billing/RegisterPaymentModal';
 import { downloadInvoicePDF } from '../utils/generateInvoicePDF';
 import { BillingFilters, BillingFilterState } from '../components/billing/BillingFilters';
@@ -195,8 +195,8 @@ export function Billing() {
               <button
                 onClick={() => setShowFilters(true)}
                 className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all duration-200 shadow-sm ${hasActiveFilters
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-blue-100 hover:bg-blue-100'
-                    : 'bg-white/80 backdrop-blur-sm border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:shadow-md'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-blue-100 hover:bg-blue-100'
+                  : 'bg-white/80 backdrop-blur-sm border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:shadow-md'
                   }`}
               >
                 <Filter className={`h-4.5 w-4.5 ${hasActiveFilters ? 'fill-blue-600' : ''}`} />
@@ -388,7 +388,7 @@ export function Billing() {
         </div>
       </div>
 
-      <GenerateInvoiceModal
+      <GenerateInvoiceSlideOver
         isOpen={isGenerateModalOpen}
         onClose={() => setIsGenerateModalOpen(false)}
         onSuccess={fetchFacturas}
