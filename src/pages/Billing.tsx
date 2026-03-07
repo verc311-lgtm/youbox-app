@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FileText, Inbox, CreditCard, Download, Building, Filter } from 'lucide-react';
+import { FileText, Inbox, CreditCard, Download, Building, Filter, Search, RotateCcw } from 'lucide-react';
+import { useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -8,6 +9,7 @@ import { es } from 'date-fns/locale';
 import { GenerateInvoiceModal } from '../components/billing/GenerateInvoiceModal';
 import { RegisterPaymentModal } from '../components/billing/RegisterPaymentModal';
 import { downloadInvoicePDF } from '../utils/generateInvoicePDF';
+import { BillingFilters, BillingFilterState } from '../components/billing/BillingFilters';
 
 interface Factura {
   id: string;
@@ -39,10 +41,29 @@ export function Billing() {
   const [selectedFactura, setSelectedFactura] = useState<Factura | null>(null);
 
   const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
-  const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterMetodo, setFilterMetodo] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<BillingFilterState>({
+    sucursalId: 'all',
+    estado: 'all',
+    metodo: 'all',
+    startDate: '',
+    endDate: '',
+    minMonto: '',
+    maxMonto: '',
+    search: ''
+  });
+
   const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+
+  const hasActiveFilters = Boolean(
+    activeFilters.sucursalId !== 'all' ||
+    activeFilters.estado !== 'all' ||
+    activeFilters.metodo !== 'all' ||
+    activeFilters.startDate ||
+    activeFilters.endDate ||
+    activeFilters.minMonto ||
+    activeFilters.maxMonto
+  );
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -52,7 +73,7 @@ export function Billing() {
 
   useEffect(() => {
     fetchFacturas();
-  }, [user, selectedFilterBranch, filterStatus, filterMetodo]);
+  }, [user, activeFilters.sucursalId]);
 
   async function fetchSucursales() {
     const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
@@ -63,7 +84,7 @@ export function Billing() {
     if (!user) return;
     try {
       setLoading(true);
-      const activeBranch = isSuperAdmin ? selectedFilterBranch : user?.sucursal_id;
+      const activeBranch = isSuperAdmin ? activeFilters.sucursalId : user?.sucursal_id;
       const useInnerJoin = activeBranch && activeBranch !== 'all';
 
       let query = supabase
@@ -81,32 +102,56 @@ export function Billing() {
         if (useInnerJoin) {
           query = query.eq('clientes.sucursal_id', activeBranch);
         }
-
-        // Apply status filter via Supabase
-        if (filterStatus !== 'all') {
-          query = query.eq('estado', filterStatus);
-        }
       }
 
       const { data, error } = await query;
       if (error) throw error;
-
-      let results = data || [];
-
-      // Manual filtering for payment method since it's a nested filter on 1:N
-      if (isAdmin && filterMetodo !== 'all') {
-        results = results.filter(f =>
-          f.pagos?.some((p: any) => p.metodo === filterMetodo)
-        );
-      }
-
-      setFacturas(results);
+      setFacturas(data || []);
     } catch (e) {
       console.error('Error fetching facturas:', e);
     } finally {
       setLoading(false);
     }
   }
+
+  const filteredFacturas = useMemo(() => {
+    return facturas.filter(f => {
+      // 1. Search (Number, Client or Locker)
+      const searchStr = activeFilters.search.toLowerCase();
+      if (searchStr) {
+        const matchesNumero = f.numero.toLowerCase().includes(searchStr);
+        const fullName = `${f.clientes?.nombre || ''} ${f.clientes?.apellido || ''}`.toLowerCase();
+        const matchesClient = fullName.includes(searchStr) || (f.cliente_manual_nombre || '').toLowerCase().includes(searchStr);
+        const matchesLocker = f.clientes?.locker_id?.toLowerCase().includes(searchStr);
+        if (!matchesNumero && !matchesClient && !matchesLocker) return false;
+      }
+
+      // 2. Status
+      if (activeFilters.estado !== 'all' && f.estado !== activeFilters.estado) return false;
+
+      // 3. Method
+      if (activeFilters.metodo !== 'all') {
+        const hasMethod = f.pagos?.some(p => p.metodo === activeFilters.metodo);
+        if (!hasMethod) return false;
+      }
+
+      // 4. Date Range
+      if (activeFilters.startDate) {
+        if (new Date(f.fecha_emision) < new Date(activeFilters.startDate)) return false;
+      }
+      if (activeFilters.endDate) {
+        const endDate = new Date(activeFilters.endDate);
+        endDate.setHours(23, 59, 59);
+        if (new Date(f.fecha_emision) > endDate) return false;
+      }
+
+      // 5. Amount Range
+      if (activeFilters.minMonto && f.monto_total < parseFloat(activeFilters.minMonto)) return false;
+      if (activeFilters.maxMonto && f.monto_total > parseFloat(activeFilters.maxMonto)) return false;
+
+      return true;
+    });
+  }, [facturas, activeFilters]);
 
   const openPaymentModal = (factura: Factura) => {
     setSelectedFactura(factura);
@@ -129,71 +174,48 @@ export function Billing() {
             {isAdmin ? 'Gestión centralizada del ciclo de pagos y facturación.' : 'Historial de tus facturas y cobros de envíos.'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           {isAdmin && (
             <>
-              {/* Branch Filter */}
-              {isSuperAdmin && (
-                <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                    <Building className="h-4.5 w-4.5" />
-                  </div>
-                  <select
-                    value={selectedFilterBranch}
-                    onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                    className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[150px]"
-                  >
-                    <option value="all">Todas las Sedes</option>
-                    {sucursales.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
-                  </select>
+              {/* Search Bar */}
+              <div className="relative flex-1 md:min-w-[300px]">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4.5 w-4.5 text-slate-400" />
                 </div>
-              )}
-
-              {/* Status Filter */}
-              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-center p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-                  <Filter className="h-4.5 w-4.5" />
-                </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[130px]"
-                >
-                  <option value="all">Todos los Estados</option>
-                  <option value="pendiente">Pendientes</option>
-                  <option value="verificado">Pagadas</option>
-                  <option value="anulado">Anuladas</option>
-                </select>
+                <input
+                  type="text"
+                  placeholder="Buscar por # factura o cliente..."
+                  value={activeFilters.search}
+                  onChange={(e) => setActiveFilters(prev => ({ ...prev, search: e.target.value }))}
+                  className="block w-full pl-10 pr-3 py-2.5 bg-white/80 backdrop-blur-sm border border-slate-200/80 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm hover:shadow-md"
+                />
               </div>
 
-              {/* Method Filter */}
-              <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-center p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                  <CreditCard className="h-4.5 w-4.5" />
-                </div>
-                <select
-                  value={filterMetodo}
-                  onChange={(e) => setFilterMetodo(e.target.value)}
-                  className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer min-w-[150px]"
-                >
-                  <option value="all">Cualquier Método</option>
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="deposito">Depósito</option>
-                  <option value="tarjeta">Tarjeta/Link</option>
-                </select>
-              </div>
+              {/* Advanced Filters Button */}
+              <button
+                onClick={() => setShowFilters(true)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all duration-200 shadow-sm ${hasActiveFilters
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-blue-100 hover:bg-blue-100'
+                    : 'bg-white/80 backdrop-blur-sm border-slate-200/80 text-slate-600 hover:bg-slate-50 hover:shadow-md'
+                  }`}
+              >
+                <Filter className={`h-4.5 w-4.5 ${hasActiveFilters ? 'fill-blue-600' : ''}`} />
+                {hasActiveFilters ? 'Filtros Activos' : 'Filtros'}
+                {hasActiveFilters && (
+                  <span className="flex items-center justify-center w-5 h-5 bg-blue-600 text-white text-[10px] rounded-full ml-1">
+                    {Object.values(activeFilters).filter(v => v !== 'all' && v !== '').length}
+                  </span>
+                )}
+              </button>
             </>
           )}
 
           {isAdmin && (
             <button
               onClick={() => setIsGenerateModalOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ml-auto">
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 md:ml-2">
               <FileText className="h-4 w-4" />
-              Nueva Factura
+              <span className="hidden sm:inline">Nueva Factura</span>
             </button>
           )}
         </div>
@@ -220,7 +242,29 @@ export function Billing() {
 
       <div className="rounded-2xl glass overflow-hidden flex flex-col min-w-0">
         <div className="p-5 border-b border-white/20 flex items-center justify-between bg-slate-50/50 backdrop-blur-md">
-          <h2 className="text-base font-bold text-slate-800 tracking-tight">Registro de Facturas</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-bold text-slate-800 tracking-tight">Registro de Facturas</h2>
+            <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 text-[10px] font-bold">
+              {filteredFacturas.length}
+            </span>
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={() => setActiveFilters({
+                sucursalId: 'all',
+                estado: 'all',
+                metodo: 'all',
+                startDate: '',
+                endDate: '',
+                minMonto: '',
+                maxMonto: '',
+                search: ''
+              })}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" /> Limpiar filtros
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200/60">
@@ -246,20 +290,37 @@ export function Billing() {
                     </div>
                   </td>
                 </tr>
-              ) : facturas.length === 0 ? (
+              ) : filteredFacturas.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 6 : 5} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
                         <Inbox className="h-8 w-8 text-slate-400" />
                       </div>
-                      <p className="text-base font-semibold text-slate-700">No hay facturas registradas</p>
-                      <p className="text-sm text-slate-500 max-w-sm mx-auto">Las facturas aparecerán aquí cuando sean generadas por sistema.</p>
+                      <p className="text-base font-semibold text-slate-700">No se encontraron facturas</p>
+                      <p className="text-sm text-slate-500 max-w-sm mx-auto">Prueba ajustando los filtros o la búsqueda.</p>
+                      {hasActiveFilters && (
+                        <button
+                          onClick={() => setActiveFilters({
+                            sucursalId: 'all',
+                            estado: 'all',
+                            metodo: 'all',
+                            startDate: '',
+                            endDate: '',
+                            minMonto: '',
+                            maxMonto: '',
+                            search: ''
+                          })}
+                          className="mt-2 text-sm font-bold text-blue-600 hover:underline"
+                        >
+                          Ver todas las facturas
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ) : (
-                facturas.map((f, index) => (
+                filteredFacturas.map((f, index) => (
                   <tr key={f.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                       <div className="flex items-center gap-4">
@@ -343,6 +404,16 @@ export function Billing() {
           facturaNumero={selectedFactura.numero}
         />
       )}
+
+      {/* New Professional Filters Panel */}
+      <BillingFilters
+        isOpen={showFilters}
+        onClose={() => setShowFilters(false)}
+        sucursales={sucursales}
+        currentFilters={activeFilters}
+        onApply={setActiveFilters}
+        isSuperAdmin={isSuperAdmin}
+      />
 
     </div>
   );
