@@ -289,30 +289,60 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
                                     {showClientDropdown && clientSearchTerm && !selectedCliente && (
                                         <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                             {filteredClientes.length > 0 ? (
-                                                filteredClientes.map(c => (
+                                                <>
+                                                    {filteredClientes.map(c => (
+                                                        <button
+                                                            key={c.id}
+                                                            onClick={() => {
+                                                                setSelectedCliente(c);
+                                                                setShowClientDropdown(false);
+                                                                setClientSearchTerm('');
+                                                            }}
+                                                            className="w-full px-4 py-3 flex items-center justify-between hover:bg-indigo-50 transition-colors group border-b border-slate-50 last:border-0"
+                                                        >
+                                                            <div className="flex items-center gap-3 text-left">
+                                                                <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100 font-black text-indigo-600 text-xs">
+                                                                    {c.locker_id}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-800 transition-colors group-hover:text-indigo-700">{c.nombre} {c.apellido}</p>
+                                                                    <p className="text-xs text-slate-400 font-medium">{c.email}</p>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-1" />
+                                                        </button>
+                                                    ))}
                                                     <button
-                                                        key={c.id}
                                                         onClick={() => {
-                                                            setSelectedCliente(c);
+                                                            setManualName(clientSearchTerm);
+                                                            setIsManualClient(true);
                                                             setShowClientDropdown(false);
                                                             setClientSearchTerm('');
                                                         }}
-                                                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-indigo-50 transition-colors group"
+                                                        className="w-full px-4 py-4 bg-slate-50 flex items-center gap-3 text-indigo-600 hover:bg-indigo-50 transition-colors border-t border-slate-100"
                                                     >
-                                                        <div className="flex items-center gap-3 text-left">
-                                                            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100 font-black text-indigo-600 text-xs">
-                                                                {c.locker_id}
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-bold text-slate-800 transition-colors group-hover:text-indigo-700">{c.nombre} {c.apellido}</p>
-                                                                <p className="text-xs text-slate-400 font-medium">{c.email}</p>
-                                                            </div>
-                                                        </div>
-                                                        <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-1" />
+                                                        <UserPlus className="h-5 w-5" />
+                                                        <span className="text-sm font-black italic">Usar "{clientSearchTerm}" como cliente manual</span>
                                                     </button>
-                                                ))
+                                                </>
                                             ) : (
-                                                <div className="px-4 py-6 text-center text-slate-400 text-sm font-medium">No se encontraron clientes</div>
+                                                <button
+                                                    onClick={() => {
+                                                        setManualName(clientSearchTerm);
+                                                        setIsManualClient(true);
+                                                        setShowClientDropdown(false);
+                                                        setClientSearchTerm('');
+                                                    }}
+                                                    className="w-full px-4 py-8 text-center group hover:bg-indigo-50 transition-colors"
+                                                >
+                                                    <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 group-hover:bg-white transition-colors">
+                                                        <UserPlus className="h-6 w-6 text-slate-400 group-hover:text-indigo-600" />
+                                                    </div>
+                                                    <p className="text-slate-500 text-sm font-bold">No se encontraron clientes</p>
+                                                    <div className="mt-2 text-indigo-600 text-xs font-black uppercase tracking-wider bg-indigo-50 py-2 px-4 rounded-full inline-block group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                        Usar "{clientSearchTerm}" como nombre manual
+                                                    </div>
+                                                </button>
                                             )}
                                         </div>
                                     )}
