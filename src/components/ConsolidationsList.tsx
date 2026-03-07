@@ -18,6 +18,7 @@ interface Consolidacion {
     zonas: { id: string, nombre: string } | null;
     paquetes_count?: number;
     facturas_count?: number;
+    monto_facturado?: number;
 }
 
 export function ConsolidationsList() {
@@ -56,7 +57,7 @@ export function ConsolidationsList() {
           bodegas(id, nombre),
           zonas(id, nombre),
           consolidacion_paquetes(count),
-          facturas(count)
+          facturas(count, monto_total)
         `)
                 .order('created_at', { ascending: false });
 
@@ -71,7 +72,10 @@ export function ConsolidationsList() {
                 bodegas: Array.isArray(d.bodegas) ? d.bodegas[0] : d.bodegas,
                 zonas: Array.isArray(d.zonas) ? d.zonas[0] : d.zonas,
                 paquetes_count: Array.isArray(d.consolidacion_paquetes) ? d.consolidacion_paquetes[0]?.count || 0 : d.consolidacion_paquetes?.count || 0,
-                facturas_count: Array.isArray(d.facturas) ? d.facturas[0]?.count || 0 : d.facturas?.count || 0
+                facturas_count: Array.isArray(d.facturas) ? d.facturas[0]?.count || 0 : d.facturas?.count || 0,
+                monto_facturado: Array.isArray(d.facturas)
+                    ? d.facturas.reduce((sum: number, f: any) => sum + (f.monto_total || 0), 0)
+                    : (d.facturas?.monto_total || 0)
             }));
             setConsolidaciones(formatted as Consolidacion[]);
         } catch (e) {
@@ -159,6 +163,7 @@ export function ConsolidationsList() {
                                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Ruta</th>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Estatus Actual</th>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Carga</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Facturado</th>
                                     <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
                                 </tr>
                             </thead>
@@ -200,6 +205,23 @@ export function ConsolidationsList() {
                                         <td className="px-6 py-4 whitespace-nowrap text-center gap-1">
                                             <p className="text-sm font-bold text-slate-800 bg-slate-100 inline-block px-2 py-0.5 rounded-md">{cons.paquetes_count} <span className="text-xs text-slate-500 font-medium">Paquetes</span></p>
                                             <p className="text-xs font-bold text-slate-500 mt-1">{cons.peso_total_lbs?.toFixed(2)} lbs</p>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            {cons.monto_facturado && cons.monto_facturado > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                                                        Q{cons.monto_facturado.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase mt-1">Cerrado</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                                                        Pendiente
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-medium mt-1">Por facturar</span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
@@ -245,26 +267,30 @@ export function ConsolidationsList() {
                 )}
             </div>
 
-            {trackingId && (
-                <TrackingDialog
-                    consolidacionId={trackingId}
-                    codigoMaster={trackingCodigo}
-                    onClose={() => setTrackingId(null)}
-                    onUpdate={fetchConsolidaciones}
-                />
-            )}
+            {
+                trackingId && (
+                    <TrackingDialog
+                        consolidacionId={trackingId}
+                        codigoMaster={trackingCodigo}
+                        onClose={() => setTrackingId(null)}
+                        onUpdate={fetchConsolidaciones}
+                    />
+                )
+            }
 
-            {invoiceModalOpen && (
-                <BulkInvoiceModal
-                    isOpen={invoiceModalOpen}
-                    onClose={() => setInvoiceModalOpen(false)}
-                    onSuccess={() => {
-                        fetchConsolidaciones();
-                    }}
-                    consolidacionId={selectedConsolidationId}
-                    bodegaId={selectedBodegaId}
-                />
-            )}
+            {
+                invoiceModalOpen && (
+                    <BulkInvoiceModal
+                        isOpen={invoiceModalOpen}
+                        onClose={() => setInvoiceModalOpen(false)}
+                        onSuccess={() => {
+                            fetchConsolidaciones();
+                        }}
+                        consolidacionId={selectedConsolidationId}
+                        bodegaId={selectedBodegaId}
+                    />
+                )
+            }
 
             <ManageConsolidationModal
                 isOpen={manageModalOpen}
@@ -276,6 +302,6 @@ export function ConsolidationsList() {
                     fetchConsolidaciones();
                 }}
             />
-        </div>
+        </div >
     );
 }

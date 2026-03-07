@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ConsolidationsList } from '../components/ConsolidationsList';
 import { sendEmail } from '../utils/sendEmail';
+import { calculateConsolidationEstimate, Tarifa } from '../utils/pricingUtils';
 
 interface Bodega { id: string; nombre: string; }
 interface Zona { id: string; nombre: string; }
@@ -35,6 +36,7 @@ export function Consolidation() {
   const [bodegas, setBodegas] = useState<Bodega[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
+  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -73,7 +75,11 @@ export function Consolidation() {
 
       if (bodegasRes.data) {
         setBodegas(bodegasRes.data);
-        if (bodegasRes.data.length > 0) setFormData(f => ({ ...f, origen_id: bodegasRes.data[0].id }));
+        if (bodegasRes.data.length > 0) {
+          const firstBodegaId = bodegasRes.data[0].id;
+          setFormData(f => ({ ...f, origen_id: firstBodegaId }));
+          fetchTarifas(firstBodegaId);
+        }
       }
 
       if (zonasRes.data) {
@@ -97,9 +103,19 @@ export function Consolidation() {
       if (selectedIds.size > 0) {
         setSelectedIds(new Set());
       }
+      fetchTarifas(e.target.value);
     }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  async function fetchTarifas(bodegaId: string) {
+    const { data } = await supabase
+      .from('tarifas')
+      .select('id, nombre_servicio, tarifa_q, tipo_cobro')
+      .eq('bodega_id', bodegaId)
+      .eq('activa', true);
+    if (data) setTarifas(data as Tarifa[]);
+  }
 
   const filteredPaquetes = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -140,12 +156,19 @@ export function Consolidation() {
       }
     });
 
+    const selectedPacks = Array.from(selectedIds)
+      .map(id => paquetes.find(x => x.id === id))
+      .filter(Boolean) as any[];
+
+    const totalQ = calculateConsolidationEstimate(selectedPacks, tarifas);
+
     return {
       cantidad: selectedIds.size,
       peso: pesoTotal,
-      volumen: volTotal
+      volumen: volTotal,
+      totalQ
     };
-  }, [selectedIds, paquetes]);
+  }, [selectedIds, paquetes, tarifas]);
 
   const handleCreateConsolidation = async () => {
     if (selectedIds.size === 0) {
@@ -414,6 +437,10 @@ export function Consolidation() {
                 <div className="flex justify-between py-2 px-3">
                   <dt className="text-sm font-medium text-slate-500">Vol. total estimado:</dt>
                   <dd className="font-bold text-slate-800 font-mono bg-slate-100/50 px-2 rounded-md">{resumen.volumen.toFixed(2)} ft³</dd>
+                </div>
+                <div className="flex justify-between py-3 px-3 mt-2 border-t border-slate-100 bg-indigo-50/50 rounded-xl">
+                  <dt className="text-sm font-bold text-indigo-700">Importe Estimado:</dt>
+                  <dd className="font-black text-indigo-900 text-lg">Q{resumen.totalQ.toFixed(2)}</dd>
                 </div>
               </dl>
               <button
