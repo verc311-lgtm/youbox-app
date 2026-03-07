@@ -145,16 +145,18 @@ export function ClientEntry() {
     };
 
     // --- Row Handlers ---
-    const addRow = () => {
+    const addRow = (shouldFocus = true) => {
         const lastRow = rows[rows.length - 1];
         const bId = lastRow ? lastRow.bodega_id : globalBodega;
         const tId = lastRow ? lastRow.transportista_id : globalTransportista;
         const newRow = createEmptyRow(bId, tId);
         setRows(prev => [...prev, newRow]);
-        setTimeout(() => {
-            const el = document.getElementById(`tracking-${newRow.id}`);
-            if (el) el.focus();
-        }, 50);
+        if (shouldFocus) {
+            setTimeout(() => {
+                const el = document.getElementById(`tracking-${newRow.id}`);
+                if (el) el.focus();
+            }, 50);
+        }
     };
 
     const removeRow = (idToRemove: string) => {
@@ -325,8 +327,18 @@ export function ClientEntry() {
                     if (globalClient) {
                         const row = rows.find(r => r.id === currentId);
                         if (row && row.tracking.trim()) {
-                            // Automatically save the row directly from the tracking field if scanner is used
+                            // Automatically save in background
                             handleSaveRow(currentId);
+
+                            // Logical jump: create/focus next row directly for the scanner
+                            const isLastRow = rows[rows.length - 1].id === currentId;
+                            if (isLastRow) {
+                                addRow(true);
+                            } else {
+                                const nextRowId = rows[index + 1].id;
+                                const el = document.getElementById(`tracking-${nextRowId}`);
+                                if (el) el.focus();
+                            }
                         } else {
                             const el = document.getElementById(`peso-${currentId}`);
                             if (el) el.focus();

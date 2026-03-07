@@ -105,16 +105,19 @@ export function QuickEntry() {
     }
   }, [bodegas, transportistas]);
 
-  const addRow = () => {
+  const addRow = (shouldFocus = true) => {
     const lastRow = rows[rows.length - 1];
     const bId = lastRow ? lastRow.bodega_id : globalBodega;
     const tId = lastRow ? lastRow.transportista_id : globalTransportista;
     const newRow = createEmptyRow(bId, tId);
     setRows(prev => [...prev, newRow]);
-    setTimeout(() => {
-      const el = document.getElementById(`tracking-${newRow.id}`);
-      if (el) el.focus();
-    }, 50);
+
+    if (shouldFocus) {
+      setTimeout(() => {
+        const el = document.getElementById(`tracking-${newRow.id}`);
+        if (el) el.focus();
+      }, 50);
+    }
   };
 
   const removeRow = (idToRemove: string) => {
@@ -325,6 +328,12 @@ export function QuickEntry() {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (type === 'tracking') {
+        // Proactive: Add next row if this is the last one
+        const isLastRow = rows[rows.length - 1].id === currentId;
+        if (isLastRow) {
+          addRow(false); // Create but don't focus it yet
+        }
+
         const el = document.getElementById(`client-${currentId}`);
         if (el) el.focus();
       } else if (type === 'client') {
