@@ -53,29 +53,23 @@ export function ConsolidationsList() {
             const { data, error } = await supabase
                 .from('consolidaciones')
                 .select(`
-          id, codigo, estado, peso_total_lbs, created_at,
+          *,
           bodegas(id, nombre),
           zonas(id, nombre),
-          consolidacion_paquetes(count),
-          facturas(count, monto_total)
+          consolidacion_paquetes(id),
+          facturas(monto_total)
         `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
 
             const formatted = (data || []).map((d: any) => ({
-                id: d.id,
-                codigo: d.codigo,
-                estado: d.estado,
-                peso_total_lbs: d.peso_total_lbs,
-                created_at: d.created_at,
+                ...d,
                 bodegas: Array.isArray(d.bodegas) ? d.bodegas[0] : d.bodegas,
                 zonas: Array.isArray(d.zonas) ? d.zonas[0] : d.zonas,
-                paquetes_count: Array.isArray(d.consolidacion_paquetes) ? d.consolidacion_paquetes[0]?.count || 0 : d.consolidacion_paquetes?.count || 0,
-                facturas_count: Array.isArray(d.facturas) ? d.facturas[0]?.count || 0 : d.facturas?.count || 0,
-                monto_facturado: Array.isArray(d.facturas)
-                    ? d.facturas.reduce((sum: number, f: any) => sum + (f.monto_total || 0), 0)
-                    : (d.facturas?.monto_total || 0)
+                paquetes_count: d.consolidacion_paquetes?.length || 0,
+                facturas_count: d.facturas?.length || 0,
+                monto_facturado: (d.facturas || []).reduce((sum: number, f: any) => sum + (f.monto_total || 0), 0)
             }));
             setConsolidaciones(formatted as Consolidacion[]);
         } catch (e) {
