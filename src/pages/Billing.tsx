@@ -60,20 +60,22 @@ export function Billing() {
     if (!user) return;
     try {
       setLoading(true);
+      const activeBranch = isSuperAdmin ? selectedFilterBranch : user?.sucursal_id;
+      const useInnerJoin = activeBranch && activeBranch !== 'all';
+
       let query = supabase
         .from('facturas')
         .select(`
           id, numero, monto_total, moneda, estado, fecha_emision, cliente_manual_nombre, cliente_manual_nit,
-          clientes (nombre, apellido, locker_id, nit, direccion_entrega)
+          clientes${useInnerJoin ? '!inner' : ''} (nombre, apellido, locker_id, nit, direccion_entrega)
         `)
         .order('fecha_emision', { ascending: false });
 
       if (!isAdmin) {
         query = query.eq('cliente_id', user.id);
       } else {
-        const activeBranch = isSuperAdmin ? selectedFilterBranch : user?.sucursal_id;
-        if (activeBranch && activeBranch !== 'all') {
-          // Inner join with clientes to filter by branch
+        if (useInnerJoin) {
+          // Filter by branch
           query = query.eq('clientes.sucursal_id', activeBranch);
         }
       }
