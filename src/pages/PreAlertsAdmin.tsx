@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2 } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -23,6 +23,7 @@ export function PreAlertsAdmin() {
     const [newBodegaId, setNewBodegaId] = useState('');
     const [newValorFactura, setNewValorFactura] = useState('');
     const [newConSeguro, setNewConSeguro] = useState(false);
+    const [newFile, setNewFile] = useState<File | null>(null);
     const [bodegas, setBodegas] = useState<any[]>([]);
 
     // Client search for new modal
@@ -173,6 +174,7 @@ export function PreAlertsAdmin() {
         setNewClientSearch('');
         setNewSelectedClient(null);
         setNewClientResults([]);
+        setNewFile(null);
     };
 
     const handleCreatePrealerta = async (e: React.FormEvent) => {
@@ -183,6 +185,27 @@ export function PreAlertsAdmin() {
 
         setSaving(true);
         try {
+            let facturaUrl = null;
+
+            // 1. Upload file if exists
+            if (newFile) {
+                const fileExt = newFile.name.split('.').pop();
+                const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+                const filePath = `manuales/${newSelectedClient.id}/${fileName}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('prealertas')
+                    .upload(filePath, newFile);
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('prealertas')
+                    .getPublicUrl(filePath);
+
+                facturaUrl = publicUrl;
+            }
+
             const valorNum = parseFloat(newValorFactura);
             const montoSeguro = newConSeguro ? parseFloat((valorNum * 0.10).toFixed(2)) : 0;
 
@@ -194,7 +217,7 @@ export function PreAlertsAdmin() {
                 con_seguro: newConSeguro,
                 monto_seguro: montoSeguro,
                 estado: 'pendiente',
-                factura_url: null,
+                factura_url: facturaUrl,
             });
 
             if (error) throw error;
@@ -540,6 +563,25 @@ export function PreAlertsAdmin() {
                                         {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* Invoice File Upload */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Factura (Imagen o PDF)</label>
+                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-white hover:border-blue-400 transition-all">
+                                    <div className="flex flex-col items-center justify-center py-2">
+                                        <Upload className={`w-6 h-6 mb-1 ${newFile ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                        <p className="text-xs text-slate-500 font-semibold truncate px-4 max-w-full">
+                                            {newFile ? newFile.name : "Click para subir factura"}
+                                        </p>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        className="hidden"
+                                        accept=".jpg,.jpeg,.png,.pdf"
+                                        onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                                    />
+                                </label>
                             </div>
 
                             {/* Footer */}
