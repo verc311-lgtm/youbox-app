@@ -10,14 +10,16 @@ interface RegisterPaymentModalProps {
     onSuccess: () => void;
     facturaId: string;
     facturaTotal: number;
+    totalPagado: number;
     facturaNumero: string;
 }
 
-export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, facturaTotal, facturaNumero }: RegisterPaymentModalProps) {
+export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, facturaTotal, totalPagado, facturaNumero }: RegisterPaymentModalProps) {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
 
-    const [monto, setMonto] = useState(facturaTotal.toString());
+    const saldoActual = facturaTotal - totalPagado;
+    const [monto, setMonto] = useState(saldoActual.toString());
     const [descuento, setDescuento] = useState('');
     const [tipoDescuento, setTipoDescuento] = useState<'fijo' | 'porcentaje'>('fijo');
     const [metodo, setMetodo] = useState('transferencia');
@@ -40,11 +42,9 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             calculatedDiscount = facturaTotal * (descVal / 100);
         }
 
-        if (calculatedDiscount >= 0 && calculatedDiscount <= facturaTotal) {
-            setMonto((facturaTotal - calculatedDiscount + extraVal).toFixed(2));
-        } else {
-            setMonto((facturaTotal + extraVal).toFixed(2));
-        }
+        const nuevoTotal = facturaTotal - calculatedDiscount + extraVal;
+        const remaining = Math.max(0, nuevoTotal - totalPagado);
+        setMonto(remaining.toFixed(2));
     };
 
     // Recalculate monto when extra changes
@@ -54,7 +54,10 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
         const descVal = parseFloat(descuento) || 0;
         let disc = tipoDescuento === 'fijo' ? descVal : facturaTotal * (descVal / 100);
         if (disc < 0 || disc > facturaTotal) disc = 0;
-        setMonto((facturaTotal - disc + extraVal).toFixed(2));
+
+        const nuevoTotal = facturaTotal - disc + extraVal;
+        const remaining = Math.max(0, nuevoTotal - totalPagado);
+        setMonto(remaining.toFixed(2));
     };
 
     const handleSave = async () => {
@@ -112,17 +115,31 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
 
             // 2. Actualizar estado de Factura
             const extraVal2 = parseFloat(cargoExtra) || 0;
-            let updatePayload: any = { estado: 'verificado' };
-            if (descFinal > 0 || extraVal2 > 0) {
-                updatePayload.monto_total = (facturaTotal - descFinal + extraVal2);
+            const nuevoMontoTotal = facturaTotal - descFinal + extraVal2;
+            const totalPagadoAcumulado = totalPagado + montoFinal;
+
+            let updatePayload: any = {};
+
+            // Si el monto pagado hasta ahora (más lo de hoy) cubre el total (ajustado)
+            if (totalPagadoAcumulado >= nuevoMontoTotal - 0.01) {
+                updatePayload.estado = 'verificado';
+            } else {
+                updatePayload.estado = 'pendiente';
             }
 
-            const { error: facError } = await supabase
-                .from('facturas')
-                .update(updatePayload)
-                .eq('id', facturaId);
+            // Si hubo cambios en el total (descuento o cargo extra), lo actualizamos en la factura
+            if (descFinal > 0 || extraVal2 > 0) {
+                updatePayload.monto_total = nuevoMontoTotal;
+            }
 
-            if (facError) throw facError;
+            // Solo actualizar si realmente hay algo que cambiar en el payload
+            if (Object.keys(updatePayload).length > 0) {
+                const { error: facError } = await supabase
+                    .from('facturas')
+                    .update(updatePayload)
+                    .eq('id', facturaId);
+                if (facError) throw facError;
+            }
 
             onSuccess();
             onClose();
@@ -154,12 +171,18 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 <div className="p-6 overflow-y-auto space-y-4">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4">
                         <p className="text-xs text-slate-500 uppercase font-semibold">Factura a Pagar</p>
-                        <div className="flex justify-between items-center mt-1">
+                        <div className="flex justify-between items-start mt-1">
                             <span className="font-bold text-slate-900">{facturaNumero}</span>
-                            <div className="text-right">
-                                <span className="font-bold text-blue-600">Total: Q{facturaTotal.toFixed(2)}</span>
+                            <div className="text-right flex flex-col items-end">
+                                <span className="font-bold text-slate-600">Total: Q{facturaTotal.toFixed(2)}</span>
+                                {totalPagado > 0 && (
+                                    <span className="text-xs font-bold text-emerald-600">Pagado: Q{totalPagado.toFixed(2)}</span>
+                                )}
+                                <span className="text-sm font-black text-blue-600 border-t border-slate-200 mt-1 pt-1">
+                                    Saldo: Q{saldoActual.toFixed(2)}
+                                </span>
                                 {(parseFloat(cargoExtra) || 0) > 0 && (
-                                    <div className="text-xs font-bold text-orange-600 mt-0.5">+Q{(parseFloat(cargoExtra) || 0).toFixed(2)} cargo extra → Total: Q{monto}</div>
+                                    <div className="text-[10px] font-bold text-orange-600 mt-0.5">+Q{(parseFloat(cargoExtra) || 0).toFixed(2)} cargo extra</div>
                                 )}
                             </div>
                         </div>

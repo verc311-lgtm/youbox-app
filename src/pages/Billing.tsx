@@ -20,8 +20,8 @@ interface Factura {
   fecha_emision: string;
   cliente_manual_nombre?: string;
   cliente_manual_nit?: string;
-  clientes?: { nombre: string; apellido: string };
-  pagos?: { metodo: string }[];
+  clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string };
+  pagos?: { metodo: string; monto: number }[];
 }
 
 const ESTADOS: Record<string, { label: string, color: string }> = {
@@ -92,7 +92,7 @@ export function Billing() {
         .select(`
           id, numero, monto_total, moneda, estado, fecha_emision, cliente_manual_nombre, cliente_manual_nit,
           clientes${useInnerJoin ? '!inner' : ''} (nombre, apellido, locker_id, nit, direccion_entrega),
-          pagos (metodo)
+          pagos (metodo, monto)
         `)
         .order('fecha_emision', { ascending: false });
 
@@ -352,9 +352,24 @@ export function Billing() {
                       {f.fecha_emision ? format(new Date(f.fecha_emision), 'dd MMM yyyy', { locale: es }) : 'N/A'}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4">
-                      <span className="text-sm font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
-                        <span className="text-slate-500 mr-1">{f.moneda}</span>{f.monto_total}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg inline-block w-fit">
+                          <span className="text-slate-500 mr-1">{f.moneda}</span>{f.monto_total.toFixed(2)}
+                        </span>
+                        {f.estado === 'pendiente' && (() => {
+                          const totalPagado = f.pagos?.reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0;
+                          const saldo = f.monto_total - totalPagado;
+                          if (totalPagado > 0) {
+                            return (
+                              <span className="text-[10px] font-bold text-amber-600 mt-1 flex items-center gap-1">
+                                <span className="w-1 h-1 rounded-full bg-amber-500" />
+                                Saldo: Q{saldo.toFixed(2)}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
                       <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shadow-sm ${ESTADOS[f.estado]?.color || 'bg-slate-50 text-slate-600'}`}>
@@ -401,6 +416,7 @@ export function Billing() {
           onSuccess={fetchFacturas}
           facturaId={selectedFactura.id}
           facturaTotal={selectedFactura.monto_total}
+          totalPagado={selectedFactura.pagos?.reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0}
           facturaNumero={selectedFactura.numero}
         />
       )}

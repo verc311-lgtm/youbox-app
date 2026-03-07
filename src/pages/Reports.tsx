@@ -58,11 +58,11 @@ export function Reports() {
             const hoy = new Date();
             const hace6Meses = subMonths(hoy, 5);
 
-            let queryFacturas = supabase
-                .from('facturas')
-                .select('monto_total, fecha_emision, clientes!inner(sucursal_id)')
+            let queryPagos = supabase
+                .from('pagos')
+                .select('monto, creado_at, facturas!inner(clientes!inner(sucursal_id))')
                 .eq('estado', 'verificado')
-                .gte('fecha_emision', hace6Meses.toISOString());
+                .gte('creado_at', hace6Meses.toISOString());
 
             let queryGastos = supabase
                 .from('gastos_financieros')
@@ -72,15 +72,15 @@ export function Reports() {
 
             // Filtros de Sucursal
             if (!isSuperAdmin && user?.sucursal_id) {
-                queryFacturas = queryFacturas.eq('clientes.sucursal_id', user.sucursal_id);
+                queryPagos = queryPagos.eq('facturas.clientes.sucursal_id', user.sucursal_id);
                 queryGastos = queryGastos.eq('sucursal_id', user.sucursal_id);
             } else if (isSuperAdmin && selectedFilterBranch !== 'all') {
-                queryFacturas = queryFacturas.eq('clientes.sucursal_id', selectedFilterBranch);
+                queryPagos = queryPagos.eq('facturas.clientes.sucursal_id', selectedFilterBranch);
                 queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
             }
 
-            const { data: facturas, error: facturasErr } = await queryFacturas;
-            if (facturasErr) throw facturasErr;
+            const { data: pagos, error: pagosErr } = await queryPagos;
+            if (pagosErr) throw pagosErr;
 
             const { data: gastos, error: gastosErr } = await queryGastos;
             if (gastosErr) throw gastosErr;
@@ -105,12 +105,12 @@ export function Reports() {
             let gasActual = 0;
 
             // Populate Incomes
-            facturas?.forEach(f => {
-                const key = f.fecha_emision.substring(0, 7); // yyyy-MM
+            pagos?.forEach(p => {
+                const key = (p.creado_at as string).substring(0, 7); // yyyy-MM
                 if (monthMap.has(key)) {
                     const obj = monthMap.get(key)!;
-                    obj.ingresos += Number(f.monto_total);
-                    if (key === currentMonthKey) ingActual += Number(f.monto_total);
+                    obj.ingresos += Number(p.monto);
+                    if (key === currentMonthKey) ingActual += Number(p.monto);
                 }
             });
 
