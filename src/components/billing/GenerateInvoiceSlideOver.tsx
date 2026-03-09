@@ -62,6 +62,18 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
     }, [isOpen]);
 
     useEffect(() => {
+        const timer = setTimeout(() => {
+            if (clientSearchTerm.trim()) {
+                searchClientes(clientSearchTerm);
+            } else {
+                setClientes([]);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [clientSearchTerm]);
+
+    useEffect(() => {
         if (selectedBodegaId) {
             fetchTarifas(selectedBodegaId);
         } else {
@@ -72,17 +84,34 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
     const fetchInitialData = async () => {
         setLoadingData(true);
         try {
-            const [clientesRes, bodegasRes] = await Promise.all([
-                supabase.from('clientes').select('id, nombre, apellido, locker_id, email').eq('activo', true).order('nombre'),
-                supabase.from('bodegas').select('id, nombre').eq('activo', true).order('nombre')
-            ]);
+            const { data: bodegasRes, error: bodegasError } = await supabase
+                .from('bodegas')
+                .select('id, nombre')
+                .eq('activo', true)
+                .order('nombre');
 
-            if (clientesRes.data) setClientes(clientesRes.data);
-            if (bodegasRes.data) setBodegas(bodegasRes.data);
+            if (bodegasError) throw bodegasError;
+            if (bodegasRes) setBodegas(bodegasRes);
         } catch (error) {
             console.error('Error fetching initial data for invoice', error);
         } finally {
             setLoadingData(false);
+        }
+    };
+
+    const searchClientes = async (term: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('clientes')
+                .select('id, nombre, apellido, locker_id, email')
+                .eq('activo', true)
+                .or(`nombre.ilike.%${term}%,apellido.ilike.%${term}%,locker_id.ilike.%${term}%`)
+                .limit(10);
+
+            if (error) throw error;
+            setClientes(data || []);
+        } catch (error) {
+            console.error('Error searching clients', error);
         }
     };
 
@@ -124,14 +153,8 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
     }, [conceptos]);
 
     const filteredClientes = useMemo(() => {
-        if (!clientSearchTerm) return [];
-        const term = clientSearchTerm.toLowerCase();
-        return clientes.filter(c =>
-            c.nombre.toLowerCase().includes(term) ||
-            c.apellido.toLowerCase().includes(term) ||
-            c.locker_id.toLowerCase().includes(term)
-        ).slice(0, 10);
-    }, [clientes, clientSearchTerm]);
+        return clientes;
+    }, [clientes]);
 
     const handleSave = async () => {
         if (!isManualClient && !selectedCliente) {
