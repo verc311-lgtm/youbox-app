@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck } from 'lucide-react';
+import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TrackingDialog } from './TrackingDialog';
@@ -103,6 +104,29 @@ export function ConsolidationsList() {
             case 'en_transito': return 'bg-amber-100 text-amber-800 border-amber-200';
             case 'entregada': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
             default: return 'bg-slate-100 text-slate-800 border-slate-200';
+        }
+    };
+
+    const handleDeleteConsolidation = async (id: string, codigo: string) => {
+        if (!window.confirm(`¿Está seguro de eliminar el consolidado ${codigo}? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const { error } = await supabase
+                .from('consolidaciones')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            toast.success('Consolidado eliminado con éxito.');
+            fetchConsolidaciones();
+        } catch (e: any) {
+            console.error('Error deleting consolidation:', e);
+            toast.error('Hubo un error al eliminar el consolidado: ' + (e.message || 'Desconocido'));
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -251,6 +275,15 @@ export function ConsolidationsList() {
                                                 >
                                                     <ExternalLink className="h-4 w-4" /> <span className="hidden lg:inline">Tracking</span>
                                                 </button>
+                                                {isAdmin && cons.paquetes_count === 0 && (
+                                                    <button
+                                                        onClick={() => handleDeleteConsolidation(cons.id, cons.codigo)}
+                                                        className="inline-flex items-center justify-center gap-1.5 text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                        title="Eliminar Consolidado (Sin paquetes)"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" /> <span className="hidden lg:inline">Eliminar</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

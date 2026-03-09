@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { FileText, Inbox, CreditCard, Download, Building, Filter, Search, RotateCcw } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { FileText, Inbox, CreditCard, Download, Building, Filter, Search, RotateCcw, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -18,6 +18,7 @@ interface Factura {
   moneda: string;
   estado: string;
   fecha_emision: string;
+  notas?: string;
   cliente_manual_nombre?: string;
   cliente_manual_nit?: string;
   clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string };
@@ -156,6 +157,34 @@ export function Billing() {
   const openPaymentModal = (factura: Factura) => {
     setSelectedFactura(factura);
     setIsPaymentModalOpen(true);
+  };
+
+  const handleAnularFactura = async (factura: Factura) => {
+    const razon = window.prompt(`¿Está seguro de anular la factura ${factura.numero}? Por favor escriba la razón:`);
+    if (!razon || razon.trim() === '') {
+      if (razon !== null) toast.error('Debe proporcionar una razón para anular la factura.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('facturas')
+        .update({
+          estado: 'anulado',
+          notas: factura.notas ? `${factura.notas}\n\nRAZÓN ANULACIÓN: ${razon}` : `RAZÓN ANULACIÓN: ${razon}`
+        })
+        .eq('id', factura.id);
+
+      if (error) throw error;
+      toast.success('Factura anulada con éxito.');
+      fetchFacturas();
+    } catch (e) {
+      console.error('Error anular factura:', e);
+      toast.error('Hubo un error al anular la factura.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Calculate some simple stats based on loaded data
@@ -385,6 +414,14 @@ export function Billing() {
                             className="inline-flex items-center justify-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
                             title="Registrar Pago">
                             <CreditCard className="h-4 w-4" /> <span className="hidden lg:inline">Abonar</span>
+                          </button>
+                        )}
+                        {isAdmin && f.estado !== 'anulado' && (
+                          <button
+                            onClick={() => handleAnularFactura(f)}
+                            className="inline-flex items-center justify-center gap-1.5 text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                            title="Anular Factura">
+                            <XCircle className="h-4 w-4" /> <span className="hidden lg:inline">Anular</span>
                           </button>
                         )}
                         <button

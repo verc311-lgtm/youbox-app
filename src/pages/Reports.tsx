@@ -36,6 +36,11 @@ export function Reports() {
         balanceMesActual: 0
     });
 
+    const [sedeData, setSedeData] = useState({
+        xela: { ingresos: 0, gastos: 0 },
+        quiche: { ingresos: 0, gastos: 0 }
+    });
+
     useEffect(() => {
         if (isSuperAdmin) {
             fetchSucursales();
@@ -58,19 +63,23 @@ export function Reports() {
             const hoy = new Date();
             const hace6Meses = subMonths(hoy, 5);
 
+            // IDs de Sedes específicas para el resumen solicitado
+            const ID_XELA = '9c4bf811-5a12-4c44-a99a-418b289154cb';
+            const ID_QUICHE = 'fe88dcfb-df66-400d-be57-91acb25c4dd7';
+
             let queryPagos = supabase
                 .from('pagos')
-                .select('monto, creado_at, facturas!inner(clientes!inner(sucursal_id))')
+                .select('monto, created_at, facturas!inner(clientes!inner(sucursal_id))')
                 .eq('estado', 'verificado')
-                .gte('creado_at', hace6Meses.toISOString());
+                .gte('created_at', hace6Meses.toISOString());
 
             let queryGastos = supabase
                 .from('gastos_financieros')
-                .select('monto_q, fecha_pago, categoria')
+                .select('monto_q, fecha_pago, categoria, sucursal_id')
                 .eq('estado', 'verificado')
                 .gte('fecha_pago', hace6Meses.toISOString());
 
-            // Filtros de Sucursal
+            // Filtros de Sucursal para las gráficas principales
             if (!isSuperAdmin && user?.sucursal_id) {
                 queryPagos = queryPagos.eq('facturas.clientes.sucursal_id', user.sucursal_id);
                 queryGastos = queryGastos.eq('sucursal_id', user.sucursal_id);
@@ -104,14 +113,23 @@ export function Reports() {
             let ingActual = 0;
             let gasActual = 0;
 
+            const xelaTotals = { ingresos: 0, gastos: 0 };
+            const quicheTotals = { ingresos: 0, gastos: 0 };
+
             // Populate Incomes
             pagos?.forEach(p => {
-                const key = (p.creado_at as string).substring(0, 7); // yyyy-MM
+                const key = (p.created_at as string).substring(0, 7); // yyyy-MM
+                const sucursalId = (p as any).facturas?.clientes?.sucursal_id;
+
                 if (monthMap.has(key)) {
                     const obj = monthMap.get(key)!;
                     obj.ingresos += Number(p.monto);
                     if (key === currentMonthKey) ingActual += Number(p.monto);
                 }
+
+                // Totales por Sede (Historial de 6 meses)
+                if (sucursalId === ID_XELA) xelaTotals.ingresos += Number(p.monto);
+                if (sucursalId === ID_QUICHE) quicheTotals.ingresos += Number(p.monto);
             });
 
             // Populate Expenses
@@ -129,6 +147,10 @@ export function Reports() {
                     const cat = g.categoria || 'Otros';
                     catMap.set(cat, (catMap.get(cat) || 0) + Number(g.monto_q));
                 }
+
+                // Totales por Sede (Historial de 6 meses)
+                if (g.sucursal_id === ID_XELA) xelaTotals.gastos += Number(g.monto_q);
+                if (g.sucursal_id === ID_QUICHE) quicheTotals.gastos += Number(g.monto_q);
             });
 
             // Process final arrays
@@ -146,6 +168,10 @@ export function Reports() {
                 gastosMesActual: gasActual,
                 balanceMesActual: ingActual - gasActual
             });
+            setSedeData({
+                xela: xelaTotals,
+                quiche: quicheTotals
+            });
 
         } catch (error) {
             console.error("Error fetching report data", error);
@@ -154,6 +180,7 @@ export function Reports() {
             setLoading(false);
         }
     };
+
 
     const formatQ = (val: number) => {
         return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', minimumFractionDigits: 0 }).format(val);
@@ -228,6 +255,49 @@ export function Reports() {
                         <p className={`text-2xl font-black tracking-tight font-mono ${kpis.balanceMesActual >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
                             {formatQ(kpis.balanceMesActual)}
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Resumen por Sedes Solicitadas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-slide-up" style={{ animationDelay: '120ms' }}>
+                <div className="glass rounded-2xl border border-slate-200/60 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-black text-sm text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Building className="h-4 w-4 text-emerald-600" />
+                            Quetzaltenango (6 Meses)
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                            <p className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Ingresos</p>
+                            <p className="text-xl font-black text-emerald-900 font-mono tracking-tight">{formatQ(sedeData.xela.ingresos)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-red-50/50 border border-red-100">
+                            <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Egresos</p>
+                            <p className="text-xl font-black text-red-900 font-mono tracking-tight">{formatQ(sedeData.xela.gastos)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass rounded-2xl border border-slate-200/60 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-black text-sm text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Building className="h-4 w-4 text-amber-600" />
+                            Quiché (6 Meses)
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                            <p className="text-[10px] font-bold text-amber-700 uppercase mb-1">Ingresos</p>
+                            <p className="text-xl font-black text-amber-900 font-mono tracking-tight">{formatQ(sedeData.quiche.ingresos)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-red-50/50 border border-red-100">
+                            <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Egresos</p>
+                            <p className="text-xl font-black text-red-900 font-mono tracking-tight">{formatQ(sedeData.quiche.gastos)}</p>
+                        </div>
                     </div>
                 </div>
             </div>
