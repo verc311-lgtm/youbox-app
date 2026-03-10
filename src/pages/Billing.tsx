@@ -177,6 +177,17 @@ export function Billing() {
         .eq('id', factura.id);
 
       if (error) throw error;
+
+      // Ensure any associated payments are removed when voided
+      const { error: pagoError } = await supabase
+        .from('pagos')
+        .delete()
+        .eq('factura_id', factura.id);
+
+      if (pagoError) {
+        console.error('Error al intentar eliminar pago tras anulación:', pagoError);
+      }
+
       toast.success('Factura anulada con éxito.');
       fetchFacturas();
     } catch (e) {
