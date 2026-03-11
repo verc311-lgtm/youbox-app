@@ -65,6 +65,7 @@ export function Payments() {
 
     // Filters
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+    const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
     const [searchFilter, setSearchFilter] = useState('');
     const [methodFilter, setMethodFilter] = useState('all');
 
@@ -192,9 +193,15 @@ export function Payments() {
             // 2. Method
             if (methodFilter !== 'all' && p.metodo !== methodFilter) return false;
 
+            // 3. Month
+            if (monthFilter) {
+                const pMonth = p.created_at.slice(0, 7);
+                if (pMonth !== monthFilter) return false;
+            }
+
             return true;
         });
-    }, [payments, searchFilter, methodFilter]);
+    }, [payments, searchFilter, methodFilter, monthFilter]);
 
     const hasActiveFilters = searchFilter !== '' || methodFilter !== 'all';
 
@@ -202,16 +209,19 @@ export function Payments() {
     const summaries = useMemo(() => {
         let totalAmount = 0;
         const methodTotals: Record<string, number> = {};
+        const branchTotals: Record<string, number> = {};
 
         filteredPayments.forEach(p => {
             const amt = Number(p.monto) || 0;
             totalAmount += amt;
             methodTotals[p.metodo] = (methodTotals[p.metodo] || 0) + amt;
+
+            const branchName = p.facturas?.clientes?.sucursales?.nombre || 'Sin Sede';
+            branchTotals[branchName] = (branchTotals[branchName] || 0) + amt;
         });
 
-        return { totalAmount, count: filteredPayments.length, methodTotals };
+        return { totalAmount, count: filteredPayments.length, methodTotals, branchTotals };
     }, [filteredPayments]);
-
 
     // Pagination Calc
     const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
@@ -249,6 +259,17 @@ export function Payments() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
+                    {/* Month Filter */}
+                    <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md w-full sm:w-auto">
+                        <Calendar className="h-4 w-4 text-emerald-500" />
+                        <input
+                            type="month"
+                            value={monthFilter}
+                            onChange={(e) => setMonthFilter(e.target.value)}
+                            className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full"
+                        />
+                    </div>
+
                     {isSuperAdmin && (
                         <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md w-full sm:w-auto">
                             <Building className="h-4 w-4 text-blue-500" />
@@ -293,14 +314,13 @@ export function Payments() {
                     <p className="text-3xl font-black text-slate-900 tracking-tight">{formatQ(summaries.totalAmount)}</p>
                 </div>
 
-                {/* Metodos Breakdown (Top 2) */}
-                {Object.entries(summaries.methodTotals)
+                {/* Totals Breakdown by Branch */}
+                {Object.entries(summaries.branchTotals)
                     .sort((a, b) => (b[1] as number) - (a[1] as number))
-                    .slice(0, 2)
-                    .map(([metodo, total]) => (
-                        <div key={metodo} className="glass border border-slate-200/60 rounded-2xl p-5 flex flex-col justify-center relative overflow-hidden group">
+                    .map(([branch, total]) => (
+                        <div key={branch} className="glass border border-slate-200/60 rounded-2xl p-5 flex flex-col justify-center relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-20 h-20 bg-slate-900/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate" title={`Pagos en ${metodo}`}>Pagos en {metodo.toUpperCase()}</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider truncate" title={`Total en ${branch}`}>Total en {branch}</p>
                             <p className="text-2xl font-black text-slate-800 tracking-tight mt-1">{formatQ(total as number)}</p>
                         </div>
                     ))}
