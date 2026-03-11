@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
@@ -143,7 +143,7 @@ export function Dashboard() {
         .lte('fecha_emision', lastDay);
 
       if (!facError && facturas) {
-        const validDocs = facturas.filter(f => f.estado !== 'anulada');
+        const validDocs = facturas.filter(f => !['anulado', 'devuelto'].includes(f.estado));
         const gross = validDocs.reduce((acc, curr) => acc + Number(curr.monto_total), 0);
         setFacturacionMes(gross);
         setPromedioFactura(validDocs.length > 0 ? gross / validDocs.length : 0);
