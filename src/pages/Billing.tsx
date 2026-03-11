@@ -213,7 +213,12 @@ export function Billing() {
 
       // Sum partial payments to find out what was actually collected
       const abonos = f.pagos?.reduce((sum, pago) => sum + (Number(pago.monto) || 0), 0) || 0;
-      cobrado += abonos;
+
+      // Only count as 'Cobrado' if the invoice is fully completed ('verificado' or 'pagado')
+      // This strictly aligns with the "Registro de Pagos" screen logic.
+      if (['verificado', 'pagado'].includes(f.estado)) {
+        cobrado += abonos;
+      }
     });
 
     const porCobrar = montoTotal - cobrado;
