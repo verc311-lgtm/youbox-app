@@ -69,8 +69,7 @@ export function Reports() {
 
             let queryPagos = supabase
                 .from('pagos')
-                .select('monto, created_at, facturas!inner(clientes!inner(sucursal_id))')
-                .eq('estado', 'verificado')
+                .select('monto, created_at, facturas!inner(estado, clientes!inner(sucursal_id))')
                 .gte('created_at', hace6Meses.toISOString());
 
             let queryGastos = supabase
@@ -118,6 +117,10 @@ export function Reports() {
 
             // Populate Incomes
             pagos?.forEach(p => {
+                const fact = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas;
+                // Strict check: only count payments belonging to finalized invoices (like Billing and Payments pages)
+                if (!fact || !['verificado', 'pagado'].includes((fact.estado || '').toLowerCase())) return;
+
                 const key = (p.created_at as string).substring(0, 7); // yyyy-MM
                 const sucursalId = (p as any).facturas?.clientes?.sucursal_id;
 
