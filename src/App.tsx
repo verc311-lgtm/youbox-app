@@ -21,6 +21,7 @@ const Users = lazy(() => import('./pages/Users').then(m => ({ default: m.Users }
 const Branches = lazy(() => import('./pages/Branches').then(m => ({ default: m.Branches })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const Expenses = lazy(() => import('./pages/Expenses').then(m => ({ default: m.Expenses })));
+const Payments = lazy(() => import('./pages/Payments').then(m => ({ default: m.Payments })));
 const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const PublicTracking = lazy(() => import('./pages/PublicTracking').then(m => ({ default: m.PublicTracking })));
@@ -138,7 +139,7 @@ function AppRoutes() {
 
             {/* Pages under development or placeholders */}
             <Route path="profile" element={<Profile />} />
-            <Route path="payments" element={<Navigate to="/billing" replace />} />
+            <Route path="payments" element={<FacturadorRoute><Payments /></FacturadorRoute>} />
             <Route path="client-pre-alerts" element={<ClientPreAlerts />} />
             <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
           </Route>
