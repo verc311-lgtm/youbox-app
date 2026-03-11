@@ -198,10 +198,37 @@ export function Billing() {
     }
   };
 
-  // Calculate some simple stats based on loaded data
-  const pendientes = facturas.filter(f => f.estado === 'pendiente').length;
-  const verificadas = facturas.filter(f => f.estado === 'verificado').length;
-  const anuladas = facturas.filter(f => ['anulado', 'devuelto'].includes(f.estado)).length;
+  // Calculate summary metrics based on filtered data (matching active filters)
+  const summaries = useMemo(() => {
+    let numFacturas = 0;
+    let montoTotal = 0;
+    let cobrado = 0;
+
+    filteredFacturas.forEach(f => {
+      // Exclude annulled / returned invoices from financial totals
+      if (['anulado', 'devuelto'].includes(f.estado)) return;
+
+      numFacturas++;
+      montoTotal += Number(f.monto_total) || 0;
+
+      // Sum partial payments to find out what was actually collected
+      const abonos = f.pagos?.reduce((sum, pago) => sum + (Number(pago.monto) || 0), 0) || 0;
+      cobrado += abonos;
+    });
+
+    const porCobrar = montoTotal - cobrado;
+
+    return {
+      numFacturas,
+      montoTotal,
+      cobrado,
+      porCobrar: porCobrar > 0 ? porCobrar : 0
+    };
+  }, [filteredFacturas]);
+
+  const formatQ = (val: number) => {
+    return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(val);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -261,22 +288,27 @@ export function Billing() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 mb-6">
-        <div className="rounded-2xl glass p-6 card-hover relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-bl-full -z-10 transition-transform group-hover:scale-110" />
-          <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Pendientes de Cobro</p>
-          <p className="text-3xl font-bold text-amber-600 tracking-tight mt-2">{loading ? '...' : pendientes}</p>
+      {/* Summary cards (New Total Summaries requested by UI) */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+        <div className="rounded-2xl glass p-5 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-slate-900/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform" />
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Número de Facturas</p>
+          <p className="text-2xl font-black text-slate-800 tracking-tight mt-1">{loading ? '...' : summaries.numFacturas}</p>
         </div>
-        <div className="rounded-2xl glass p-6 card-hover relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-bl-full -z-10 transition-transform group-hover:scale-110" />
-          <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Pagos Completados</p>
-          <p className="text-3xl font-bold text-emerald-600 tracking-tight mt-2">{loading ? '...' : verificadas}</p>
+        <div className="rounded-2xl glass p-5 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform" />
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monto Total</p>
+          <p className="text-2xl font-black text-blue-700 tracking-tight mt-1">{loading ? '...' : formatQ(summaries.montoTotal)}</p>
         </div>
-        <div className="rounded-2xl glass p-6 card-hover relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-full -z-10 transition-transform group-hover:scale-110" />
-          <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Anuladas / Devueltas</p>
-          <p className="text-3xl font-bold text-rose-600 tracking-tight mt-2">{loading ? '...' : anuladas}</p>
+        <div className="rounded-2xl glass p-5 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform" />
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cobrado</p>
+          <p className="text-2xl font-black text-emerald-600 tracking-tight mt-1">{loading ? '...' : formatQ(summaries.cobrado)}</p>
+        </div>
+        <div className="rounded-2xl glass p-5 flex flex-col justify-center relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-bl-full -z-10 group-hover:scale-110 transition-transform" />
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Por Cobrar</p>
+          <p className="text-2xl font-black text-amber-600 tracking-tight mt-1">{loading ? '...' : formatQ(summaries.porCobrar)}</p>
         </div>
       </div>
 
