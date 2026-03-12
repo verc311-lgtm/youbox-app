@@ -81,9 +81,19 @@ export function PublicEstimator() {
             const data = await response.json();
 
             if (data.title) setTitle(data.title);
-            if (data.priceUsd) setPriceUsd(data.priceUsd);
+            // Ensure we don't overwrite with null if not found
+            if (data.priceUsd !== undefined && data.priceUsd !== null) {
+                setPriceUsd(data.priceUsd);
+            } else if (priceUsd === '') {
+                setPriceUsd(0); // If it failed, reset to 0 but let them see it failed
+            }
+
             if (data.estimatedWeightLbs) setWeightLbs(data.estimatedWeightLbs);
             if (data.imageUrl) setImageUrl(data.imageUrl);
+
+            if (!data.priceUsd && !data.imageUrl) {
+                setExtractError('Detectamos el producto, pero el sitio web bloqueó la extracción automática del precio y foto. Por favor, ingrésalos manualmente.');
+            }
 
         } catch (err: any) {
             setExtractError(err.message || 'Error al analizar el enlace. Por favor ingresa los datos manualmente.');
@@ -203,43 +213,62 @@ export function PublicEstimator() {
                     </div>
 
                     {/* Product Form */}
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-5 transition-all duration-500 ${title || extractError ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'}`}>
-                        <div className="sm:col-span-2 space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Producto ({imageUrl ? 'Encontrado' : 'Ingresar Nombre'})</label>
-                            <input
-                                type="text"
-                                placeholder="Ej. Zapatos Nike, Laptop Dell..."
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-medium focus:border-blue-500 transition-colors"
-                            />
-                        </div>
+                    <div className={`flex flex-col gap-6 transition-all duration-500 ${title || extractError ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'}`}>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Precio (USD $)</label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
-                                <input
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={priceUsd}
-                                    onChange={(e) => setPriceUsd(e.target.value ? Number(e.target.value) : '')}
-                                    className="w-full pl-8 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 focus:border-emerald-500 transition-colors"
-                                />
+                        <div className="flex flex-col md:flex-row gap-6">
+                            {/* Image Preview Box */}
+                            <div className="w-full md:w-48 h-48 bg-slate-50 border-2 border-slate-100 rounded-2xl overflow-hidden flex items-center justify-center shrink-0">
+                                {imageUrl ? (
+                                    <img src={imageUrl} alt="Vista previa" className="w-full h-full object-contain p-2" />
+                                ) : (
+                                    <div className="text-center p-4">
+                                        <Package className="h-10 w-10 text-slate-200 mx-auto mb-2" />
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Sin Imagen</span>
+                                    </div>
+                                )}
                             </div>
-                        </div>
 
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Peso Estimado (Lbs)</label>
-                            <div className="relative">
-                                <Package className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                                <input
-                                    type="number"
-                                    placeholder="1.0"
-                                    value={weightLbs}
-                                    onChange={(e) => setWeightLbs(e.target.value ? Number(e.target.value) : '')}
-                                    className="w-full pl-11 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 focus:border-blue-500 transition-colors"
-                                />
+                            <div className="flex-1 space-y-5">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Nombre del Producto</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ej. Samba OG Shoes"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-medium focus:border-blue-500 transition-colors"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Precio (USD $)</label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                                            <input
+                                                type="number"
+                                                placeholder="0.00"
+                                                value={priceUsd}
+                                                onChange={(e) => setPriceUsd(e.target.value ? Number(e.target.value) : '')}
+                                                className="w-full pl-8 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 focus:border-emerald-500 transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Peso Est. (Lbs)</label>
+                                        <div className="relative">
+                                            <Package className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                            <input
+                                                type="number"
+                                                placeholder="1.0"
+                                                value={weightLbs}
+                                                onChange={(e) => setWeightLbs(e.target.value ? Number(e.target.value) : '')}
+                                                className="w-full pl-11 pr-4 py-3 bg-white border-2 border-slate-200 rounded-xl font-bold text-slate-800 focus:border-blue-500 transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

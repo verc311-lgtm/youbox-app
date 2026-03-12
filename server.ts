@@ -33,36 +33,53 @@ async function startServer() {
         return res.status(500).json({ error: "OpenAI API Key is missing on the server" });
       }
 
-      // 1. Try to fetch the page HTML to give the AI some context
+      // 1. Try to fetch the page HTML with a strict timeout
       let htmlContext = "";
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+
         const urlResponse = await fetch(url, {
+          signal: controller.signal,
           headers: {
             "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
             "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Referer": "https://www.google.com/"
           }
         });
+        clearTimeout(timeout);
+
         if (urlResponse.ok) {
           const rawHtml = await urlResponse.text();
-          // Truncate to first 150k characters to give OpenAI enough context to find the price and image while staying under token limits
           htmlContext = rawHtml.substring(0, 150000);
+        } else {
+          console.warn(`Fetch returned status ${urlResponse.status} for ${url}`);
         }
-      } catch (e) {
-        console.warn("Failed to fetch HTML for AI context, proceeding with only URL:", e);
+      } catch (e: any) {
+        console.warn(`Failed to fetch HTML for ${url}:`, e.message);
       }
 
       // 2. Build the OpenAI Payload
       const payload = {
-        model: "gpt-4o-mini", // Fast and cheap
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are an expert e-commerce assistant for a shipping company in Guatemala. The user provides a product URL and optionally its HTML. Deduce: 1) Produc title. 2) Current price (number in USD). 3) Estimated shipping weight in pounds (lbs) logically based on the type of product (e.g. laptop=5lbs, shirt=1lb, tv=40lbs) always rounding to nearest whole number if applicable. 4) The main product image URL if you can find one in the HTML (eg. og:image or main image). Return ONLY a JSON object with keys: 'title' (string), 'priceUsd' (number | null), 'estimatedWeightLbs' (number | null), 'imageUrl' (string | null).",
+            content: `You are an expert e-commerce assistant.
+Goal: Extract product data from URL and HTML.
+Guidelines:
+- Title: Clear and concise.
+- Price: Extract the MAIN current price. If there are multiple, use the lowest non-clearance price. Return as a NUMBER in USD.
+- Weight: If not found in text, use LOGIC based on the product type (Laptop=5lb, Shoes=2lb, Tshirt=1lb, Phone=1lb, etc).
+- Image: Find the main product image URL (og:image, twitter:image, or main product gallery img).
+
+IMPORTANT: If HTML is empty or blocked, try to guess the Title and Weight from the URL path.
+Return JSON: {"title": string, "priceUsd": number | null, "estimatedWeightLbs": number, "imageUrl": string | null}`,
           },
           {
             role: "user",
-            content: `URL: ${url}\n\nHTML Context:\n\n${htmlContext}`,
+            content: `URL: ${url}\n\nHTML Context (might be truncated or empty):\n\n${htmlContext}`,
           },
         ],
         response_format: { type: "json_object" },
