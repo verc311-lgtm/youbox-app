@@ -253,12 +253,18 @@ export function Login() {
                                 Crear cuenta de cliente
                             </Link>
                         </p>
-                        <div className="border-t border-white/10 pt-3">
+                        <div className="border-t border-white/10 pt-4 flex flex-col gap-3">
+                            <Link
+                                to="/cotizador"
+                                className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-indigo-600/60 hover:bg-indigo-600 rounded-xl py-3 px-4 transition-all shadow-lg hover:scale-105 active:scale-95 border border-indigo-400/50"
+                            >
+                                🤖 Cotizador Inteligente (AI)
+                            </Link>
                             <Link
                                 to="/tracking"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+                                className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
                             >
-                                📦 Rastrear mi paquete sin iniciar sesión
+                                📦 Rastrear mi paquete
                             </Link>
                         </div>
                     </div>

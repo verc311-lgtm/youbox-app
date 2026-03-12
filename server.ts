@@ -4,6 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import archiver from "archiver";
 import fs from "fs";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,6 +14,82 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  app.use(express.json());
+
+  // API Route for Public AI Estimator
+  app.post("/api/extract-link", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) {
+        return res.status(500).json({ error: "OpenAI API Key is missing on the server" });
+      }
+
+      // 1. Try to fetch the page HTML to give the AI some context
+      let htmlContext = "";
+      try {
+        const urlResponse = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9,es;q=0.8"
+          }
+        });
+        if (urlResponse.ok) {
+          const rawHtml = await urlResponse.text();
+          // Truncate to first 30k characters to avoid token limits
+          htmlContext = rawHtml.substring(0, 30000);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch HTML for AI context, proceeding with only URL:", e);
+      }
+
+      // 2. Build the OpenAI Payload
+      const payload = {
+        model: "gpt-4o-mini", // Fast and cheap
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert e-commerce assistant for a shipping company in Guatemala. The user provides a product URL and optionally its HTML. Deduce: 1) Produc title. 2) Current price (number in USD). 3) Estimated shipping weight in pounds (lbs) logically based on the type of product (e.g. laptop=5lbs, shirt=1lb, tv=40lbs) always rounding to nearest whole number if applicable. 4) The main product image URL if you can find one in the HTML (eg. og:image or main image). Return ONLY a JSON object with keys: 'title' (string), 'priceUsd' (number | null), 'estimatedWeightLbs' (number | null), 'imageUrl' (string | null).",
+          },
+          {
+            role: "user",
+            content: `URL: ${url}\n\nHTML Context:\n\n${htmlContext}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+      };
+
+      // 3. Call OpenAI securely
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("OpenAI Error:", errorText);
+        return res.status(500).json({ error: "Error communicating with AI" });
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      const parsed = JSON.parse(content);
+
+      res.json(parsed);
+    } catch (error: any) {
+      console.error("Extraction error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // API Route to download the source code
   app.get("/api/download-source", (req, res) => {

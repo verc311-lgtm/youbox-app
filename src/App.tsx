@@ -25,6 +25,7 @@ const Payments = lazy(() => import('./pages/Payments').then(m => ({ default: m.P
 const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
 const Reports = lazy(() => import('./pages/Reports').then(m => ({ default: m.Reports })));
 const PublicTracking = lazy(() => import('./pages/PublicTracking').then(m => ({ default: m.PublicTracking })));
+const PublicEstimator = lazy(() => import('./pages/PublicEstimator').then(m => ({ default: m.PublicEstimator })));
 const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Profile })));
 const PreAlertsAdmin = lazy(() => import('./pages/PreAlertsAdmin').then(m => ({ default: m.PreAlertsAdmin })));
 const ClientPreAlerts = lazy(() => import('./pages/ClientPreAlerts').then(m => ({ default: m.ClientPreAlerts })));
@@ -109,6 +110,7 @@ function AppRoutes() {
           <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
           <Route path="/tracking" element={<PublicTracking />} />
+          <Route path="/cotizador" element={<PublicEstimator />} />
 
           {/* Protected routes */}
           <Route
