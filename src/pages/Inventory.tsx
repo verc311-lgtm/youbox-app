@@ -57,11 +57,16 @@ export function Inventory() {
     tracking: '',
     minPeso: '',
     maxPeso: '',
-    piezas: ''
+    piezas: '',
+    transportistaId: '',
+    empaque: ''
   });
 
   const hasActiveFilters = Boolean(
-    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate || activeFilters.cliente || activeFilters.lockerId || activeFilters.tracking || activeFilters.minPeso || activeFilters.maxPeso || activeFilters.piezas
+    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate ||
+    activeFilters.cliente || activeFilters.lockerId || activeFilters.tracking ||
+    activeFilters.minPeso || activeFilters.maxPeso || activeFilters.piezas ||
+    activeFilters.transportistaId || activeFilters.empaque
   );
 
   // ── React Query: bodegas (cached globally, no re-fetch on page change) ──────
@@ -128,6 +133,54 @@ export function Inventory() {
       if (activeFilters.estado && p.estado !== activeFilters.estado) {
         return false;
       }
+
+      // 4. Locker ID Filter (Explicit)
+      if (activeFilters.lockerId && !p.clientes?.locker_id?.toLowerCase().includes(activeFilters.lockerId.toLowerCase())) {
+        return false;
+      }
+
+      // 5. Tracking Filter (Explicit)
+      if (activeFilters.tracking && !p.tracking?.toLowerCase().includes(activeFilters.tracking.toLowerCase())) {
+        return false;
+      }
+
+      // 6. Cliente Name Filter
+      if (activeFilters.cliente) {
+        const full = `${p.clientes?.nombre} ${p.clientes?.apellido}`.toLowerCase();
+        if (!full.includes(activeFilters.cliente.toLowerCase())) return false;
+      }
+
+      // 7. Weight Range Filter
+      const weight = Number(p.peso_lbs) || 0;
+      if (activeFilters.minPeso && weight < Number(activeFilters.minPeso)) return false;
+      if (activeFilters.maxPeso && weight > Number(activeFilters.maxPeso)) return false;
+
+      // 8. Pieces Filter
+      if (activeFilters.piezas && Number(p.piezas) !== Number(activeFilters.piezas)) return false;
+
+      // 9. Carrier Filter
+      if (activeFilters.transportistaId && p.transportista_id !== activeFilters.transportistaId) return false;
+
+      // 10. Empaque Filter (Regex from notes)
+      if (activeFilters.empaque) {
+        const notes = (p.notes || p.notas || '').toLowerCase();
+        if (!notes.includes(activeFilters.empaque.toLowerCase())) return false;
+      }
+
+      // 11. Date Range Filter
+      if (activeFilters.startDate || activeFilters.endDate) {
+        const dateStr = p.fecha_recepcion || p.created_at;
+        if (!dateStr) return false;
+        const pDate = parseISO(dateStr);
+
+        if (activeFilters.startDate) {
+          if (pDate < startOfDay(parseISO(activeFilters.startDate))) return false;
+        }
+        if (activeFilters.endDate) {
+          if (pDate > endOfDay(parseISO(activeFilters.endDate))) return false;
+        }
+      }
+
       return true;
     });
   }, [paquetes, searchTerm, activeFilters]);
