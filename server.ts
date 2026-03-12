@@ -38,14 +38,15 @@ async function startServer() {
       try {
         const urlResponse = await fetch(url, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9,es;q=0.8"
+            "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
           }
         });
         if (urlResponse.ok) {
           const rawHtml = await urlResponse.text();
-          // Truncate to first 30k characters to avoid token limits
-          htmlContext = rawHtml.substring(0, 30000);
+          // Truncate to first 150k characters to give OpenAI enough context to find the price and image while staying under token limits
+          htmlContext = rawHtml.substring(0, 150000);
         }
       } catch (e) {
         console.warn("Failed to fetch HTML for AI context, proceeding with only URL:", e);
