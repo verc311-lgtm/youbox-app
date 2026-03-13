@@ -122,9 +122,9 @@ export function Inventory() {
   const filteredPaquetes = useMemo(() => {
     return (paquetes as any[]).filter(p => {
       // 1. Text Search
-      const matchesSearch = p.tracking?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase());
-      if (!matchesSearch) return false;
+      const trackingMatch = p.tracking?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+      const lockerMatch = p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+      if (!trackingMatch && !lockerMatch) return false;
 
       // 2. Bodega Filter
       if (activeFilters.bodegaId) {
@@ -167,8 +167,8 @@ export function Inventory() {
 
       // 10. Empaque Filter (Regex from notes)
       if (activeFilters.empaque) {
-        const notes = (p.notes || p.notas || '').toLowerCase();
-        if (!notes.includes(activeFilters.empaque.toLowerCase())) return false;
+        const notesValue = (p.notas || '').toLowerCase();
+        if (!notesValue.includes(activeFilters.empaque.toLowerCase())) return false;
       }
 
       // 11. Date Range Filter
