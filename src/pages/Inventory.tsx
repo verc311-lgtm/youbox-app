@@ -87,7 +87,8 @@ export function Inventory() {
           bodega_id,
           bodegas (id, nombre),
           clientes!inner (nombre, apellido, locker_id, sucursal_id),
-          transportistas (nombre)
+          transportistas (nombre),
+          foto_url
         `)
         .order('fecha_recepcion', { ascending: false });
 

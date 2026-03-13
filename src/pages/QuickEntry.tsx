@@ -260,6 +260,7 @@ export function QuickEntry() {
         peso_lbs: finalPesoResult,
         piezas: parseInt(row.piezas) || 1,
         notas: finalNotas || null,
+        foto_url: foto_url,
         estado: 'en_bodega',
         usuario_recepcion: user?.id === 'admin-001' ? null : user?.id,
       };

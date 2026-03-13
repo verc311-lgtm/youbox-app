@@ -69,6 +69,7 @@ export function Warehouse() {
           piezas,
           notas,
           fecha_recepcion,
+          foto_url,
           transportistas(nombre),
           clientes!inner(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre)

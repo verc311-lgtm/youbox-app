@@ -59,6 +59,7 @@ export type Paquete = {
     estado: 'recibido' | 'en_bodega' | 'listo_consolidar' | 'consolidado' | 'en_transito' | 'entregado' | 'devuelto' | 'perdido';
     fecha_recepcion: string;
     notas?: string;
+    foto_url?: string;
     created_at: string;
     updated_at: string;
 };

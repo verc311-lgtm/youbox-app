@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import { X, Search, Loader2, Save, Package } from 'lucide-react';
+import { X, Search, Loader2, Save, Package, Camera, ImagePlus, Upload, Monitor } from 'lucide-react';
+import { WebcamModal } from './WebcamModal';
 
 interface Cliente {
     id: string;
@@ -40,6 +41,16 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
     const [estado, setEstado] = useState('en_bodega');
     const [notas, setNotas] = useState('');
     const [tapachulaTipo, setTapachulaTipo] = useState('Sobre');
+    const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+
+    // Photo State
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [showPhotoMenu, setShowPhotoMenu] = useState(false);
+    const [activeWebcam, setActiveWebcam] = useState(false);
+
+    const cameraRef = useRef<HTMLInputElement>(null);
+    const galleryRef = useRef<HTMLInputElement>(null);
 
     // Client Search State
     const [selectedClient, setSelectedClient] = useState<Cliente | null>(null);
@@ -86,7 +97,7 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
             const { data, error } = await supabase
                 .from('paquetes')
                 .select(`
-          tracking, peso_lbs, piezas, bodega_id, transportista_id, estado, notas,
+          tracking, peso_lbs, piezas, bodega_id, transportista_id, estado, notas, foto_url,
           clientes (id, nombre, apellido, locker_id)
         `)
                 .eq('id', paqueteId)
@@ -111,6 +122,9 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                     setNotas(rawNotas);
                     setTapachulaTipo('Sobre');
                 }
+
+                setFotoUrl(data.foto_url || null);
+                setPhotoPreview(data.foto_url || null);
 
                 if (data.clientes) {
                     const clientData = data.clientes as unknown as Cliente;
@@ -170,6 +184,27 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
         setClientSearchText('');
     };
 
+    // --- Photo Handlers ---
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) { toast.error('Imagen muy grande. Máx 8MB.'); return; }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setPhotoFile(file);
+            setPhotoPreview(reader.result as string);
+            setShowPhotoMenu(false);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const handleWebcamCapture = (file: File, previewUrl: string) => {
+        setPhotoFile(file);
+        setPhotoPreview(previewUrl);
+        setShowPhotoMenu(false);
+    };
+
     // --- Save Package ---
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -187,6 +222,24 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
 
         setSaving(true);
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            let finalFotoUrl = fotoUrl;
+
+            // Upload new photo if provided
+            if (photoFile) {
+                const ext = photoFile.name.split('.').pop() || 'jpg';
+                const path = `${user?.id || 'sys'}/${Date.now()}_edit_${paqueteId}.${ext}`;
+                const { error: uploadErr, data: uploadData } = await supabase.storage
+                    .from('recibos_gastos')
+                    .upload(path, photoFile, { cacheControl: '3600', upsert: false });
+
+                if (uploadErr) throw uploadErr;
+                if (uploadData) {
+                    const { data: pub } = supabase.storage.from('recibos_gastos').getPublicUrl(uploadData.path);
+                    finalFotoUrl = pub.publicUrl;
+                }
+            }
+
             const { error } = await supabase
                 .from('paquetes')
                 .update({
@@ -199,7 +252,8 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                     estado: estado,
                     notas: isTapachula
                         ? `[Empaque: ${tapachulaTipo}] ${notas.trim()}`.trim()
-                        : notas.trim() || null
+                        : notas.trim() || null,
+                    foto_url: finalFotoUrl
                 })
                 .eq('id', paqueteId);
 
@@ -406,9 +460,97 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                                 </div>
                             </div>
 
+                            {/* Photo Section */}
+                            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <Camera className="h-4 w-4 text-blue-500" />
+                                    Foto del Paquete
+                                </label>
+
+                                <input
+                                    ref={cameraRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={handlePhotoChange}
+                                />
+                                <input
+                                    ref={galleryRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handlePhotoChange}
+                                />
+
+                                <div className="flex items-center gap-6">
+                                    <div className="relative group/img">
+                                        {photoPreview ? (
+                                            <div className="relative">
+                                                <img
+                                                    src={photoPreview}
+                                                    alt="Preview"
+                                                    className="h-32 w-32 object-cover rounded-xl border-2 border-slate-200 shadow-sm transition-all group-hover/img:brightness-75"
+                                                />
+                                                {!photoFile && fotoUrl && (
+                                                    <div className="absolute top-2 right-2 bg-blue-500 text-white p-1 rounded-full shadow-lg">
+                                                        <Save className="h-3 w-3" />
+                                                    </div>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                                                    className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                                >
+                                                    <Camera className="h-8 w-8 text-white drop-shadow-md" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                                                className="h-32 w-32 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-500 transition-all gap-2"
+                                            >
+                                                <ImagePlus className="h-8 w-8" />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">Añadir Foto</span>
+                                            </button>
+                                        )}
+
+                                        {showPhotoMenu && (
+                                            <div className="absolute z-[120] left-full ml-4 top-0 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden animate-fade-in">
+                                                <label onClick={() => cameraRef.current?.click()} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 cursor-pointer">
+                                                    <div className="bg-blue-100/50 p-1.5 rounded-lg text-blue-600"><Camera className="h-4 w-4" /></div>Móvil
+                                                </label>
+                                                <button type="button" onClick={() => { setActiveWebcam(true); setShowPhotoMenu(false); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 cursor-pointer text-left">
+                                                    <div className="bg-purple-100/50 p-1.5 rounded-lg text-purple-600"><Monitor className="h-4 w-4" /></div>Cámara PC
+                                                </button>
+                                                <label onClick={() => galleryRef.current?.click()} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 cursor-pointer">
+                                                    <div className="bg-emerald-100/50 p-1.5 rounded-lg text-emerald-600"><Upload className="h-4 w-4" /></div>Galería
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col gap-2">
+                                        <p className="text-sm font-semibold text-slate-700">Opciones de imagen</p>
+                                        <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+                                            Sube una foto del paquete para que el cliente pueda verla en su historial.
+                                            <span className="block mt-1 text-[10px] uppercase font-bold text-slate-400">Máx 8MB • JPG/PNG</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </form>
                 )}
+
+                <WebcamModal
+                    isOpen={activeWebcam}
+                    onClose={() => setActiveWebcam(false)}
+                    onCapture={handleWebcamCapture}
+                    rowId="edit-modal"
+                />
 
                 {/* Footer Actions */}
                 <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
