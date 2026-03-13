@@ -4,6 +4,8 @@ import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { Camera } from 'lucide-react';
 
 interface PaqueteWithDetails {
     id: string;
@@ -12,6 +14,7 @@ interface PaqueteWithDetails {
     piezas: number;
     notas?: string | null;
     fecha_recepcion: string;
+    foto_url?: string | null;
     transportistas: {
         nombre: string;
     };
@@ -48,6 +51,7 @@ export function Warehouse() {
     const [searchTerm, setSearchTerm] = useState(searchParams.get('bodega') || '');
     const [groupedPackages, setGroupedPackages] = useState<Record<string, PaquetesPorCliente>>({});
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+    const [previewPhoto, setPreviewPhoto] = useState<{ url: string, tracking: string } | null>(null);
 
     useEffect(() => {
         fetchWarehousePackages();
@@ -65,6 +69,7 @@ export function Warehouse() {
           piezas,
           notas,
           fecha_recepcion,
+          foto_url,
           transportistas(nombre),
           clientes!inner(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre)
@@ -257,6 +262,17 @@ export function Warehouse() {
                                                                 {paquete.fecha_recepcion ? format(new Date(paquete.fecha_recepcion), 'dd/MM/yyyy') : 'N/A'}
                                                             </span>
                                                         </div>
+                                                        {paquete.foto_url && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setPreviewPhoto({ url: paquete.foto_url!, tracking: paquete.tracking });
+                                                                }}
+                                                                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 shadow-sm transition-all active:scale-95"
+                                                            >
+                                                                <Camera className="h-3 w-3" /> Ver Foto
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -267,6 +283,15 @@ export function Warehouse() {
                         );
                     })}
                 </div>
+            )}
+
+            {previewPhoto && (
+                <PhotoPreviewModal
+                    isOpen={!!previewPhoto}
+                    onClose={() => setPreviewPhoto(null)}
+                    photoUrl={previewPhoto.url}
+                    tracking={previewPhoto.tracking}
+                />
             )}
         </div>
     );

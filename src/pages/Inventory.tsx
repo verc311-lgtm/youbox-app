@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
+import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft, Camera } from 'lucide-react';
+import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -22,6 +23,7 @@ interface Paquete {
   bodegas?: { nombre: string };
   clientes?: { nombre: string; apellido: string; locker_id: string };
   transportistas?: { nombre: string };
+  foto_url?: string | null;
 }
 
 const ESTADOS: Record<string, { label: string, color: string }> = {
@@ -44,6 +46,7 @@ export function Inventory() {
 
   const [printingLabel, setPrintingLabel] = useState<any>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string, tracking: string } | null>(null);
 
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
@@ -84,7 +87,8 @@ export function Inventory() {
           bodega_id,
           bodegas (id, nombre),
           clientes!inner (nombre, apellido, locker_id, sucursal_id),
-          transportistas (nombre)
+          transportistas (nombre),
+          foto_url
         `)
         .order('fecha_recepcion', { ascending: false });
 
@@ -331,6 +335,15 @@ export function Inventory() {
                         <div className={`h-1.5 w-1.5 rounded-full bg-current opacity-70`} />
                         {ESTADOS[p.estado]?.label || p.estado}
                       </span>
+                      {p.foto_url && (
+                        <button
+                          onClick={() => setPreviewPhoto({ url: p.foto_url!, tracking: p.tracking })}
+                          className="ml-2 p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors"
+                          title="Ver Foto"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </button>
+                      )}
                     </td>
                     {isAdmin && (
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -403,6 +416,15 @@ export function Inventory() {
         onApply={setActiveFilters}
         isAdmin={isAdmin}
       />
+
+      {previewPhoto && (
+        <PhotoPreviewModal
+          isOpen={!!previewPhoto}
+          onClose={() => setPreviewPhoto(null)}
+          photoUrl={previewPhoto.url}
+          tracking={previewPhoto.tracking}
+        />
+      )}
     </div>
   );
 }
