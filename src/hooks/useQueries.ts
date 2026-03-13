@@ -147,7 +147,6 @@ export interface PaqueteBase {
   estado: string;
   notas?: string;
   created_at: string;
-  foto_url?: string;
   cliente_id?: string;
   bodega_id?: string;
   transportista_id?: string;
@@ -170,7 +169,7 @@ export function usePaquetes(filters: PaquetesFilters = {}) {
         .from('paquetes')
         .select(`
           id, tracking, peso_lbs, peso_volumetrico, piezas, estado, notas,
-          created_at, foto_url, cliente_id, bodega_id, transportista_id,
+          created_at, cliente_id, bodega_id, transportista_id,
           clientes(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre),
           transportistas(id, nombre)

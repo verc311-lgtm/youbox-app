@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Plus, Search, Loader2, Trash2, Save, Keyboard, ImagePlus, CheckCircle2, Upload, Printer, Monitor } from 'lucide-react';
+import { Plus, Search, Loader2, Trash2, Save, Keyboard, CheckCircle2, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useBodegas, useTransportistas } from '../hooks/useQueries';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
-import { WebcamModal } from '../components/WebcamModal';
 
 interface Cliente {
   id: string;
@@ -24,15 +23,11 @@ interface RowData {
   empaque?: string;
   piezas: string;
   notas: string;
-  // Photo
-  photoFile: File | null;
-  photoPreview: string | null;
   // UI states
   clientSearch: string;
   clientResults: Cliente[];
   isSearchingClient: boolean;
   showClientDropdown: boolean;
-  showPhotoMenu: boolean; // For the popup menu
   // Save state
   isSaving: boolean;
   isSaved: boolean;
@@ -48,13 +43,10 @@ const createEmptyRow = (defaultBodega = '', defaultTransportista = ''): RowData 
   empaque: 'Sobre', // Default value for Tapachula
   piezas: '1',
   notas: '',
-  photoFile: null,
-  photoPreview: null,
   clientSearch: '',
   clientResults: [],
   isSearchingClient: false,
   showClientDropdown: false,
-  showPhotoMenu: false,
   isSaving: false,
   isSaved: false,
 });
@@ -71,13 +63,6 @@ export function QuickEntry() {
 
   // Label Printing state
   const [printLabelData, setPrintLabelData] = useState<any | null>(null);
-
-  // Webcam state
-  const [activeWebcamRow, setActiveWebcamRow] = useState<string | null>(null);
-
-  // Photo input refs per row (we need two per row now: one for camera, one for gallery)
-  const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const galleryRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // ── React Query: cached catalogs (shared with other pages) ──────────────────
   const { data: bodegas = [], isLoading: isLoadingBodegas } = useBodegas();
@@ -178,26 +163,7 @@ export function QuickEntry() {
     setTimeout(() => updateRow(id, 'showClientDropdown', false), 200);
   };
 
-  // Photo handling
-  const handlePhotoChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { toast.error('Imagen muy grande. Máx 8MB.'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setRows(cur => cur.map(r =>
-        r.id === id ? { ...r, photoFile: file, photoPreview: reader.result as string, showPhotoMenu: false } : r
-      ));
-    };
-    reader.readAsDataURL(file);
-    e.target.value = ''; // Reset so same file can be selected again if needed
-  };
 
-  const handleWebcamCapture = (id: string, file: File, previewUrl: string) => {
-    setRows(cur => cur.map(r =>
-      r.id === id ? { ...r, photoFile: file, photoPreview: previewUrl, showPhotoMenu: false } : r
-    ));
-  };
 
   // Per-row save
   const handleSaveRow = async (rowId: string) => {
@@ -224,20 +190,7 @@ export function QuickEntry() {
         return;
       }
 
-      let foto_url: string | null = null;
 
-      // Upload photo if exists
-      if (row.photoFile) {
-        const ext = row.photoFile.name.split('.').pop();
-        const path = `${user?.id || 'sys'}/${Date.now()}_${rowId}.${ext}`;
-        const { error: uploadErr, data: uploadData } = await supabase.storage
-          .from('recibos_gastos')
-          .upload(path, row.photoFile, { cacheControl: '3600', upsert: false });
-        if (!uploadErr && uploadData) {
-          const { data: pub } = supabase.storage.from('recibos_gastos').getPublicUrl(uploadData.path);
-          foto_url = pub.publicUrl;
-        }
-      }
 
       // Check if it's the Tapachula warehouse
       const bodegaRow = bodegas.find(b => b.id === (row.bodega_id || globalBodega));
@@ -260,7 +213,6 @@ export function QuickEntry() {
         peso_lbs: finalPesoResult,
         piezas: parseInt(row.piezas) || 1,
         notas: finalNotas || null,
-        foto_url: foto_url,
         estado: 'en_bodega',
         usuario_recepcion: user?.id === 'admin-001' ? null : user?.id,
       };
@@ -415,7 +367,6 @@ export function QuickEntry() {
                 <th className="px-3 py-3.5 min-w-[300px]">Cliente / Locker <span className="text-red-500">*</span></th>
                 <th className="px-3 py-3.5 w-24">Peso (lbs)</th>
                 <th className="px-3 py-3.5 w-16 text-center">Pzas</th>
-                <th className="px-3 py-3.5 w-32 text-center">Foto</th>
                 <th className="px-3 py-3.5 w-28 text-center">Acciones</th>
                 <th className="px-3 py-3.5 w-10 text-center"></th>
               </tr>
@@ -576,93 +527,7 @@ export function QuickEntry() {
                         />
                       </td>
 
-                      {/* Foto con Dropdown Menu usando Labels nativos (fixes iOS camera bug) */}
-                      <td className="px-3 py-2.5 text-center relative">
-                        <input
-                          id={`camera-${row.id}`}
-                          ref={el => { cameraRefs.current[row.id] = el; }}
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={(e) => handlePhotoChange(row.id, e)}
-                        />
-                        <input
-                          id={`gallery-${row.id}`}
-                          ref={el => { galleryRefs.current[row.id] = el; }}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => handlePhotoChange(row.id, e)}
-                        />
 
-                        <div className="relative inline-block text-left">
-                          {row.photoPreview ? (
-                            <button
-                              onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)}
-                              disabled={row.isSaved}
-                              className="relative inline-block"
-                              title="Cambiar foto"
-                            >
-                              <img
-                                src={row.photoPreview}
-                                alt="preview"
-                                className="h-9 w-9 rounded-lg object-cover shadow ring-2 ring-blue-400/40 hover:ring-blue-500/70 transition-all"
-                              />
-                              <div className="absolute inset-0 rounded-lg bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <Camera className="h-3.5 w-3.5 text-white" />
-                              </div>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)}
-                              onBlur={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 200)}
-                              disabled={row.isSaved}
-                              className="inline-flex items-center justify-center gap-1.5 px-2.5 h-9 rounded-lg border border-slate-300 text-slate-600 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-40 text-xs font-bold"
-                            >
-                              <ImagePlus className="h-4 w-4" />
-                              <span className="hidden xl:inline">Subir Foto</span>
-                            </button>
-                          )}
-
-                          {/* Photo Popup Dropdown - Using native labels to trigger inputs directly */}
-                          {row.showPhotoMenu && (
-                            <div className="absolute z-[9999] right-0 mt-2 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden"
-                              style={{ bottom: 'auto', left: '50%', transform: 'translateX(-50%)' }}>
-                              <label
-                                htmlFor={`camera-${row.id}`}
-                                onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)}
-                                className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer"
-                              >
-                                <div className="bg-blue-100/50 p-1.5 rounded-lg text-blue-600">
-                                  <Camera className="h-4 w-4" />
-                                </div>
-                                Tomar foto (Móvil)
-                              </label>
-                              <button
-                                type="button"
-                                onMouseDown={(e) => { e.preventDefault(); setActiveWebcamRow(row.id); updateRow(row.id, 'showPhotoMenu', false); }}
-                                className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors cursor-pointer text-left"
-                              >
-                                <div className="bg-purple-100/50 p-1.5 rounded-lg text-purple-600">
-                                  <Monitor className="h-4 w-4" />
-                                </div>
-                                Cámara PC
-                              </button>
-                              <label
-                                htmlFor={`gallery-${row.id}`}
-                                onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)}
-                                className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition-colors cursor-pointer"
-                              >
-                                <div className="bg-emerald-100/50 p-1.5 rounded-lg text-emerald-600">
-                                  <Upload className="h-4 w-4" />
-                                </div>
-                                Subir galería
-                              </label>
-                            </div>
-                          )}
-                        </div>
-                      </td>
 
                       {/* Acciones (Guardar + Imprimir) */}
                       <td className="px-3 py-2.5 text-center">
@@ -746,16 +611,7 @@ export function QuickEntry() {
         />
       )}
 
-      <WebcamModal
-        isOpen={!!activeWebcamRow}
-        onClose={() => setActiveWebcamRow(null)}
-        rowId={activeWebcamRow || ''}
-        onCapture={(file, previewUrl) => {
-          if (activeWebcamRow) {
-            handleWebcamCapture(activeWebcamRow, file, previewUrl);
-          }
-        }}
-      />
+
     </div>
   );
 }

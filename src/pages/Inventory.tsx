@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft, Camera } from 'lucide-react';
-import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
+import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -23,7 +22,6 @@ interface Paquete {
   bodegas?: { nombre: string };
   clientes?: { nombre: string; apellido: string; locker_id: string };
   transportistas?: { nombre: string };
-  foto_url?: string | null;
 }
 
 const ESTADOS: Record<string, { label: string, color: string }> = {
@@ -46,7 +44,6 @@ export function Inventory() {
 
   const [printingLabel, setPrintingLabel] = useState<any>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
-  const [previewPhoto, setPreviewPhoto] = useState<{ url: string, tracking: string } | null>(null);
 
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
@@ -65,44 +62,38 @@ export function Inventory() {
     empaque: ''
   });
 
-  const hasActiveFilters = Boolean(
-    activeFilters.bodegaId || activeFilters.estado || activeFilters.startDate || activeFilters.endDate ||
-    activeFilters.cliente || activeFilters.lockerId || activeFilters.tracking ||
-    activeFilters.minPeso || activeFilters.maxPeso || activeFilters.piezas ||
-    activeFilters.transportistaId || activeFilters.empaque
-  );
+  // Safe hasActiveFilters that doesn't rely on objects if possible
+  const hasActiveFilters = useMemo(() => {
+    return Object.values(activeFilters).some(v => v !== '');
+  }, [activeFilters]);
 
   // ── React Query: bodegas (cached globally, no re-fetch on page change) ──────
   const { data: bodegas = [] } = useBodegas();
 
   // ── React Query: paquetes (scoped by role) ─────────────────────────────────
-  const { data: paquetes = [], isLoading: loading, refetch: refetchPaquetes } = useQuery({
-    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id }),
+  const { data: paquetes = [], isLoading: loading, error: queryError, refetch: refetchPaquetes } = useQuery({
+    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4' }),
     queryFn: async () => {
-      if (!user) return [];
-      let query = supabase
+      console.log('DEBUG: Initiating fetch for sucursal:', user?.sucursal_id);
+      const { data, error } = await supabase
         .from('paquetes')
         .select(`
-          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas,
-          bodega_id,
+          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id,
           bodegas (id, nombre),
-          clientes!inner (nombre, apellido, locker_id, sucursal_id),
-          transportistas (nombre),
-          foto_url
+          clientes (id, nombre, apellido, locker_id, sucursal_id),
+          transportistas (id, nombre)
         `)
         .order('fecha_recepcion', { ascending: false });
 
-      if (!isAdmin) {
-        query = query.eq('cliente_id', user.id);
-      } else if (!isSuperAdmin && user?.sucursal_id) {
-        query = query.eq('clientes.sucursal_id', user.sucursal_id);
+      if (error) {
+        console.error('DEBUG: Fetch error details:', error);
+        throw error;
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      console.log('DEBUG: Fetch success, rows:', data?.length);
       return data ?? [];
     },
     enabled: !!user,
+    retry: 1
   });
 
   // ── Delete mutation with optimistic update ─────────────────────────────────
@@ -120,76 +111,52 @@ export function Inventory() {
   };
 
   const filteredPaquetes = useMemo(() => {
-    return (paquetes as any[]).filter(p => {
-      // 1. Text Search
-      const trackingMatch = (p.tracking || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const lockerMatch = (p.clientes?.locker_id || '').toLowerCase().includes(searchTerm.toLowerCase());
-      if (!trackingMatch && !lockerMatch) return false;
+    const list = (paquetes as any[]) || [];
+    if (!searchTerm && !hasActiveFilters) return list;
 
-      // 2. Bodega Filter
-      if (activeFilters.bodegaId) {
-        if (p.bodegas?.id !== activeFilters.bodegaId && p.bodega_id !== activeFilters.bodegaId) {
-          return false;
+    return list.filter(p => {
+      try {
+        // 1. Text Search
+        const search = searchTerm.toLowerCase();
+        if (search) {
+          const trackingMatch = (p.tracking || '').toLowerCase().includes(search);
+          const lockerMatch = (p.clientes?.locker_id || '').toLowerCase().includes(search);
+          const nameMatch = `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.toLowerCase().includes(search);
+          if (!trackingMatch && !lockerMatch && !nameMatch) return false;
         }
-      }
 
-      // 3. Estado Filter
-      if (activeFilters.estado && p.estado !== activeFilters.estado) {
-        return false;
-      }
+        // 2. Bodega Filter
+        if (activeFilters.bodegaId && p.bodega_id !== activeFilters.bodegaId) return false;
 
-      // 4. Locker ID Filter (Explicit)
-      if (activeFilters.lockerId) {
-        const lId = (p.clientes?.locker_id || '').toLowerCase();
-        if (!lId.includes(activeFilters.lockerId.toLowerCase())) return false;
-      }
+        // 3. Estado Filter
+        if (activeFilters.estado && p.estado !== activeFilters.estado) return false;
 
-      // 5. Tracking Filter (Explicit)
-      if (activeFilters.tracking) {
-        const tNum = (p.tracking || '').toLowerCase();
-        if (!tNum.includes(activeFilters.tracking.toLowerCase())) return false;
-      }
+        // 4. Locker Filter
+        if (activeFilters.lockerId && !(p.clientes?.locker_id || '').toLowerCase().includes(activeFilters.lockerId.toLowerCase())) return false;
 
-      // 6. Cliente Name Filter
-      if (activeFilters.cliente) {
-        const full = `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.toLowerCase();
-        if (!full.includes(activeFilters.cliente.toLowerCase())) return false;
-      }
+        // 5. Tracking Filter
+        if (activeFilters.tracking && !(p.tracking || '').toLowerCase().includes(activeFilters.tracking.toLowerCase())) return false;
 
-      // 7. Weight Range Filter
-      const weight = Number(p.peso_lbs) || 0;
-      if (activeFilters.minPeso && weight < Number(activeFilters.minPeso)) return false;
-      if (activeFilters.maxPeso && weight > Number(activeFilters.maxPeso)) return false;
+        // 6. Weight Range
+        const weight = Number(p.peso_lbs) || 0;
+        if (activeFilters.minPeso && weight < Number(activeFilters.minPeso)) return false;
+        if (activeFilters.maxPeso && weight > Number(activeFilters.maxPeso)) return false;
 
-      // 8. Pieces Filter
-      if (activeFilters.piezas && Number(p.piezas) !== Number(activeFilters.piezas)) return false;
-
-      // 9. Carrier Filter
-      if (activeFilters.transportistaId && p.transportista_id !== activeFilters.transportistaId) return false;
-
-      // 10. Empaque Filter (Regex from notes)
-      if (activeFilters.empaque) {
-        const notesValue = (p.notas || '').toLowerCase();
-        if (!notesValue.includes(activeFilters.empaque.toLowerCase())) return false;
-      }
-
-      // 11. Date Range Filter
-      if (activeFilters.startDate || activeFilters.endDate) {
-        const dateStr = p.fecha_recepcion || p.created_at;
-        if (!dateStr) return false;
-        const pDate = parseISO(dateStr);
-
-        if (activeFilters.startDate) {
-          if (pDate < startOfDay(parseISO(activeFilters.startDate))) return false;
+        // 7. Date Range
+        if (activeFilters.startDate || activeFilters.endDate) {
+          const dateStr = p.fecha_recepcion || p.created_at;
+          if (!dateStr) return false;
+          const pDate = parseISO(dateStr);
+          if (activeFilters.startDate && pDate < startOfDay(parseISO(activeFilters.startDate))) return false;
+          if (activeFilters.endDate && pDate > endOfDay(parseISO(activeFilters.endDate))) return false;
         }
-        if (activeFilters.endDate) {
-          if (pDate > endOfDay(parseISO(activeFilters.endDate))) return false;
-        }
-      }
 
-      return true;
+        return true;
+      } catch (e) {
+        return true;
+      }
     });
-  }, [paquetes, searchTerm, activeFilters]);
+  }, [paquetes, searchTerm, activeFilters, hasActiveFilters]);
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -207,6 +174,17 @@ export function Inventory() {
           <p className="text-sm font-medium text-slate-500 mt-1">
             {isAdmin ? 'Gestión de paquetes en almacén (Warehouses).' : 'Rastrea el estado de tus compras en tiempo real.'}
           </p>
+          <div className="mt-2 flex flex-col gap-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 w-fit">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                Sincronizado: {paquetes.length} paquetes ({filteredPaquetes.length} filtrados)
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium px-1">
+              Auth: {isAdmin ? 'Admin' : 'User'} | Sucursal: {user?.sucursal_id || 'Global'} | Role: {user?.role || 'N/A'}
+            </div>
+          </div>
         </div>
         <div className="flex gap-3 relative">
           <button
@@ -259,6 +237,26 @@ export function Inventory() {
                     </div>
                   </td>
                 </tr>
+              ) : queryError ? (
+                <tr>
+                  <td colSpan={isAdmin ? 7 : 6} className="py-20 text-center">
+                    <div className="flex flex-col items-center gap-3 text-red-500">
+                      <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center">
+                        <PkgIcon className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold">Error al cargar datos</p>
+                        <p className="text-sm opacity-80 mt-1">{(queryError as any)?.message || 'Ha ocurrido un error inesperado'}</p>
+                        <button
+                          onClick={() => refetchPaquetes()}
+                          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
+                        >
+                          Reintentar
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
               ) : filteredPaquetes.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 7 : 6} className="py-20 text-center">
@@ -268,7 +266,11 @@ export function Inventory() {
                       </div>
                       <div>
                         <p className="text-base font-semibold text-slate-700">No hay paquetes registrados</p>
-                        <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">Los paquetes aparecerán aquí en cuanto sean procesados en nuestras bodegas.</p>
+                        <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+                          {paquetes.length === 0
+                            ? 'La base de datos devolvió 0 paquetes para tu sucursal.'
+                            : 'Ningún paquete coincide con los filtros aplicados.'}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -337,15 +339,7 @@ export function Inventory() {
                         <div className={`h-1.5 w-1.5 rounded-full bg-current opacity-70`} />
                         {ESTADOS[p.estado]?.label || p.estado}
                       </span>
-                      {p.foto_url && (
-                        <button
-                          onClick={() => setPreviewPhoto({ url: p.foto_url!, tracking: p.tracking })}
-                          className="ml-2 p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition-colors"
-                          title="Ver Foto"
-                        >
-                          <Camera className="h-4 w-4" />
-                        </button>
-                      )}
+
                     </td>
                     {isAdmin && (
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -418,15 +412,6 @@ export function Inventory() {
         onApply={setActiveFilters}
         isAdmin={isAdmin}
       />
-
-      {previewPhoto && (
-        <PhotoPreviewModal
-          isOpen={!!previewPhoto}
-          onClose={() => setPreviewPhoto(null)}
-          photoUrl={previewPhoto.url}
-          tracking={previewPhoto.tracking}
-        />
-      )}
     </div>
   );
 }

@@ -4,8 +4,6 @@ import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { PhotoPreviewModal } from '../components/PhotoPreviewModal';
-import { Camera } from 'lucide-react';
 
 interface PaqueteWithDetails {
     id: string;
@@ -14,7 +12,6 @@ interface PaqueteWithDetails {
     piezas: number;
     notas?: string | null;
     fecha_recepcion: string;
-    foto_url?: string | null;
     transportistas: {
         nombre: string;
     };
@@ -51,7 +48,6 @@ export function Warehouse() {
     const [searchTerm, setSearchTerm] = useState(searchParams.get('bodega') || '');
     const [groupedPackages, setGroupedPackages] = useState<Record<string, PaquetesPorCliente>>({});
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
-    const [previewPhoto, setPreviewPhoto] = useState<{ url: string, tracking: string } | null>(null);
 
     useEffect(() => {
         fetchWarehousePackages();
@@ -63,24 +59,13 @@ export function Warehouse() {
             let query = supabase
                 .from('paquetes')
                 .select(`
-          id,
-          tracking,
-          peso_lbs,
-          piezas,
-          notas,
-          fecha_recepcion,
-          foto_url,
-          transportistas(nombre),
-          clientes!inner(id, nombre, apellido, locker_id, sucursal_id),
+          *,
+          transportistas(id, nombre),
+          clientes(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre)
         `)
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
-
-            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
-            if (!isSuperAdmin && user?.sucursal_id) {
-                query = query.eq('clientes.sucursal_id', user.sucursal_id);
-            }
 
             const { data, error } = await query;
 
@@ -132,11 +117,17 @@ export function Warehouse() {
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
-                        Warehouse
+                        Control de Warehouse
                     </h1>
                     <p className="text-sm font-medium text-slate-500 mt-1">
-                        Agrupación temporal de paquetes por cliente y bodega.
+                        Gestiona los paquetes agrupados por cliente y ubicación.
                     </p>
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                            Sincronizado: {Object.values(groupedPackages).reduce((acc: number, g: any) => acc + g.paquetes.length, 0)} paquetes ({Object.keys(groupedPackages).length} clientes)
+                        </span>
+                    </div>
                 </div>
 
                 <div className="relative group/search outline-none">
@@ -158,15 +149,21 @@ export function Warehouse() {
                     <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent shadow-sm"></div>
                     <p className="text-sm font-bold text-slate-500">Cargando inventario...</p>
                 </div>
-            ) : filteredLockers.length === 0 ? (
+            ) : Object.keys(groupedPackages).length === 0 ? (
                 <div className="text-center glass rounded-2xl border border-slate-200/60 py-20 px-8 shadow-sm">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 shadow-inner mb-5">
                         <Inbox className="h-10 w-10 text-slate-300" />
                     </div>
                     <h3 className="mt-4 text-lg font-extrabold text-slate-800 tracking-tight">No hay paquetes en bodega</h3>
                     <p className="mt-2 text-sm font-medium text-slate-500 max-w-md mx-auto">
-                        Todos los paquetes han sido consolidados o la búsqueda actual no arrojó resultados. Intenta ajustar tus filtros.
+                        La base de datos devolvió 0 paquetes con estatus "En Bodega" o "Recibido".
                     </p>
+                    <button
+                        onClick={() => fetchWarehousePackages()}
+                        className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
+                    >
+                        Reintentar Sincronización
+                    </button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -262,17 +259,6 @@ export function Warehouse() {
                                                                 {paquete.fecha_recepcion ? format(new Date(paquete.fecha_recepcion), 'dd/MM/yyyy') : 'N/A'}
                                                             </span>
                                                         </div>
-                                                        {paquete.foto_url && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setPreviewPhoto({ url: paquete.foto_url!, tracking: paquete.tracking });
-                                                                }}
-                                                                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100 shadow-sm transition-all active:scale-95"
-                                                            >
-                                                                <Camera className="h-3 w-3" /> Ver Foto
-                                                            </button>
-                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -283,15 +269,6 @@ export function Warehouse() {
                         );
                     })}
                 </div>
-            )}
-
-            {previewPhoto && (
-                <PhotoPreviewModal
-                    isOpen={!!previewPhoto}
-                    onClose={() => setPreviewPhoto(null)}
-                    photoUrl={previewPhoto.url}
-                    tracking={previewPhoto.tracking}
-                />
             )}
         </div>
     );
