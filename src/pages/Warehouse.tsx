@@ -121,8 +121,8 @@ export function Warehouse() {
         const searchLow = searchTerm.toLowerCase();
         const matchLocker = groupKey.toLowerCase().includes(searchLow);
         const matchName = group.cliente ? `${group.cliente.nombre} ${group.cliente.apellido}`.toLowerCase().includes(searchLow) : false;
-        const matchBodega = group.bodega?.nombre.toLowerCase().includes(searchLow);
-        const matchTracking = group.paquetes.some(p => p.tracking.toLowerCase().includes(searchLow));
+        const matchBodega = (group.bodega?.nombre || '').toLowerCase().includes(searchLow);
+        const matchTracking = group.paquetes.some(p => (p.tracking || '').toLowerCase().includes(searchLow));
 
         return matchLocker || matchName || matchBodega || matchTracking;
     });
@@ -241,7 +241,7 @@ export function Warehouse() {
                                                     </div>
                                                     <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                                                         <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                                                            {group.bodega?.nombre?.toLowerCase().includes('tapachula') && paquete.notas ? (
+                                                            {(group.bodega?.nombre || '').toLowerCase().includes('tapachula') && paquete.notas ? (
                                                                 (() => {
                                                                     const m = paquete.notas.match(/\[Empaque:\s*([^\]]+)\]/);
                                                                     return m ? (

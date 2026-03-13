@@ -122,8 +122,8 @@ export function Inventory() {
   const filteredPaquetes = useMemo(() => {
     return (paquetes as any[]).filter(p => {
       // 1. Text Search
-      const trackingMatch = p.tracking?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
-      const lockerMatch = p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false;
+      const trackingMatch = (p.tracking || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const lockerMatch = (p.clientes?.locker_id || '').toLowerCase().includes(searchTerm.toLowerCase());
       if (!trackingMatch && !lockerMatch) return false;
 
       // 2. Bodega Filter
@@ -139,18 +139,20 @@ export function Inventory() {
       }
 
       // 4. Locker ID Filter (Explicit)
-      if (activeFilters.lockerId && !p.clientes?.locker_id?.toLowerCase().includes(activeFilters.lockerId.toLowerCase())) {
-        return false;
+      if (activeFilters.lockerId) {
+        const lId = (p.clientes?.locker_id || '').toLowerCase();
+        if (!lId.includes(activeFilters.lockerId.toLowerCase())) return false;
       }
 
       // 5. Tracking Filter (Explicit)
-      if (activeFilters.tracking && !p.tracking?.toLowerCase().includes(activeFilters.tracking.toLowerCase())) {
-        return false;
+      if (activeFilters.tracking) {
+        const tNum = (p.tracking || '').toLowerCase();
+        if (!tNum.includes(activeFilters.tracking.toLowerCase())) return false;
       }
 
       // 6. Cliente Name Filter
       if (activeFilters.cliente) {
-        const full = `${p.clientes?.nombre} ${p.clientes?.apellido}`.toLowerCase();
+        const full = `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.toLowerCase();
         if (!full.includes(activeFilters.cliente.toLowerCase())) return false;
       }
 
@@ -282,7 +284,7 @@ export function Inventory() {
                         <div>
                           <div className="font-bold text-slate-900 text-sm tracking-tight">{p.tracking}</div>
                           <div className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1.5">
-                            {p.bodegas?.nombre?.toLowerCase().includes('tapachula') && p.notas ? (
+                            {(p.bodegas?.nombre || '').toLowerCase().includes('tapachula') && p.notas ? (
                               (() => {
                                 const m = p.notas.match(/\[Empaque:\s*([^\]]+)\]/);
                                 return m ? (
