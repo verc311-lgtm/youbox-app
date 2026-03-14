@@ -72,18 +72,28 @@ export function Inventory() {
 
   // ── React Query: paquetes (scoped by role) ─────────────────────────────────
   const { data: paquetes = [], isLoading: loading, error: queryError, refetch: refetchPaquetes } = useQuery({
-    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4' }),
+    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4', personal: user?.role === 'cliente' ? user.id : undefined }),
     queryFn: async () => {
       console.log('DEBUG: Initiating fetch for sucursal:', user?.sucursal_id);
-      const { data, error } = await supabase
+      let query = supabase
         .from('paquetes')
         .select(`
-          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id,
+          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
           bodegas (id, nombre),
-          clientes (id, nombre, apellido, locker_id, sucursal_id),
+          clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
           transportistas (id, nombre)
-        `)
-        .order('fecha_recepcion', { ascending: false });
+        `);
+
+      // 1. If it's a client, ONLY show their packages
+      if (user?.role === 'cliente') {
+        query = query.eq('cliente_id', user.id);
+      }
+      // 2. If it's branch staff (not super admin), ONLY show packages of clients in their branch
+      else if (!isSuperAdmin && user?.sucursal_id) {
+        query = query.eq('clientes.sucursal_id', user.sucursal_id);
+      }
+
+      const { data, error } = await query.order('fecha_recepcion', { ascending: false });
 
       if (error) {
         console.error('DEBUG: Fetch error details:', error);
