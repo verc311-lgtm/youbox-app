@@ -78,7 +78,7 @@ export function Inventory() {
       const { data, error } = await supabase
         .from('paquetes')
         .select(`
-          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id,
+          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id,
           bodegas (id, nombre),
           clientes (id, nombre, apellido, locker_id, sucursal_id),
           transportistas (id, nombre)
@@ -110,19 +110,24 @@ export function Inventory() {
     }
   };
 
+  const normalize = (str: string) =>
+    (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
   const filteredPaquetes = useMemo(() => {
     const list = (paquetes as any[]) || [];
     if (!searchTerm && !hasActiveFilters) return list;
 
     return list.filter(p => {
       try {
-        // 1. Text Search
-        const search = searchTerm.toLowerCase();
+        const pCliente = Array.isArray(p.clientes) ? p.clientes[0] : p.clientes;
+
+        // 1. Text Search (Global Search Bar)
+        const search = normalize(searchTerm);
         if (search) {
-          const trackingMatch = (p.tracking || '').toLowerCase().includes(search);
-          const lockerMatch = (p.clientes?.locker_id || '').toLowerCase().includes(search);
-          const nameMatch = `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.toLowerCase().includes(search);
-          if (!trackingMatch && !lockerMatch && !nameMatch) return false;
+          const trackingMatch = normalize(p.tracking).includes(search);
+          const lockerMatch = normalize(pCliente?.locker_id).includes(search);
+          const fullName = normalize(`${pCliente?.nombre || ''} ${pCliente?.apellido || ''}`);
+          if (!trackingMatch && !lockerMatch && !fullName.includes(search)) return false;
         }
 
         // 2. Bodega Filter
@@ -131,18 +136,47 @@ export function Inventory() {
         // 3. Estado Filter
         if (activeFilters.estado && p.estado !== activeFilters.estado) return false;
 
-        // 4. Locker Filter
-        if (activeFilters.lockerId && !(p.clientes?.locker_id || '').toLowerCase().includes(activeFilters.lockerId.toLowerCase())) return false;
+        // 4. Locker Filter (Advanced)
+        if (activeFilters.lockerId) {
+          const lockerSearch = normalize(activeFilters.lockerId);
+          if (!normalize(pCliente?.locker_id).includes(lockerSearch)) return false;
+        }
 
-        // 5. Tracking Filter
-        if (activeFilters.tracking && !(p.tracking || '').toLowerCase().includes(activeFilters.tracking.toLowerCase())) return false;
+        // 5. Tracking Filter (Advanced)
+        if (activeFilters.tracking) {
+          const trackingSearch = normalize(activeFilters.tracking);
+          if (!normalize(p.tracking).includes(trackingSearch)) return false;
+        }
 
-        // 6. Weight Range
+        // 6. Cliente Filter (Advanced - specific by name)
+        if (activeFilters.cliente) {
+          const clienteSearch = normalize(activeFilters.cliente);
+          const fullName = normalize(`${pCliente?.nombre || ''} ${pCliente?.apellido || ''}`);
+          if (!fullName.includes(clienteSearch)) return false;
+        }
+
+        // 7. Transportista (Carrier) Filter
+        if (activeFilters.transportistaId && p.transportista_id !== activeFilters.transportistaId) return false;
+
+        // 8. Empaque Filter (Searches in notes pattern [Empaque: ...])
+        if (activeFilters.empaque) {
+          const empaqueFilter = normalize(activeFilters.empaque);
+          const notas = normalize(p.notas || '');
+          if (!notas.includes(`[empaque: ${empaqueFilter}]`) && !notas.includes(`[empaque:${empaqueFilter}]`)) {
+            const m = (p.notas || '').match(/\[Empaque:\s*([^\]]+)\]/i);
+            if (!m || normalize(m[1]) !== empaqueFilter) return false;
+          }
+        }
+
+        // 9. Piezas Filter
+        if (activeFilters.piezas && Number(p.piezas) !== Number(activeFilters.piezas)) return false;
+
+        // 10. Weight Range
         const weight = Number(p.peso_lbs) || 0;
         if (activeFilters.minPeso && weight < Number(activeFilters.minPeso)) return false;
         if (activeFilters.maxPeso && weight > Number(activeFilters.maxPeso)) return false;
 
-        // 7. Date Range
+        // 11. Date Range
         if (activeFilters.startDate || activeFilters.endDate) {
           const dateStr = p.fecha_recepcion || p.created_at;
           if (!dateStr) return false;
