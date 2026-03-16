@@ -42,6 +42,7 @@ export function PublicEstimator() {
 
     // Option state
     const [weBuyIt, setWeBuyIt] = useState(false);
+    const [showResults, setShowResults] = useState(false);
 
     const TASA_CAMBIO = 8.00; // Fixed exchange rate
     const TASA_LIBRA = 80.00; // Fixed weight rate per pound
@@ -52,6 +53,7 @@ export function PublicEstimator() {
         if (!url.trim()) return;
 
         setIsExtracting(true);
+        setShowResults(true);
         setExtractError('');
         setImageUrl('');
 
@@ -92,6 +94,10 @@ export function PublicEstimator() {
 
     // Calculations
     const calculateEstimates = () => {
+        if (!showResults) {
+            return { costoLogistica: 0, priceQ: 0, costoEntrega: 0, total: 0, multiplierLabel: weBuyIt ? '20%' : '12%' };
+        }
+
         const baseWeight = Math.max(Number(weightLbs) || 1, 1);
         const depto = DEPARTAMENTOS.find(d => d.nombre === selectedDepto);
         const costoEntrega = depto ? depto.envio : 35;
