@@ -1,23 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { Search, Loader2, Package, Calculator, Store, Truck, ShoppingCart, Info, TrendingUp, Sparkles, AlertCircle, ChevronRight, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Loader2, Package, Store, ShoppingCart, TrendingUp, Sparkles, AlertCircle, ChevronRight, Check } from 'lucide-react';
 
-interface Sucursal {
-    id: string;
-    nombre: string;
-}
-
-interface Tarifa {
-    id: string;
-    nombre_servicio: string;
-    tarifa_q: number;
-    tipo_cobro: string;
-}
+const DEPARTAMENTOS = [
+    { nombre: 'Alta Verapaz', envio: 35 },
+    { nombre: 'Baja Verapaz', envio: 35 },
+    { nombre: 'Chimaltenango', envio: 35 },
+    { nombre: 'Chiquimula', envio: 35 },
+    { nombre: 'El Progreso', envio: 35 },
+    { nombre: 'Escuintla', envio: 35 },
+    { nombre: 'Guatemala', envio: 35 },
+    { nombre: 'Huehuetenango', envio: 35 },
+    { nombre: 'Izabal', envio: 35 },
+    { nombre: 'Jalapa', envio: 35 },
+    { nombre: 'Jutiapa', envio: 35 },
+    { nombre: 'Petén', envio: 35 },
+    { nombre: 'Quetzaltenango', envio: 0, destacada: true },
+    { nombre: 'Quiché', envio: 0, destacada: true },
+    { nombre: 'Retalhuleu', envio: 35 },
+    { nombre: 'Sacatepéquez', envio: 35 },
+    { nombre: 'San Marcos', envio: 35 },
+    { nombre: 'Santa Rosa', envio: 35 },
+    { nombre: 'Sololá', envio: 35 },
+    { nombre: 'Suchitepéquez (Mazate)', envio: 0, destacada: true },
+    { nombre: 'Totonicapán', envio: 35 },
+    { nombre: 'Zacapa', envio: 35 }
+];
 
 export function PublicEstimator() {
-    const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-    const [selectedSucursal, setSelectedSucursal] = useState<string>('');
-    const [tarifas, setTarifas] = useState<Tarifa[]>([]);
+    const [selectedDepto, setSelectedDepto] = useState<string>('');
 
     // Link extraction state
     const [url, setUrl] = useState('');
@@ -32,34 +42,11 @@ export function PublicEstimator() {
 
     // Option state
     const [weBuyIt, setWeBuyIt] = useState(false);
+
     const TASA_CAMBIO = 8.00; // Fixed exchange rate
-
-    useEffect(() => {
-        fetchSucursales();
-    }, []);
-
-    useEffect(() => {
-        if (selectedSucursal) {
-            fetchTarifas(selectedSucursal);
-        } else {
-            setTarifas([]);
-        }
-    }, [selectedSucursal]);
-
-    const fetchSucursales = async () => {
-        const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
-        if (data) setSucursales(data);
-    };
-
-    const fetchTarifas = async (sucursal_id: string) => {
-        const { data } = await supabase
-            .from('tarifas')
-            .select('id, nombre_servicio, tarifa_q, tipo_cobro')
-            .eq('sucursal_id', sucursal_id)
-            .eq('activa', true)
-            .order('nombre_servicio');
-        if (data) setTarifas(data);
-    };
+    const TASA_LIBRA = 80.00; // Fixed weight rate per pound
+    const IVA_MULTIPLIER = 1.12;
+    const CONCIERGE_MULTIPLIER = 1.20;
 
     const handleExtract = async () => {
         if (!url.trim()) return;
@@ -105,36 +92,42 @@ export function PublicEstimator() {
 
     // Calculations
     const calculateEstimates = () => {
-        let costoEnvio = 0;
-        const baseWeight = Number(weightLbs) || 1;
+        const baseWeight = Math.max(Number(weightLbs) || 1, 1);
+        const depto = DEPARTAMENTOS.find(d => d.nombre === selectedDepto);
+        const costoEntrega = depto ? depto.envio : 35;
 
-        // DEFAULT FALLBACK: If no tariffs are found, use Q35 per pound
-        const DEFAULT_LB_RATE = 35;
+        // 1. Logistics: Weight * Q80
+        const costoLogistica = baseWeight * TASA_LIBRA;
 
-        const libraRate = tarifas.find(t => t.tipo_cobro === 'por_libra' || t.nombre_servicio.toLowerCase().includes('libra'));
-
-        if (libraRate) {
-            costoEnvio = libraRate.tarifa_q * baseWeight;
-        } else if (tarifas.length > 0) {
-            costoEnvio = tarifas[0].tarifa_q * baseWeight;
-        } else if (selectedSucursal) {
-            costoEnvio = DEFAULT_LB_RATE * baseWeight;
-        }
-
+        // 2. Price in Quetzales: USD * Rate
         const priceQ = (Number(priceUsd) || 0) * TASA_CAMBIO;
-        let subtotal = priceQ + costoEnvio;
-        let comision = 0;
 
-        if (weBuyIt) {
-            comision = (priceQ + costoEnvio) * 0.20;
-        }
+        // 3. Sum of items (before multiplier)
+        const subtotalBase = priceQ + costoLogistica + costoEntrega;
 
-        const total = subtotal + comision;
+        // 4. Final Total with multipliers
+        // Normal = 1.12x, Concierge = 1.20x
+        const multiplier = weBuyIt ? CONCIERGE_MULTIPLIER : IVA_MULTIPLIER;
+        const total = subtotalBase * multiplier;
 
-        return { costoEnvio, priceQ, comision, total, usedDefault: !libraRate && selectedSucursal && weightLbs !== '' };
+        return { costoLogistica, priceQ, costoEntrega, total, multiplierLabel: weBuyIt ? '20%' : '12%' };
     };
 
-    const { costoEnvio, priceQ, comision, total, usedDefault } = calculateEstimates();
+    const { costoLogistica, priceQ, costoEntrega, total, multiplierLabel } = calculateEstimates();
+
+    const handleWhatsApp = () => {
+        if (!total) return;
+        const message = `¡Hola YouBox! 👋 Deseo cotizar mi compra con Smart IA:\n\n` +
+            `📦 *Producto:* ${title || 'Sin nombre'}\n` +
+            `🔗 *Link:* ${url || 'Manual'}\n` +
+            `🌎 *Destino:* ${selectedDepto}\n` +
+            `⚖️ *Peso:* ${weightLbs || 1} Lbs\n` +
+            `💰 *Precio USD:* $${priceUsd}\n` +
+            `🛠️ *Modalidad:* ${weBuyIt ? 'Lo compramos por mí (+20%)' : 'Yo lo compro (+12%)'}\n\n` +
+            `🔥 *TOTAL ESTIMADO: Q${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}*`;
+
+        window.open(`https://wa.me/50256466611?text=${encodeURIComponent(message)}`, '_blank');
+    };
 
     return (
         <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30 pb-20">
@@ -175,24 +168,44 @@ export function PublicEstimator() {
                                 Selecciona tu Destino
                             </h2>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                {sucursales.map(s => (
-                                    <button
-                                        key={s.id}
-                                        onClick={() => setSelectedSucursal(s.id)}
-                                        className={`px-4 py-4 rounded-2xl border-2 text-xs font-black uppercase tracking-widest transition-all duration-300 ${selectedSucursal === s.id
-                                                ? 'bg-blue-600 border-blue-400 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-[1.03] z-10'
-                                                : 'bg-white/5 border-transparent text-slate-500 hover:bg-white/10 hover:text-slate-300'
-                                            }`}
+                            <div className="space-y-4">
+                                <div className="relative group">
+                                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition" />
+                                    <select
+                                        value={selectedDepto}
+                                        onChange={(e) => setSelectedDepto(e.target.value)}
+                                        className="relative w-full bg-[#1e293b] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold appearance-none cursor-pointer outline-none focus:border-blue-500 transition-all text-sm"
                                     >
-                                        {s.nombre}
-                                    </button>
-                                ))}
+                                        <option value="">Buscar departamento...</option>
+                                        {DEPARTAMENTOS.map(d => (
+                                            <option key={d.nombre} value={d.nombre}>
+                                                {d.nombre} {d.envio === 0 ? '— ENVÍO GRATIS 📦' : `— Envío Q${d.envio}`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                                        <ChevronRight className="h-5 w-5 rotate-90" />
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {DEPARTAMENTOS.filter(d => d.destacada).map(d => (
+                                        <button
+                                            key={d.nombre}
+                                            onClick={() => setSelectedDepto(d.nombre)}
+                                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${selectedDepto === d.nombre
+                                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                                : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
+                                        >
+                                            {d.nombre} FREE
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </section>
 
                         {/* SMART LINK EXTRACTION */}
-                        <section className={`bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl transition-all duration-500 relative ${!selectedSucursal ? 'opacity-20 grayscale pointer-events-none' : 'border-t-white/20'}`}>
+                        <section className={`bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl transition-all duration-500 relative ${!selectedDepto ? 'opacity-20 grayscale pointer-events-none' : 'border-t-white/20'}`}>
                             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-4">
                                 <span className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs not-italic">02</span>
                                 Análisis Automático (IA)
@@ -205,15 +218,15 @@ export function PublicEstimator() {
                                         <Search className="ml-4 text-slate-500 h-5 w-5" />
                                         <input
                                             type="url"
-                                            placeholder="https://www.amazon.com/dp/..."
+                                            placeholder="Pega el link de Amazon, eBay, etc..."
                                             value={url}
                                             onChange={(e) => setUrl(e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 px-4 py-4 text-white font-medium placeholder:text-slate-600"
+                                            className="w-full bg-transparent border-none focus:ring-0 px-4 py-4 text-white font-medium placeholder:text-slate-600 text-sm"
                                         />
                                         <button
                                             onClick={handleExtract}
                                             disabled={isExtracting || !url}
-                                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center gap-2"
+                                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center gap-2 shrink-0 md:shrink"
                                         >
                                             {isExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                                             Analizar
@@ -232,7 +245,7 @@ export function PublicEstimator() {
                                 <div className={`pt-6 border-t border-white/5 transition-all duration-700 ${title || extractError ? 'opacity-100 block' : 'opacity-0 hidden'}`}>
                                     <div className="flex flex-col md:flex-row gap-8">
                                         {/* AI Card Preview */}
-                                        <div className="relative w-full md:w-52 h-52 bg-[#0f172a] rounded-[2rem] border border-white/10 flex items-center justify-center overflow-hidden group/thumb">
+                                        <div className="relative w-full md:w-52 h-52 bg-[#0f172a] rounded-[2rem] border border-white/10 flex items-center justify-center overflow-hidden group/thumb shrink-0">
                                             {isExtracting ? (
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
@@ -259,7 +272,7 @@ export function PublicEstimator() {
                                                     type="text"
                                                     value={title}
                                                     onChange={(e) => setTitle(e.target.value)}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white font-bold focus:border-blue-500 outline-none transition-all"
+                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white font-bold focus:border-blue-500 outline-none transition-all text-sm"
                                                 />
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
@@ -276,7 +289,7 @@ export function PublicEstimator() {
                                                     </div>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Peso Ext. (Lbs)</label>
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Peso Estimado (Lbs)</label>
                                                     <div className="relative">
                                                         <Package className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                                                         <input
@@ -310,7 +323,7 @@ export function PublicEstimator() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className={`font-black uppercase tracking-tight text-sm ${weBuyIt ? 'text-white' : 'text-slate-400'}`}>Lo compramos por ti</h3>
-                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tighter">Servicio "Concierge" con tarjeta corporativa (+20%)</p>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tighter leading-tight">Servicio corporativo completo (+20%) - Nosotros nos encargamos de todo.</p>
                                 </div>
                                 <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${weBuyIt ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-600'}`}>
                                     {weBuyIt ? 'Activado' : 'Opcional'}
@@ -328,47 +341,55 @@ export function PublicEstimator() {
 
                             <div className="bg-white text-slate-900 rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.8)] overflow-hidden transform lg:rotate-2 hover:rotate-0 transition-transform duration-700 animate-in zoom-in-95 duration-700">
                                 {/* Receipt Head */}
-                                <div className="bg-slate-50 p-10 text-center border-b-2 border-dashed border-slate-200">
+                                <div className="bg-slate-100/50 p-10 text-center border-b-2 border-dashed border-slate-200">
                                     <img
                                         src="https://youboxgt.online/wp-content/uploads/2024/10/Manual-de-logo-YouBoxGt-03-1.png"
                                         alt="YouBox GT"
-                                        className="h-10 mx-auto grayscale opacity-40 mb-6"
+                                        className="h-10 mx-auto opacity-60 mb-6"
                                     />
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mb-2">Detailed Estimate</h3>
-                                    <div className="text-2xl font-black uppercase tracking-tighter text-slate-900 font-mono">YB-AI-SYS-25</div>
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mb-2">Estimate Summary</h3>
+                                    <div className="text-2xl font-black uppercase tracking-tighter text-slate-900 font-mono">YB-SMART-SYS</div>
                                 </div>
 
                                 {/* Receipt Lines */}
                                 <div className="p-10 space-y-8 font-mono">
-                                    <div className="space-y-5">
-                                        <div className="flex justify-between items-end border-b border-slate-100 pb-3">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SUBTOTAL MERCADERÍA</span>
-                                            <span className="font-bold text-xl uppercase">Q {priceQ.toFixed(2)}</span>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-end border-b border-slate-100 pb-2">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-left leading-none w-1/2">VALOR MERCADERÍA</span>
+                                            <span className="font-bold text-lg uppercase text-right">Q {priceQ.toFixed(2)}</span>
                                         </div>
 
-                                        <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-                                            <div className="flex flex-col">
+                                        <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                                            <div className="flex flex-col text-left">
                                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">LOGÍSTICA ({weightLbs || 1} LB)</span>
-                                                {usedDefault && <span className="text-[7px] font-black text-orange-500 uppercase mt-1">** Default Rate Applied</span>}
+                                                <span className="text-[7px] font-bold text-slate-400 mt-0.5">@ Q80.00 / LB</span>
                                             </div>
-                                            <span className="font-bold text-xl uppercase">Q {costoEnvio.toFixed(2)}</span>
+                                            <span className="font-bold text-lg uppercase text-right">Q {costoLogistica.toFixed(2)}</span>
                                         </div>
 
-                                        {weBuyIt && (
-                                            <div className="flex justify-between items-end border-b border-slate-100 pb-3 text-indigo-600">
-                                                <span className="text-[9px] font-black uppercase tracking-widest">SERVICE FEE (20%)</span>
-                                                <span className="font-black text-xl">+ Q {comision.toFixed(2)}</span>
+                                        <div className="flex justify-between items-start border-b border-slate-100 pb-2">
+                                            <div className="flex flex-col text-left">
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ENVÍO LOCAL</span>
+                                                <span className="text-[7px] font-bold text-emerald-600 mt-0.5 uppercase">{selectedDepto || 'Sin destino'}</span>
                                             </div>
-                                        )}
+                                            <span className={`font-bold text-lg uppercase text-right ${costoEntrega === 0 ? 'text-emerald-600' : ''}`}>
+                                                {costoEntrega === 0 ? 'GRATIS' : `Q ${costoEntrega.toFixed(2)}`}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex justify-between items-end pt-2 text-indigo-600 border-t border-slate-200">
+                                            <span className="text-[9px] font-black uppercase tracking-widest">TASAS & SERV. ({multiplierLabel})</span>
+                                            <span className="font-bold text-sm">TOTAL INCLUIDO</span>
+                                        </div>
                                     </div>
 
                                     {/* Grand Highlight */}
-                                    <div className="py-8 text-center">
+                                    <div className="py-6 text-center">
                                         <div className="inline-block relative">
                                             <div className="absolute -inset-4 bg-yellow-400 rotate-1 rounded-2xl" />
                                             <div className="relative bg-black text-white px-8 py-4 rounded-xl rotate-0 shadow-xl">
                                                 <span className="text-[9px] font-black uppercase tracking-[0.3em] block opacity-50 mb-1">Total Estimado</span>
-                                                <span className="text-5xl font-black tracking-tighter">Q{total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                                <span className="text-4xl font-black tracking-tight">Q{total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                                             </div>
                                         </div>
 
@@ -380,17 +401,21 @@ export function PublicEstimator() {
 
                                     {/* Action Bar */}
                                     <div className="space-y-3">
-                                        <button className="w-full py-5 bg-slate-900 text-white font-black uppercase tracking-[0.3em] text-[10px] rounded-2xl hover:bg-black hover:scale-[1.02] transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">
-                                            Order This Parcel
+                                        <button
+                                            onClick={handleWhatsApp}
+                                            disabled={!selectedDepto || !priceUsd}
+                                            className="w-full py-5 bg-slate-900 text-white font-black uppercase tracking-[0.3em] text-[10px] rounded-2xl hover:bg-black hover:scale-[1.02] transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale disabled:scale-100"
+                                        >
+                                            REALIZAR PEDIDO
                                             <ChevronRight className="h-4 w-4 text-emerald-400" />
                                         </button>
                                         <p className="text-[7px] font-bold text-slate-400 uppercase text-center leading-relaxed max-w-[200px] mx-auto opacity-50">
-                                            Los precios pueden variar según peso real en bodega y fluctuaciones del mercado.
+                                            Estimado calculado automáticamente. Envíanos el resumen por WhatsApp para confirmar existencias.
                                         </p>
                                     </div>
 
                                     {/* Barcode Deco */}
-                                    <div className="pt-10 opacity-10">
+                                    <div className="pt-6 opacity-10">
                                         <div className="h-10 w-full bg-[repeating-linear-gradient(90deg,black,black_1px,transparent_1px,transparent_3px,black_3px,black_4px)]" />
                                         <div className="text-[8px] font-mono tracking-[1em] mt-2 text-center uppercase">Smart-Logistics-Verified</div>
                                     </div>
@@ -402,7 +427,7 @@ export function PublicEstimator() {
 
                 <footer className="mt-32 border-t border-white/5 pt-12 text-center">
                     <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.6em]">
-                        Developed by YouBox Labs &copy; 2025
+                        Developed by YouBox Labs &copy; 2026
                     </p>
                 </footer>
             </div>
