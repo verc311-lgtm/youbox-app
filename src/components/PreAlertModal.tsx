@@ -133,7 +133,7 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                     const disclaimerText = [
                         'Yo, el cliente arriba mencionado, reconozco que he decidido NO contratar el seguro de protección (5% del valor declarado) para el paquete con el tracking number especificado.',
                         '',
-                        'Entiendo y acepto que YouBox limita su responsabilidad a un máximo de $50.00 (cincuenta dólares exactos) en caso de pérdida, daño o extravío del paquete durante cualquiera de sus etapas logísticas.',
+                        'Entiendo y acepto que YouBox limita su responsabilidad a un máximo de $50.00 (cincuenta dólares exactos) en caso de extravío del paquete durante cualquiera de sus etapas logísticas.',
                         '',
                         'Al firmar este documento, libero a YouBox de cualquier reclamo por montos excedentes al límite establecido arriba debido a la falta de cobertura de seguro.'
                     ];
