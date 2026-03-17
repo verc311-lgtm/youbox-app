@@ -360,7 +360,7 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                                         <div className="flex items-start gap-2 text-amber-700 bg-amber-50/50 p-2 rounded-lg border border-amber-100">
                                             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                                             <p className="text-[11px] leading-tight font-medium">
-                                                Sin seguro solo se cubre máx. $50 en caso de pérdida o daño. Requerimos firma de aceptación.
+                                                Sin seguro solo se cubre máx. $50 en caso de pérdida. Requerimos firma de aceptación.
                                             </p>
                                         </div>
 
