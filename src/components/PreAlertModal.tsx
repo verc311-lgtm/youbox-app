@@ -369,7 +369,7 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                                                 Contrato de Renuncia de Responsabilidad
                                             </p>
                                             <p className="text-[10px] text-slate-500 leading-relaxed text-justify">
-                                                Reconozco que este paquete no tiene seguro. Entiendo que YouBox rechaza cualquier reclamo por pérdida o daño excedente a <b>$50.00</b> en dado caso el paquete sea extraviado por no contratar el seguro.
+                                                Reconozco que este paquete no tiene seguro. Entiendo que YouBox rechaza cualquier reclamo por pérdida excedente a <b>$50.00</b> en dado caso el paquete sea extraviado por no contratar el seguro.
                                             </p>
 
                                             <SignaturePad
@@ -396,8 +396,9 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                                         </div>
                                         <div className="bg-yellow-50 text-yellow-800 p-3 rounded-lg text-[11px] border border-yellow-200 leading-relaxed shadow-sm">
                                             <strong>INSTRUCCIONES DE PAGO AL INSTANTE:</strong><br />
-                                            1. Transfiere o deposita el monto a la cuenta monetaria de <b>Banco Industrial - 1990018267</b> (a nombre de Youbox).<br />
-                                            2. Envía la foto de tu comprobante a nuestro número de WhatsApp al instante para validar la protección.
+                                            1. Transfiere o deposita el monto a la cuenta monetaria de <b>Banco Industrial Quetzales - 2583245172 </b> (a nombre de Victor Rosado).<br />
+                                            2. <b>Banco Industrial Dolares - 2583245230 </b> (a nombre de Victor Rosado).<br />
+                                            3. Envía la foto de tu comprobante a nuestro número de WhatsApp al instante para validar la protección.
                                         </div>
                                     </div>
                                 )}
