@@ -59,6 +59,16 @@ export function Users() {
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState(initialSearch);
+
+    // Synchronize searchTerm state with URL search parameters (for global search support)
+    useEffect(() => {
+        const urlSearch = searchParams.get('search');
+        if (urlSearch !== null && urlSearch !== searchTerm) {
+            setSearchTerm(urlSearch);
+            if (urlSearch) setActiveTab('clients');
+            setCurrentPage(1);
+        }
+    }, [searchParams]);
     const [editingId, setEditingId] = useState<string | null>(null);
 
     // New user form state
@@ -131,7 +141,7 @@ export function Users() {
             let query = supabase
                 .from('usuarios')
                 .select(`*, roles ( nombre ), sucursales ( nombre )`)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: true });
 
             const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
             if (!isSuperAdmin && user?.sucursal_id) {
@@ -162,7 +172,7 @@ export function Users() {
                 let query = supabase
                     .from('clientes')
                     .select(`*, sucursales ( nombre )`)
-                    .order('created_at', { ascending: false })
+                    .order('created_at', { ascending: true })
                     .range(from, from + BATCH_SIZE - 1);
 
                 if (!isSuperAdmin && user?.sucursal_id) {
@@ -334,9 +344,15 @@ export function Users() {
         }
     }
 
+    const normalize = (str: string) =>
+        (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
     const filteredUsers = users.filter(u => {
-        const matchesSearch = (u.nombre + ' ' + (u.apellido || '')).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        const fullName = normalize(`${u.nombre} ${u.apellido || ''}`);
+        const search = normalize(searchTerm);
+        const matchesSearch = !search ||
+            fullName.includes(search) ||
+            normalize(u.email).includes(search);
         const matchesRol = filterRol === 'all' || u.rol_id === filterRol;
         const matchesSucursal = filterSucursal === 'all' || u.sucursal_id === filterSucursal;
         const matchesEstado = filterEstado === 'all' || (filterEstado === 'active' ? u.activo : !u.activo);
@@ -344,16 +360,16 @@ export function Users() {
     });
 
     const filteredClientes = useMemo(() => {
-        const q = searchTerm.trim().toLowerCase();
+        const q = normalize(searchTerm);
         let list = clientes.filter(c => {
-            const fullName = (c.nombre + ' ' + (c.apellido || '')).toLowerCase();
+            const fullName = normalize(`${c.nombre} ${c.apellido || ''}`);
             const matchesSearch = !q ||
                 fullName.includes(q) ||
-                c.locker_id?.toLowerCase().includes(q) ||
-                c.email?.toLowerCase().includes(q) ||
-                c.telefono?.toLowerCase().includes(q) ||
-                c.departamento?.toLowerCase().includes(q) ||
-                c.municipio?.toLowerCase().includes(q);
+                normalize(c.locker_id).includes(q) ||
+                normalize(c.email).includes(q) ||
+                normalize(c.telefono).includes(q) ||
+                normalize(c.departamento).includes(q) ||
+                normalize(c.municipio).includes(q);
             const matchesSucursal = filterSucursal === 'all' || c.sucursal_id === filterSucursal;
             const matchesEstado = filterEstado === 'all' || (filterEstado === 'active' ? c.activo : !c.activo);
             return matchesSearch && matchesSucursal && matchesEstado;
