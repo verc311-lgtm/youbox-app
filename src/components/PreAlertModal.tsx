@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, FileUp, AlertCircle, CheckCircle2, Loader2, Anchor } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth, YOUBOX_ADDRESSES } from '../context/AuthContext';
+import { SignaturePad } from './SignaturePad';
+import { jsPDF } from 'jspdf';
 
 interface PreAlertModalProps {
     isOpen: boolean;
@@ -15,6 +17,8 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
     const [valorFactura, setValorFactura] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [conSeguro, setConSeguro] = useState(false);
+    const [signature, setSignature] = useState<string | null>(null);
+    const [aceptoSinProteccion, setAceptoSinProteccion] = useState(false);
 
     const [bodegas, setBodegas] = useState<{ id: string, nombre: string }[]>([]);
     const [loading, setLoading] = useState(false);
@@ -51,6 +55,8 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
         setValorFactura('');
         setFile(null);
         setConSeguro(false);
+        setSignature(null);
+        setAceptoSinProteccion(false);
         setSuccess(false);
         setError(null);
     };
@@ -60,6 +66,16 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
         if (!user) return;
         if (!file) {
             setError('Por favor, selecciona una foto de la factura.');
+            return;
+        }
+
+        if (!conSeguro && !signature) {
+            setError('Por favor, firma la aceptación de renuncia de responsabilidad.');
+            return;
+        }
+
+        if (!conSeguro && !aceptoSinProteccion) {
+            setError('Debes marcar la casilla de aceptación para continuar.');
             return;
         }
 
@@ -83,9 +99,77 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                 .from('prealertas')
                 .getPublicUrl(filePath);
 
+            let renunciaUrl = null;
+
+            // 3. Generate and Upload PDF if uninsured
+            if (!conSeguro && signature) {
+                try {
+                    const doc = new jsPDF();
+                    const timestamp = new Date().toLocaleString('es-GT');
+
+                    // Logo/Header placeholder
+                    doc.setFontSize(22);
+                    doc.setTextColor(30, 64, 175); // blue-700
+                    doc.text('YOUBOX', 105, 20, { align: 'center' });
+
+                    doc.setFontSize(16);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('RENUNCIA DE RESPONSABILIDAD DE SEGURO', 105, 35, { align: 'center' });
+
+                    doc.setFontSize(10);
+                    doc.text(`Fecha: ${timestamp}`, 20, 50);
+                    doc.line(20, 52, 190, 52);
+
+                    doc.setFontSize(12);
+                    doc.text('DATOS DEL PAQUETE:', 20, 65);
+                    doc.setFontSize(10);
+                    doc.text(`Cliente: ${user.nombre} ${user.apellido || ''} (${user.locker_id})`, 25, 75);
+                    doc.text(`Tracking Number: ${tracking}`, 25, 82);
+                    doc.text(`Valor de Compra: $${valorFactura}`, 25, 89);
+
+                    doc.setFontSize(12);
+                    doc.text('DECLARACIÓN:', 20, 105);
+                    doc.setFontSize(10);
+                    const disclaimerText = [
+                        'Yo, el cliente arriba mencionado, reconozco que he decidido NO contratar el seguro de protección (5% del valor declarado) para el paquete con el tracking number especificado.',
+                        '',
+                        'Entiendo y acepto que YouBox limita su responsabilidad a un máximo de $50.00 (cincuenta dólares exactos) en caso de pérdida, daño o extravío del paquete durante cualquiera de sus etapas logísticas.',
+                        '',
+                        'Al firmar este documento, libero a YouBox de cualquier reclamo por montos excedentes al límite establecido arriba debido a la falta de cobertura de seguro.'
+                    ];
+                    doc.text(disclaimerText, 20, 115, { maxWidth: 170 });
+
+                    // Add Signature
+                    doc.text('FIRMA DEL CLIENTE:', 20, 170);
+                    doc.addImage(signature, 'PNG', 20, 175, 60, 25);
+                    doc.line(20, 200, 80, 200);
+                    doc.text('Suscrito Digitalmente', 20, 205);
+
+                    const pdfBlob = doc.output('blob');
+                    const pdfFileName = `waiver_${tracking}_${Date.now()}.pdf`;
+                    const pdfPath = `${user.id}/${pdfFileName}`;
+
+                    const { error: pdfUploadError } = await supabase.storage
+                        .from('prealertas')
+                        .upload(pdfPath, pdfBlob);
+
+                    if (pdfUploadError) throw pdfUploadError;
+
+                    const { data: { publicUrl: pdfUrl } } = supabase.storage
+                        .from('prealertas')
+                        .getPublicUrl(pdfPath);
+
+                    renunciaUrl = pdfUrl;
+                } catch (pdfErr) {
+                    console.error('Error generating PDF:', pdfErr);
+                    // Continue without PDF if it fails? No, better show error.
+                    throw new Error('Error al generar el documento legal.');
+                }
+            }
+
             // 3. Save to database
             const valor = parseFloat(valorFactura);
-            const seguroMonto = conSeguro ? valor * 0.10 : 0;
+            const seguroMonto = conSeguro ? valor * 0.05 : 0;
 
             const { data: prealerta, error: dbError } = await supabase
                 .from('prealertas')
@@ -97,7 +181,8 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                     factura_url: publicUrl,
                     con_seguro: conSeguro,
                     monto_seguro: seguroMonto,
-                    estado: 'pendiente'
+                    estado: 'pendiente',
+                    renuncia_url: renunciaUrl
                 })
                 .select()
                 .single();
@@ -120,7 +205,7 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
 
     if (!isOpen) return null;
 
-    const montoSeguro = parseFloat(valorFactura) * 0.10 || 0;
+    const montoSeguro = parseFloat(valorFactura) * 0.05 || 0;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
@@ -257,18 +342,50 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
                                         <input
                                             type="checkbox"
                                             checked={conSeguro}
-                                            onChange={(e) => setConSeguro(e.target.checked)}
+                                            onChange={(e) => {
+                                                setConSeguro(e.target.checked);
+                                                if (e.target.checked) {
+                                                    setSignature(null);
+                                                    setAceptoSinProteccion(false);
+                                                }
+                                            }}
                                             className="w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 focus:ring-2"
                                         />
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-sm font-semibold text-blue-900 border-b border-blue-200 pb-1 mb-2 inline-block">
-                                            Deseo contratar Seguro (10% del valor)
+                                            Deseo contratar Seguro (5% del valor)
                                         </span>
                                         {!conSeguro ? (
-                                            <p className="text-xs text-slate-600 italic">
-                                                * Sin seguro solo se cubre máx. $50 en caso de pérdida o daño.
-                                            </p>
+                                            <div className="space-y-4">
+                                                <p className="text-xs text-slate-600 italic">
+                                                    * Sin seguro solo se cubre máx. $50 en caso de pérdida o daño.
+                                                </p>
+
+                                                <div className="bg-white p-4 rounded-xl border border-blue-200/50 space-y-3">
+                                                    <p className="text-[11px] font-bold text-slate-700 uppercase tracking-tight text-center">
+                                                        Contrato de Renuncia de Responsabilidad
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-500 leading-relaxed text-justify">
+                                                        Reconozco que este paquete no tiene seguro. Entiendo que YouBox rechaza cualquier reclamo por pérdida o daño excedente a <b>$50.00</b> en dado caso el paquete sea extraviado por no contratar el seguro.
+                                                    </p>
+
+                                                    <SignaturePad
+                                                        onSave={setSignature}
+                                                        onClear={() => setSignature(null)}
+                                                    />
+
+                                                    <label className="flex items-center gap-2 cursor-pointer pt-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={aceptoSinProteccion}
+                                                            onChange={e => setAceptoSinProteccion(e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                        <span className="text-[10px] font-bold text-slate-700">Acepto los términos de renuncia</span>
+                                                    </label>
+                                                </div>
+                                            </div>
                                         ) : (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg text-sm border border-blue-100">

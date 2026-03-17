@@ -319,6 +319,7 @@ export function PreAlertsAdmin() {
                                 <th className="p-4">Valor Eq.</th>
                                 <th className="p-4">Seguro</th>
                                 <th className="p-4 text-center">Factura</th>
+                                <th className="p-4 text-center">Renuncia</th>
                                 <th className="p-4">Estado</th>
                                 <th className="p-4">Acción</th>
                             </tr>
@@ -364,6 +365,15 @@ export function PreAlertsAdmin() {
                                                 <FileText className="w-4 h-4" />
                                             </a>
                                         </td>
+                                        <td className="p-4 text-center">
+                                            {p.renuncia_url ? (
+                                                <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-colors" title="Ver renuncia firmada">
+                                                    <Shield className="w-4 h-4 text-rose-500" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
                                         <td className="p-4">
                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize border ${p.estado === 'pendiente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                                                 p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -390,224 +400,228 @@ export function PreAlertsAdmin() {
             </div>
 
             {/* Admin Validation Modal */}
-            {selectedPrealerta && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPrealerta(null)} />
-                    <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="font-bold text-slate-800">Administrar Pre-Alerta</h3>
-                            <button onClick={() => setSelectedPrealerta(null)} className="text-slate-400 hover:text-slate-600">
-                                <XCircle className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div className="space-y-1">
-                                <p className="text-xs text-slate-500 uppercase font-semibold">Tracking</p>
-                                <p className="font-bold text-slate-800 break-all">{selectedPrealerta.tracking}</p>
+            {
+                selectedPrealerta && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPrealerta(null)} />
+                        <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="font-bold text-slate-800">Administrar Pre-Alerta</h3>
+                                <button onClick={() => setSelectedPrealerta(null)} className="text-slate-400 hover:text-slate-600">
+                                    <XCircle className="w-5 h-5" />
+                                </button>
                             </div>
+                            <div className="p-6 space-y-4">
+                                <div className="space-y-1">
+                                    <p className="text-xs text-slate-500 uppercase font-semibold">Tracking</p>
+                                    <p className="font-bold text-slate-800 break-all">{selectedPrealerta.tracking}</p>
+                                </div>
 
-                            {selectedPrealerta.con_seguro && (
-                                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-2">
-                                    <p className="font-semibold text-blue-900 flex items-center gap-2">
-                                        <Shield className="w-4 h-4" />
-                                        Seguro Solicitado
-                                    </p>
-                                    <p className="text-sm text-blue-800 leading-relaxed">
-                                        El cliente debe haber enviado un comprobante por <b>${Number(selectedPrealerta.monto_seguro).toFixed(2)}</b> (10% de ${selectedPrealerta.valor_factura}) a tu WhatsApp. Revisa el banco.
-                                    </p>
-                                </div>
-                            )}
-
-                            <div className="space-y-3 pt-2">
-                                <label className="text-sm font-medium text-slate-700">Cambiar Estado:</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => handleProcesar(selectedPrealerta, 'procesada')}
-                                        disabled={procesando}
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                    >
-                                        <CheckCircle2 className="w-4 h-4" /> Validar/Procesar
-                                    </button>
-                                    <button
-                                        onClick={() => handleProcesar(selectedPrealerta, 'recibido')}
-                                        disabled={procesando}
-                                        className="bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
-                                    >
-                                        Marcar Recibido
-                                    </button>
-                                    <button
-                                        onClick={() => handleProcesar(selectedPrealerta, 'rechazada')}
-                                        disabled={procesando}
-                                        className="col-span-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 focus:ring-4 focus:ring-rose-50 p-2 text-sm rounded-xl font-medium transition-all"
-                                    >
-                                        Rechazar Pre-Alerta
-                                    </button>
-                                </div>
-                                {selectedPrealerta.con_seguro && selectedPrealerta.estado !== 'procesada' && (
-                                    <p className="text-[10px] text-slate-400 text-center mt-2">
-                                        Al "Validar/Procesar", el monto del seguro se agregará automáticamente al Fondo Fijo.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── NEW MANUAL PRE-ALERT MODAL ── */}
-            {showNewModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowNewModal(false); resetNewModal(); }} />
-                    <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95">
-                        {/* Header */}
-                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
-                            <div className="flex items-center gap-3">
-                                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                                    <PlusCircle className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">Nueva Pre-Alerta Manual</h3>
-                                    <p className="text-xs text-slate-500">Registrar una pre-alerta en nombre de un cliente</p>
-                                </div>
-                            </div>
-                            <button onClick={() => { setShowNewModal(false); resetNewModal(); }} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                <XCircle className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleCreatePrealerta} className="p-6 space-y-4 overflow-visible">
-                            {/* Client search */}
-                            <div className="relative">
-                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Cliente (Casillero) *</label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por casillero o nombre..."
-                                        value={newClientSearch}
-                                        onChange={e => handleNewClientSearch(e.target.value)}
-                                        onBlur={() => setTimeout(() => setShowClientDrop(false), 200)}
-                                        autoComplete="off"
-                                        className={`block w-full rounded-xl py-2.5 pl-9 pr-4 text-sm font-semibold outline-none border transition-all ${newSelectedClient ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-slate-800'
-                                            } focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500`}
-                                    />
-                                    {searchingClient && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
-                                </div>
-                                {showClientDrop && newClientResults.length > 0 && (
-                                    <div className="absolute z-[200] w-full mt-1.5 bg-white rounded-xl shadow-xl ring-1 ring-slate-200 max-h-48 overflow-auto">
-                                        {newClientResults.map(c => (
-                                            <div
-                                                key={c.id}
-                                                onMouseDown={e => { e.preventDefault(); selectNewClient(c); }}
-                                                className="flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition-colors"
-                                            >
-                                                <span className="font-extrabold text-blue-700 text-xs bg-blue-100 px-2 py-1 rounded-lg">{c.locker_id}</span>
-                                                <span className="text-sm text-slate-700 font-semibold truncate">{c.nombre} {c.apellido}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Tracking + Bodega */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tracking *</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={newTracking}
-                                        onChange={e => setNewTracking(e.target.value)}
-                                        placeholder="Ej: 1Z999AA10123456784"
-                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Bodega</label>
-                                    <select
-                                        value={newBodegaId}
-                                        onChange={e => setNewBodegaId(e.target.value)}
-                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
-                                    >
-                                        <option value="">Sin bodega</option>
-                                        {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Valor + Insurance toggle */}
-                            <div className="grid grid-cols-2 gap-4 items-end">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Valor Declarado ($) *</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        required
-                                        value={newValorFactura}
-                                        onChange={e => setNewValorFactura(e.target.value)}
-                                        placeholder="0.00"
-                                        className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (10%)</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setNewConSeguro(v => !v)}
-                                        className={`w-full py-2 rounded-xl text-sm font-bold border transition-all ${newConSeguro
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                                            : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
-                                            }`}
-                                    >
-                                        {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Invoice File Upload */}
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Factura (Imagen o PDF)</label>
-                                <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-white hover:border-blue-400 transition-all">
-                                    <div className="flex flex-col items-center justify-center py-2">
-                                        <Upload className={`w-6 h-6 mb-1 ${newFile ? 'text-emerald-500' : 'text-slate-400'}`} />
-                                        <p className="text-xs text-slate-500 font-semibold truncate px-4 max-w-full">
-                                            {newFile ? newFile.name : "Click para subir factura"}
+                                {selectedPrealerta.con_seguro && (
+                                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-2">
+                                        <p className="font-semibold text-blue-900 flex items-center gap-2">
+                                            <Shield className="w-4 h-4" />
+                                            Seguro Solicitado
+                                        </p>
+                                        <p className="text-sm text-blue-800 leading-relaxed">
+                                            El cliente debe haber enviado un comprobante por <b>${Number(selectedPrealerta.monto_seguro).toFixed(2)}</b> (10% de ${selectedPrealerta.valor_factura}) a tu WhatsApp. Revisa el banco.
                                         </p>
                                     </div>
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        accept=".jpg,.jpeg,.png,.pdf"
-                                        onChange={(e) => setNewFile(e.target.files?.[0] || null)}
-                                    />
-                                </label>
-                            </div>
+                                )}
 
-                            {/* Footer */}
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => { setShowNewModal(false); resetNewModal(); }}
-                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={saving || !newSelectedClient || !newTracking.trim()}
-                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-sm hover:-translate-y-px hover:shadow-md transition-all disabled:opacity-50 disabled:pointer-events-none"
-                                >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
-                                    Crear Pre-Alerta
-                                </button>
+                                <div className="space-y-3 pt-2">
+                                    <label className="text-sm font-medium text-slate-700">Cambiar Estado:</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            onClick={() => handleProcesar(selectedPrealerta, 'procesada')}
+                                            disabled={procesando}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            <CheckCircle2 className="w-4 h-4" /> Validar/Procesar
+                                        </button>
+                                        <button
+                                            onClick={() => handleProcesar(selectedPrealerta, 'recibido')}
+                                            disabled={procesando}
+                                            className="bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
+                                        >
+                                            Marcar Recibido
+                                        </button>
+                                        <button
+                                            onClick={() => handleProcesar(selectedPrealerta, 'rechazada')}
+                                            disabled={procesando}
+                                            className="col-span-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 focus:ring-4 focus:ring-rose-50 p-2 text-sm rounded-xl font-medium transition-all"
+                                        >
+                                            Rechazar Pre-Alerta
+                                        </button>
+                                    </div>
+                                    {selectedPrealerta.con_seguro && selectedPrealerta.estado !== 'procesada' && (
+                                        <p className="text-[10px] text-slate-400 text-center mt-2">
+                                            Al "Validar/Procesar", el monto del seguro se agregará automáticamente al Fondo Fijo.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                        </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-        </div>
+            {/* ── NEW MANUAL PRE-ALERT MODAL ── */}
+            {
+                showNewModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowNewModal(false); resetNewModal(); }} />
+                        <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-visible animate-in zoom-in-95">
+                            {/* Header */}
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+                                        <PlusCircle className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">Nueva Pre-Alerta Manual</h3>
+                                        <p className="text-xs text-slate-500">Registrar una pre-alerta en nombre de un cliente</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => { setShowNewModal(false); resetNewModal(); }} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreatePrealerta} className="p-6 space-y-4 overflow-visible">
+                                {/* Client search */}
+                                <div className="relative">
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Cliente (Casillero) *</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar por casillero o nombre..."
+                                            value={newClientSearch}
+                                            onChange={e => handleNewClientSearch(e.target.value)}
+                                            onBlur={() => setTimeout(() => setShowClientDrop(false), 200)}
+                                            autoComplete="off"
+                                            className={`block w-full rounded-xl py-2.5 pl-9 pr-4 text-sm font-semibold outline-none border transition-all ${newSelectedClient ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-slate-800'
+                                                } focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500`}
+                                        />
+                                        {searchingClient && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
+                                    </div>
+                                    {showClientDrop && newClientResults.length > 0 && (
+                                        <div className="absolute z-[200] w-full mt-1.5 bg-white rounded-xl shadow-xl ring-1 ring-slate-200 max-h-48 overflow-auto">
+                                            {newClientResults.map(c => (
+                                                <div
+                                                    key={c.id}
+                                                    onMouseDown={e => { e.preventDefault(); selectNewClient(c); }}
+                                                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 cursor-pointer transition-colors"
+                                                >
+                                                    <span className="font-extrabold text-blue-700 text-xs bg-blue-100 px-2 py-1 rounded-lg">{c.locker_id}</span>
+                                                    <span className="text-sm text-slate-700 font-semibold truncate">{c.nombre} {c.apellido}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Tracking + Bodega */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tracking *</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newTracking}
+                                            onChange={e => setNewTracking(e.target.value)}
+                                            placeholder="Ej: 1Z999AA10123456784"
+                                            className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Bodega</label>
+                                        <select
+                                            value={newBodegaId}
+                                            onChange={e => setNewBodegaId(e.target.value)}
+                                            className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                        >
+                                            <option value="">Sin bodega</option>
+                                            {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Valor + Insurance toggle */}
+                                <div className="grid grid-cols-2 gap-4 items-end">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Valor Declarado ($) *</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            required
+                                            value={newValorFactura}
+                                            onChange={e => setNewValorFactura(e.target.value)}
+                                            placeholder="0.00"
+                                            className="block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (10%)</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewConSeguro(v => !v)}
+                                            className={`w-full py-2 rounded-xl text-sm font-bold border transition-all ${newConSeguro
+                                                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
+                                                }`}
+                                        >
+                                            {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Invoice File Upload */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Factura (Imagen o PDF)</label>
+                                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-white hover:border-blue-400 transition-all">
+                                        <div className="flex flex-col items-center justify-center py-2">
+                                            <Upload className={`w-6 h-6 mb-1 ${newFile ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                            <p className="text-xs text-slate-500 font-semibold truncate px-4 max-w-full">
+                                                {newFile ? newFile.name : "Click para subir factura"}
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                                        />
+                                    </label>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowNewModal(false); resetNewModal(); }}
+                                        className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={saving || !newSelectedClient || !newTracking.trim()}
+                                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-sm hover:-translate-y-px hover:shadow-md transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                    >
+                                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
+                                        Crear Pre-Alerta
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+        </div >
     );
 }
 

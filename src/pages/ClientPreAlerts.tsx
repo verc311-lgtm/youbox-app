@@ -67,6 +67,7 @@ export function ClientPreAlerts() {
                                 <th className="p-4">Bodega</th>
                                 <th className="p-4">Valor Eq.</th>
                                 <th className="p-4">Seguro</th>
+                                <th className="p-4 text-center">Firma</th>
                                 <th className="p-4">Estado</th>
                             </tr>
                         </thead>
@@ -116,11 +117,20 @@ export function ClientPreAlerts() {
                                                 <span className="text-slate-500 text-sm">No</span>
                                             )}
                                         </td>
+                                        <td className="p-4 text-center">
+                                            {p.renuncia_url ? (
+                                                <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-600 hover:bg-slate-200 transition-colors" title="Ver mi renuncia firmada">
+                                                    <Shield className="w-4 h-4 text-rose-500" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
                                         <td className="p-4">
                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize border ${p.estado === 'pendiente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                    p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                        p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                                            'bg-rose-50 text-rose-700 border-rose-200'
+                                                p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                        'bg-rose-50 text-rose-700 border-rose-200'
                                                 }`}>
                                                 {p.estado}
                                             </span>
