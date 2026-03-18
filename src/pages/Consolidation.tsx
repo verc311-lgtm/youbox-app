@@ -74,7 +74,7 @@ export function Consolidation() {
         supabase.from('bodegas').select('id, nombre').eq('activo', true),
         supabase.from('zonas').select('id, nombre').eq('activo', true),
         paquetesQuery,
-        supabase.from('sucursales').select('id, nombre').eq('activo', true)
+        supabase.from('sucursales').select('id, nombre').eq('activa', true)
       ]);
 
       if (bodegasRes.data) {
