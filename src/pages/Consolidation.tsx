@@ -9,6 +9,7 @@ import { calculateConsolidationEstimate, Tarifa } from '../utils/pricingUtils';
 
 interface Bodega { id: string; nombre: string; }
 interface Zona { id: string; nombre: string; }
+interface Sucursal { id: string; nombre: string; }
 interface Paquete {
   id: string;
   tracking: string;
@@ -35,6 +36,7 @@ export function Consolidation() {
   // Data States
   const [bodegas, setBodegas] = useState<Bodega[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,8 @@ export function Consolidation() {
   const [formData, setFormData] = useState({
     nombre_alternativo: '',
     origen_id: '',
-    destino_id: ''
+    destino_id: '',
+    sede_id: ''
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -67,10 +70,11 @@ export function Consolidation() {
         paquetesQuery = paquetesQuery.eq('clientes.sucursal_id', user.sucursal_id);
       }
 
-      const [bodegasRes, zonasRes, paquetesRes] = await Promise.all([
+      const [bodegasRes, zonasRes, paquetesRes, sucursalesRes] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('activo', true),
         supabase.from('zonas').select('id, nombre').eq('activo', true),
-        paquetesQuery
+        paquetesQuery,
+        supabase.from('sucursales').select('id, nombre').eq('activo', true)
       ]);
 
       if (bodegasRes.data) {
@@ -85,6 +89,14 @@ export function Consolidation() {
       if (zonasRes.data) {
         setZonas(zonasRes.data);
         if (zonasRes.data.length > 0) setFormData(f => ({ ...f, destino_id: zonasRes.data[0].id }));
+      }
+
+      if (sucursalesRes.data) {
+        setSucursales(sucursalesRes.data);
+        if (sucursalesRes.data.length > 0) {
+          const defaultSede = user?.sucursal_id || sucursalesRes.data[0].id;
+          setFormData(f => ({ ...f, sede_id: defaultSede }));
+        }
       }
 
       if (paquetesRes.data) {
@@ -122,6 +134,9 @@ export function Consolidation() {
     return paquetes.filter(p => {
       // Filtrar forzosamente por la bodega seleccionada en "Origen"
       if (formData.origen_id && p.bodegas?.id !== formData.origen_id) return false;
+
+      // Filtrar por la Sede seleccionada
+      if (formData.sede_id && p.clientes?.sucursal_id !== formData.sede_id) return false;
 
       const lockName = `${p.clientes?.locker_id} ${p.clientes?.nombre} ${p.clientes?.apellido}`.toLowerCase();
       return lockName.includes(q) || p.tracking.toLowerCase().includes(q);
@@ -190,6 +205,7 @@ export function Consolidation() {
         codigo: formData.nombre_alternativo || code,
         bodega_id: formData.origen_id,
         zona_destino_id: formData.destino_id,
+        sucursal_id: formData.sede_id || null,
         estado: 'abierta',
         peso_total_lbs: resumen.peso,
         notas: `Consolidación generada por ${user?.nombre || 'Operador'}`,
@@ -410,6 +426,21 @@ export function Consolidation() {
                   >
                     {zonas.map(z => (
                       <option key={z.id} value={z.id}>{z.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-slate-700">Sede Asignada</label>
+                  <select
+                    name="sede_id"
+                    value={formData.sede_id}
+                    onChange={handleChange}
+                    className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 px-3.5 text-slate-900 shadow-sm transition-all duration-300 focus:border-indigo-500/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
+                    disabled={user?.role !== 'admin' || !!user?.sucursal_id}
+                  >
+                    <option value="">Todas las Sedes / Sin Asignar</option>
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
                     ))}
                   </select>
                 </div>

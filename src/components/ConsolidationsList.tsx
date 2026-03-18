@@ -17,6 +17,7 @@ interface Consolidacion {
     created_at: string;
     bodegas: { id: string, nombre: string } | null;
     zonas: { id: string, nombre: string } | null;
+    sucursales?: { nombre: string } | null;
     paquetes_count?: number;
     facturas_count?: number;
     monto_facturado?: number;
@@ -57,6 +58,7 @@ export function ConsolidationsList() {
           *,
           bodegas(id, nombre),
           zonas(id, nombre),
+          sucursales(nombre),
           consolidacion_paquetes(id),
           facturas(monto_total)
         `)
@@ -68,6 +70,7 @@ export function ConsolidationsList() {
                 ...d,
                 bodegas: Array.isArray(d.bodegas) ? d.bodegas[0] : d.bodegas,
                 zonas: Array.isArray(d.zonas) ? d.zonas[0] : d.zonas,
+                sucursales: Array.isArray(d.sucursales) ? d.sucursales[0] : d.sucursales,
                 paquetes_count: d.consolidacion_paquetes?.length || 0,
                 facturas_count: d.facturas?.length || 0,
                 monto_facturado: (d.facturas || []).reduce((sum: number, f: any) => sum + (f.monto_total || 0), 0)
@@ -223,6 +226,7 @@ export function ConsolidationsList() {
                                             <div className="flex flex-col text-sm text-slate-600 space-y-1">
                                                 <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" /> <span className="font-semibold text-slate-700">Origen:</span> {cons.bodegas?.nombre || 'N/A'}</span>
                                                 <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" /> <span className="font-semibold text-slate-700">Destino:</span> {cons.zonas?.nombre || 'N/A'}</span>
+                                                <span className="flex items-center gap-1.5 text-xs mt-1 text-slate-500"><MapPin className="h-3 w-3 text-indigo-400" /> <span className="font-semibold text-slate-600">Sede:</span> {cons.sucursales?.nombre || 'General'}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center hidden md:table-cell">
