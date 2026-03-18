@@ -73,9 +73,11 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                 query = query.eq('bodega_id', bodegaId);
             }
 
-            const { data: availData } = await query;
+            const { data: availData, error: availError } = await query;
+            if (availError) throw availError;
 
-            setAvailablePaquetes((availData as any) || []);
+            const filtered = (availData as any[] || []).filter(p => !attachedIds.includes(p.id));
+            setAvailablePaquetes(filtered);
 
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -93,9 +95,18 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
     const handleAddPackage = async (paquete: Paquete) => {
         setActionLoading(paquete.id);
         try {
-            // Add to pivot and update status
-            await supabase.from('consolidacion_paquetes').insert({ consolidacion_id: consolidationId, paquete_id: paquete.id });
-            await supabase.from('paquetes').update({ estado: 'consolidado' }).eq('id', paquete.id);
+            // Add to pivot
+            const { error: pivotError } = await supabase.from('consolidacion_paquetes').insert({
+                consolidacion_id: consolidationId,
+                paquete_id: paquete.id
+            });
+            if (pivotError) throw pivotError;
+
+            // Update status
+            const { error: statusError } = await supabase.from('paquetes').update({
+                estado: 'consolidado'
+            }).eq('id', paquete.id);
+            if (statusError) throw statusError;
 
             // Update UI State locally for speed
             const newAttached = [...attachedPaquetes, paquete];
@@ -105,7 +116,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Add error:', err);
-            toast.error('Error al agregar paquete: ' + err.message);
+            toast.error('Error al agregar paquete: ' + (err.message || 'Error desconocido'));
         } finally {
             setActionLoading(null);
         }
@@ -114,9 +125,17 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
     const handleRemovePackage = async (paquete: Paquete) => {
         setActionLoading(paquete.id);
         try {
-            // Remove from pivot and restore status
-            await supabase.from('consolidacion_paquetes').delete().eq('consolidacion_id', consolidationId).eq('paquete_id', paquete.id);
-            await supabase.from('paquetes').update({ estado: 'en_bodega' }).eq('id', paquete.id);
+            // Remove from pivot
+            const { error: pivotError } = await supabase.from('consolidacion_paquetes').delete()
+                .eq('consolidacion_id', consolidationId)
+                .eq('paquete_id', paquete.id);
+            if (pivotError) throw pivotError;
+
+            // Restore status
+            const { error: statusError } = await supabase.from('paquetes').update({
+                estado: 'en_bodega'
+            }).eq('id', paquete.id);
+            if (statusError) throw statusError;
 
             // Update UI State locally
             const newAttached = attachedPaquetes.filter(p => p.id !== paquete.id);
@@ -126,7 +145,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Remove error:', err);
-            toast.error('Error al remover paquete: ' + err.message);
+            toast.error('Error al remover paquete: ' + (err.message || 'Error desconocido'));
         } finally {
             setActionLoading(null);
         }
