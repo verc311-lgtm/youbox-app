@@ -141,7 +141,7 @@ export function Consolidation() {
       const lockName = `${p.clientes?.locker_id} ${p.clientes?.nombre} ${p.clientes?.apellido}`.toLowerCase();
       return lockName.includes(q) || p.tracking.toLowerCase().includes(q);
     });
-  }, [paquetes, searchQuery, formData.origen_id]);
+  }, [paquetes, searchQuery, formData.origen_id, formData.sede_id]);
 
   const handleToggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
