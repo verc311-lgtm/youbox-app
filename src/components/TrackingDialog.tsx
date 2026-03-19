@@ -119,8 +119,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                 // B) Map intermediate states to actual `paquetes.estado` constraint states 
                 let paqueteEstadoDestino = '';
                 if (nuevoEstado === 'Creado') paqueteEstadoDestino = 'consolidado';
-                else if (['En tránsito', 'SAT', 'Pago de Impuestos'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
-                else if (nuevoEstado === 'Agencia') paqueteEstadoDestino = 'en_bodega'; // In-office/agency, waiting for customer
+                else if (['En tránsito', 'SAT', 'Pago de Impuestos', 'Agencia'].includes(nuevoEstado)) paqueteEstadoDestino = 'en_transito';
                 else if (nuevoEstado === 'Entregado') paqueteEstadoDestino = 'entregado';
 
                 // C) Actualizar el estado de los paquetes 
