@@ -207,7 +207,7 @@ export function PreAlertsAdmin() {
             }
 
             const valorNum = parseFloat(newValorFactura);
-            const montoSeguro = newConSeguro ? parseFloat((valorNum * 0.10).toFixed(2)) : 0;
+            const montoSeguro = newConSeguro ? parseFloat((valorNum * 0.05).toFixed(2)) : 0;
 
             const { error } = await supabase.from('prealertas').insert({
                 cliente_id: newSelectedClient.id,
@@ -289,7 +289,7 @@ export function PreAlertsAdmin() {
                         </div>
                     </div>
                     <p className="text-xs text-blue-200 mt-2 relative z-10 opacity-80">
-                        Monto de protección recaudado (10% de cada paquete asegurado validado).
+                        Monto de protección recaudado (5% de cada paquete asegurado validado).
                     </p>
                 </div>
             </div>
@@ -564,7 +564,7 @@ export function PreAlertsAdmin() {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (10%)</label>
+                                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (5%)</label>
                                         <button
                                             type="button"
                                             onClick={() => setNewConSeguro(v => !v)}
