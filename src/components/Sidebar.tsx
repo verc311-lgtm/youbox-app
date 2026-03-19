@@ -66,9 +66,17 @@ export function Sidebar({ isOpen = true, setIsOpen }: SidebarProps) {
     { name: 'Pagos', href: '/payments', icon: CreditCard, section: 'Mis Servicios' },
   ];
 
+  const restrictedEmails = ['quiche@youboxgt.com', 'anahi@youboxgt.com'];
+  const isRestricted = user?.email && restrictedEmails.includes(user.email);
+
   const currentNav = user?.role === 'cliente' || user?.role === 'viewer'
     ? customerNavigation
     : navigation.filter(item => {
+      // Hide financial reports and expenses for restricted users
+      if (isRestricted && (item.name === 'Reportes' || item.name === 'Gastos')) {
+        return false;
+      }
+
       if (user?.role === 'admin') return true;
       if (user?.role === 'operador') {
         return item.section === 'General' || item.section === 'Operaciones';
