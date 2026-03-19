@@ -17,6 +17,8 @@ interface RegisterPaymentModalProps {
 export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, facturaTotal, totalPagado, facturaNumero }: RegisterPaymentModalProps) {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [clienteId, setClienteId] = useState<string | null>(null);
+    const [puntosDisponibles, setPuntosDisponibles] = useState<number>(0);
 
     const saldoActual = facturaTotal - totalPagado;
     const [monto, setMonto] = useState(saldoActual.toString());
@@ -28,6 +30,22 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     // Extra charges
     const [cargoExtra, setCargoExtra] = useState('');
     const [cargoExtraRef, setCargoExtraRef] = useState('');
+
+    React.useEffect(() => {
+        if (isOpen && facturaId) {
+            const fetchDatos = async () => {
+                const { data } = await supabase.from('facturas').select('cliente_id, clientes(puntos)').eq('id', facturaId).single();
+                if (data?.cliente_id) {
+                    setClienteId(data.cliente_id);
+                    setPuntosDisponibles((data.clientes as any)?.puntos || 0);
+                } else {
+                    setClienteId(null);
+                    setPuntosDisponibles(0);
+                }
+            };
+            fetchDatos();
+        }
+    }, [isOpen, facturaId]);
 
     const handleDescuentoChange = (val: string, type: 'fijo' | 'porcentaje') => {
         setDescuento(val);
@@ -63,6 +81,11 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     const handleSave = async () => {
         if (!monto || isNaN(Number(monto)) || Number(monto) <= 0) {
             toast.error("Ingrese un monto válido mayor a 0.");
+            return;
+        }
+
+        if (metodo === 'youpoints' && Number(monto) > puntosDisponibles) {
+            toast.error(`Solo tiene ${puntosDisponibles} YouPoints disponibles (Q${puntosDisponibles.toFixed(2)}).`);
             return;
         }
 
@@ -112,6 +135,43 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 }]);
 
             if (pagoError) throw pagoError;
+
+            // 1.5 Lógica de YouPoints (Fidelización)
+            if (clienteId) {
+                if (metodo === 'youpoints') {
+                    // Canjear puntos
+                    const ptsToDeduct = Math.ceil(montoFinal); // Q1.00 = 1 pt
+                    const newPuntos = Math.max(0, puntosDisponibles - ptsToDeduct);
+
+                    await supabase.from('clientes').update({ puntos: newPuntos }).eq('id', clienteId);
+
+                    await supabase.from('historial_puntos').insert([{
+                        cliente_id: clienteId,
+                        factura_id: facturaId,
+                        tipo: 'canjeado',
+                        puntos: ptsToDeduct,
+                        descripcion: `Canje por pago parcial/total de factura ${facturaNumero} (Q${montoFinal.toFixed(2)})`,
+                        created_by: user?.id
+                    }]);
+                } else {
+                    // Ganar puntos (1 pt por cada Q10 pagados)
+                    const ptsEarned = Math.floor(montoFinal / 10);
+                    if (ptsEarned > 0) {
+                        const newPuntos = puntosDisponibles + ptsEarned;
+
+                        await supabase.from('clientes').update({ puntos: newPuntos }).eq('id', clienteId);
+
+                        await supabase.from('historial_puntos').insert([{
+                            cliente_id: clienteId,
+                            factura_id: facturaId,
+                            tipo: 'ganado',
+                            puntos: ptsEarned,
+                            descripcion: `Puntos ganados por pago de factura ${facturaNumero} (Q${montoFinal.toFixed(2)})`,
+                            created_by: user?.id
+                        }]);
+                    }
+                }
+            }
 
             // 2. Actualizar estado de Factura
             const extraVal2 = parseFloat(cargoExtra) || 0;
@@ -266,7 +326,14 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                             <option value="deposito">Depósito Físico</option>
                             <option value="efectivo">Efectivo</option>
                             <option value="tarjeta">Link / Tarjeta</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="visalink">Visalink</option>
                             <option value="otro">Otro</option>
+                            {puntosDisponibles > 0 && (
+                                <option value="youpoints" className="font-bold text-indigo-600">
+                                    🪙 YouPoints (Disp: {puntosDisponibles} pts = Q{puntosDisponibles.toFixed(2)})
+                                </option>
+                            )}
                         </select>
                     </div>
 

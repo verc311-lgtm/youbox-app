@@ -42,6 +42,7 @@ interface Cliente {
     municipio: string;
     activo: boolean;
     created_at: string;
+    puntos?: number;
 }
 
 export function Users() {
@@ -830,6 +831,7 @@ export function Users() {
                                                 <ArrowUpDown className={`h-3 w-3 transition-colors ${sortField === 'sucursal' ? 'text-blue-500' : 'text-slate-300 group-hover:text-blue-300'}`} />
                                             </button>
                                         </th>
+                                        <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">YouPoints</th>
                                         <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Estado</th>
                                         <th scope="col" className="relative py-4 pl-3 pr-4 sm:pr-6"><span className="sr-only">Acciones</span></th>
                                     </tr>
@@ -837,7 +839,7 @@ export function Users() {
                                 <tbody className="divide-y divide-slate-100 bg-white/40">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={6} className="py-20 text-center text-slate-500 text-sm">
+                                            <td colSpan={7} className="py-20 text-center text-slate-500 text-sm">
                                                 <div className="flex flex-col items-center justify-center gap-3">
                                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mb-2"></div>
                                                     <p className="text-sm font-medium text-slate-500">Cargando base de clientes...</p>
@@ -846,7 +848,7 @@ export function Users() {
                                         </tr>
                                     ) : paginatedClientes.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="py-20 text-center">
+                                            <td colSpan={7} className="py-20 text-center">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
                                                         <UsersIcon className="h-8 w-8 text-slate-400" />
@@ -888,6 +890,11 @@ export function Users() {
                                                             {c.sucursales.nombre}
                                                         </span>
                                                     )}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                                    <span className="inline-flex items-center gap-1 font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 shadow-sm">
+                                                        {c.puntos || 0} <span className="text-xs">🪙</span>
+                                                    </span>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                     <button
