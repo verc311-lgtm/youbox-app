@@ -573,7 +573,7 @@ export function PreAlertsAdmin() {
                                                 : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
                                                 }`}
                                         >
-                                            {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.10).toFixed(2) : '0.00'})` : 'Sin seguro'}
+                                            {newConSeguro ? `✓ Con seguro (+$${newValorFactura ? (parseFloat(newValorFactura) * 0.05).toFixed(2) : '0.00'})` : 'Sin seguro'}
                                         </button>
                                     </div>
                                 </div>
