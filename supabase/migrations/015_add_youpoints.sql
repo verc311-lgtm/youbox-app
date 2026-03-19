@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS historial_puntos (
     puntos INTEGER NOT NULL,
     descripcion TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    created_by UUID REFERENCES perfiles(id) ON DELETE SET NULL
+    created_by UUID REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 -- Habilitar RLS en historial_puntos
@@ -22,13 +22,21 @@ ALTER TABLE historial_puntos ENABLE ROW LEVEL SECURITY;
 -- Políticas de RLS
 CREATE POLICY "Admins y clientes pueden ver su propio historial" ON historial_puntos
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM perfiles WHERE perfiles.id = auth.uid() AND perfiles.role = 'admin')
+    EXISTS (
+      SELECT 1 FROM usuarios u 
+      JOIN roles r ON u.rol_id = r.id 
+      WHERE u.id = auth.uid() AND r.nombre = 'admin'
+    )
     OR cliente_id = auth.uid()
   );
 
 CREATE POLICY "Solo admins pueden insertar historial de puntos" ON historial_puntos
   FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM perfiles WHERE perfiles.id = auth.uid() AND perfiles.role = 'admin')
+    EXISTS (
+      SELECT 1 FROM usuarios u 
+      JOIN roles r ON u.rol_id = r.id 
+      WHERE u.id = auth.uid() AND r.nombre IN ('admin', 'facturador', 'operador')
+    )
   );
 
 -- Actualizar constraint de métodos de pago para incluir 'youpoints'
