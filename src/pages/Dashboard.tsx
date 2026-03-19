@@ -270,7 +270,7 @@ export function Dashboard() {
       </div>
 
       {/* ── KPI Stats ── */}
-      {user?.nombre?.toLowerCase() !== 'alexis' && (
+      {user?.nombre?.toLowerCase().trim() !== 'alexis' && user?.email !== 'quiche@youboxgt.com' && (
         <>
           <div>
             <h2 className="text-sm font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
