@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -33,6 +33,46 @@ export function PreAlertsAdmin() {
     const [searchingClient, setSearchingClient] = useState(false);
     const [showClientDrop, setShowClientDrop] = useState(false);
     const clientSearchRef = useRef<NodeJS.Timeout>();
+
+    // --- EDIT modal state ---
+    const [editPrealerta, setEditPrealerta] = useState<any | null>(null);
+    const [editTracking, setEditTracking] = useState('');
+    const [editBodegaId, setEditBodegaId] = useState('');
+    const [editValor, setEditValor] = useState('');
+    const [editConSeguro, setEditConSeguro] = useState(false);
+    const [editSaving, setEditSaving] = useState(false);
+
+    const openEdit = (p: any) => {
+        setEditPrealerta(p);
+        setEditTracking(p.tracking || '');
+        setEditBodegaId(p.bodega_id || '');
+        setEditValor(String(p.valor_factura || ''));
+        setEditConSeguro(!!p.con_seguro);
+    };
+
+    const handleEditSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editPrealerta) return;
+        setEditSaving(true);
+        try {
+            const valorNum = parseFloat(editValor);
+            const montoSeguro = editConSeguro ? parseFloat((valorNum * 0.05).toFixed(2)) : 0;
+            const { error } = await supabase.from('prealertas').update({
+                tracking: editTracking.trim().toUpperCase(),
+                bodega_id: editBodegaId || null,
+                valor_factura: valorNum,
+                con_seguro: editConSeguro,
+                monto_seguro: montoSeguro,
+            }).eq('id', editPrealerta.id);
+            if (error) throw error;
+            setEditPrealerta(null);
+            fetchData();
+        } catch (err: any) {
+            alert('Error al guardar: ' + err.message);
+        } finally {
+            setEditSaving(false);
+        }
+    };
 
     useEffect(() => {
         fetchData();
@@ -384,12 +424,22 @@ export function PreAlertsAdmin() {
                                             </span>
                                         </td>
                                         <td className="p-4">
-                                            <button
-                                                onClick={() => setSelectedPrealerta(p)}
-                                                className="text-sm font-medium text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2"
-                                            >
-                                                Administrar
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => setSelectedPrealerta(p)}
+                                                    className="text-sm font-medium text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2"
+                                                >
+                                                    Administrar
+                                                </button>
+                                                <button
+                                                    onClick={() => openEdit(p)}
+                                                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition-colors"
+                                                    title="Editar pre-alerta"
+                                                >
+                                                    <Pencil className="w-3 h-3" />
+                                                    Editar
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -620,6 +670,112 @@ export function PreAlertsAdmin() {
                     </div>
                 )
             }
+
+            {/* ── EDIT MODAL ── */}
+            {editPrealerta && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setEditPrealerta(null)} />
+                    <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
+                        {/* Header */}
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-amber-50">
+                            <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                                    <Pencil className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Editar Pre-Alerta</h3>
+                                    <p className="text-xs text-slate-500">Cliente: {editPrealerta.clientes?.locker_id} – {editPrealerta.clientes?.nombre} {editPrealerta.clientes?.apellido}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setEditPrealerta(null)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleEditSave} className="p-6 space-y-4">
+                            {/* Tracking */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Tracking Number *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={editTracking}
+                                    onChange={e => setEditTracking(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/10 bg-white"
+                                    placeholder="Ej. TBA123..."
+                                />
+                            </div>
+
+                            {/* Bodega */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Bodega</label>
+                                <select
+                                    value={editBodegaId}
+                                    onChange={e => setEditBodegaId(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/10 bg-white"
+                                >
+                                    <option value="">Sin bodega asignada</option>
+                                    {bodegas.map(b => (
+                                        <option key={b.id} value={b.id}>{b.nombre}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Valor */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Valor Declarado ($) *</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0.01"
+                                    step="0.01"
+                                    value={editValor}
+                                    onChange={e => setEditValor(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/10 bg-white"
+                                    placeholder="0.00"
+                                />
+                            </div>
+
+                            {/* Seguro */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Seguro (5%)</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditConSeguro(v => !v)}
+                                    className={`w-full py-2.5 rounded-xl text-sm font-bold border transition-all ${editConSeguro
+                                        ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-400'
+                                        }`}
+                                >
+                                    {editConSeguro
+                                        ? `✓ Con seguro (+$${editValor ? (parseFloat(editValor) * 0.05).toFixed(2) : '0.00'})`
+                                        : 'Sin seguro'}
+                                </button>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditPrealerta(null)}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={editSaving}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-sm font-bold text-white shadow-sm hover:-translate-y-px hover:shadow-md transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                >
+                                    {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+                                    Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
         </div >
     );
