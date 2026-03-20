@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { jsPDF } from 'jspdf';
 
 export function PreAlertsAdmin() {
     const { user } = useAuth();
@@ -152,6 +153,9 @@ export function PreAlertsAdmin() {
                         });
                     if (insError) throw insError;
                 }
+
+                // Generate & download insurance receipt PDF
+                generateInsuranceReceipt(prealerta);
             }
 
             const { error: updError } = await supabase
@@ -169,6 +173,80 @@ export function PreAlertsAdmin() {
         } finally {
             setProcesando(false);
         }
+    };
+
+    const generateInsuranceReceipt = (prealerta: any) => {
+        const doc = new jsPDF({ unit: 'mm', format: 'a5' });
+        const W = doc.internal.pageSize.getWidth();
+        const grayLight = '#f1f5f9';
+        const blue = '#1e40af';
+        const teal = '#0f766e';
+
+        // ── Background header band ──────────────────────────
+        doc.setFillColor(30, 64, 175); // blue-800
+        doc.rect(0, 0, W, 38, 'F');
+
+        // Logo text
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('YOUBOX GT', W / 2, 15, { align: 'center' });
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Recibo de Seguro de Paquete', W / 2, 22, { align: 'center' });
+        doc.text('youboxgt.com', W / 2, 30, { align: 'center' });
+
+        // ── Receipt box ─────────────────────────────────────
+        doc.setFillColor(241, 245, 249); // slate-100
+        doc.roundedRect(10, 44, W - 20, 30, 3, 3, 'F');
+        doc.setTextColor(15, 118, 110); // teal-700
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PÓLIZA ACTIVA — SEGURO CUBIERTO', W / 2, 54, { align: 'center' });
+        doc.setTextColor(30, 64, 175);
+        doc.setFontSize(22);
+        doc.text(`$${Number(prealerta.monto_seguro).toFixed(2)}`, W / 2, 66, { align: 'center' });
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text('Prima de seguro pagada (USD)', W / 2, 72, { align: 'center' });
+
+        // ── Details table ───────────────────────────────────
+        const rows = [
+            ['Tracking', prealerta.tracking],
+            ['Cliente', `${prealerta.clientes?.locker_id || ''} – ${prealerta.clientes?.nombre || ''} ${prealerta.clientes?.apellido || ''}`],
+            ['Bodega', prealerta.bodegas?.nombre || 'N/A'],
+            ['Valor Declarado', `$${Number(prealerta.valor_factura).toFixed(2)}`],
+            ['Cobertura Máxima', `$${Number(prealerta.valor_factura).toFixed(2)}`],
+            ['Fecha de Validación', format(new Date(), "d 'de' MMMM yyyy, HH:mm", { locale: es })],
+            ['Aprobado por', user?.nombre || 'Admin'],
+        ];
+
+        let y = 82;
+        rows.forEach(([label, value], i) => {
+            if (i % 2 === 0) {
+                doc.setFillColor(248, 250, 252);
+                doc.rect(10, y - 4, W - 20, 8, 'F');
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.text(label + ':', 14, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(15, 23, 42);
+            doc.text(String(value), 60, y);
+            y += 9;
+        });
+
+        // ── Footer ──────────────────────────────────────────
+        doc.setFillColor(30, 64, 175);
+        doc.rect(0, doc.internal.pageSize.getHeight() - 16, W, 16, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Este recibo es prueba de pago del seguro de tu paquete con YouBox GT.', W / 2, doc.internal.pageSize.getHeight() - 9, { align: 'center' });
+        doc.text('Guárdalo para cualquier reclamo. www.youboxgt.com | info@youboxgt.com', W / 2, doc.internal.pageSize.getHeight() - 4, { align: 'center' });
+
+        doc.save(`Recibo_Seguro_${prealerta.tracking}.pdf`);
     };
 
     // --- Client search for new modal ---
