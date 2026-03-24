@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { generateBulkLabelsPDF } from '../utils/bulkLabelPrinter';
 
 interface PaqueteWithDetails {
     id: string;
@@ -211,9 +212,19 @@ export function Warehouse() {
                                             <Package className="h-4.5 w-4.5 text-blue-500" />
                                             <span className="font-extrabold text-blue-900">{group.paquetes.length} pz</span>
                                         </div>
-                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border ${isExpanded ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
-                                            <span>{isExpanded ? 'Ocultar' : 'Ver Contenido'}</span>
-                                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); generateBulkLabelsPDF(group.paquetes as any); }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border bg-slate-800 text-white border-slate-700 hover:bg-slate-700 shadow-sm"
+                                                title="Imprimir todas las etiquetas de este casillero"
+                                            >
+                                                <Printer className="h-4 w-4" />
+                                                <span className="hidden sm:inline">Imprimir</span>
+                                            </button>
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border ${isExpanded ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
+                                                <span>{isExpanded ? 'Ocultar' : 'Ver Contenido'}</span>
+                                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
