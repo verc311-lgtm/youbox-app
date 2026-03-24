@@ -168,7 +168,7 @@ export function QuickEntry() {
   // Per-row save
   const handleSaveRow = async (rowId: string) => {
     const row = rows.find(r => r.id === rowId);
-    if (!row) return;
+    if (!row || row.isSaving || row.isSaved) return;
     if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
     if (!row.cliente_id) { toast.error('Selecciona un cliente / casillero válido.'); return; }
 

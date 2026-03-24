@@ -159,7 +159,7 @@ export function ClientEntry() {
     // --- Saving ---
     const handleSaveRow = async (rowId: string) => {
         const row = rows.find(r => r.id === rowId);
-        if (!row) return;
+        if (!row || row.isSaving || row.isSaved) return;
         if (!globalClient) { toast.error('Debes seleccionar un cliente general arriba.'); return; }
         if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
 
