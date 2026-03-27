@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { X, Clock, MapPin, CheckCircle2, AlertTriangle, ShieldCheck, Truck, PackageCheck, Building2, Smartphone, Send, Calendar as CalIcon, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
+import { sendEmail } from '../utils/sendEmail';
 
 interface TrackingDialogProps {
     consolidacionId: string;
@@ -143,7 +144,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
 
                 // 4. (NEW) Notificaciones de Email masivas
                 if (notifyEmail) {
-                    const { data: paqData } = await supabase.from('paquetes').select('cliente_id, clientes(nombre, apellido)').in('id', packageIds);
+                    const { data: paqData } = await supabase.from('paquetes').select('cliente_id, clientes(nombre, apellido, email)').in('id', packageIds);
                     if (paqData) {
                         const notifsMap = new Map();
                         paqData.forEach(p => {
@@ -159,9 +160,34 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                                 tipo: 'email',
                                 asunto: `Actualización de Envío - Master ${codigoMaster}`,
                                 mensaje: `Hola ${clientInfo.nombre},\n\nTu paquete perteneciente al viaje ${codigoMaster} ha sido actualizado al siguiente estado: **${nuevoEstado}**${ciudad ? ` en ${ciudad}` : ''}.\n\n${comentario ? 'Nota: ' + comentario : ''}\n\nGracias por confiar en nosotros.`,
-                                estado: 'pendiente'
+                                estado: 'enviado'
                             }));
+
+                            // Guardar log
                             await supabase.from('notificaciones').insert(notificacionesArray);
+
+                            // Enviar emails fisicamente
+                            for (const [cid, clientInfo] of uniqueClients) {
+                                if (clientInfo.email) {
+                                    await sendEmail({
+                                        to: clientInfo.email,
+                                        subject: `Actualización de Envío - Master ${codigoMaster}`,
+                                        html: `
+                                            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+                                                <h2 style="color: #2563eb;">Actualización de Estado de Paquete</h2>
+                                                <p>Hola <strong>${clientInfo.nombre}</strong>,</p>
+                                                <p>Tu paquete perteneciente al viaje <strong>${codigoMaster}</strong> ha sido actualizado al siguiente estado:</p>
+                                                <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin: 15px 0;">
+                                                    <h3 style="margin: 0; color: #1e293b;">${nuevoEstado}</h3>
+                                                    ${ciudad ? `<p style="margin: 5px 0 0 0; color: #64748b;">📍 ${ciudad}</p>` : ''}
+                                                </div>
+                                                ${comentario ? `<p><strong>Nota:</strong> ${comentario}</p>` : ''}
+                                                <p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">Gracias por confiar en YOUBOX GT.</p>
+                                            </div>
+                                        `
+                                    });
+                                }
+                            }
                         }
                     }
                 }
