@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Loader2, Package, Store, ShoppingCart, TrendingUp, Sparkles, AlertCircle, ChevronRight, Check } from 'lucide-react';
+import { Search, Loader2, Package, Store, ShoppingCart, TrendingUp, Sparkles, AlertCircle, ChevronRight, Check, ArrowLeft } from 'lucide-react';
 
 const DEPARTAMENTOS = [
     { nombre: 'Alta Verapaz', envio: 35 },
@@ -144,8 +144,20 @@ export function PublicEstimator() {
             </div>
 
             <div className="relative max-w-6xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+                {/* Back Button */}
+                <div className="absolute top-6 left-4 sm:top-12 sm:left-8 z-50">
+                    <a
+                        href="https://youboxgt.com"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white backdrop-blur-md transition-all text-sm font-medium group shadow-lg"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        <span className="hidden sm:inline">Regresar a youboxgt.com</span>
+                        <span className="sm:hidden">Volver</span>
+                    </a>
+                </div>
+
                 {/* Modern Header */}
-                <header className="text-center mb-16 animate-in fade-in slide-in-from-top-4 duration-1000">
+                <header className="text-center mb-16 animate-in fade-in slide-in-from-top-4 duration-1000 mt-12 sm:mt-0">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest mb-6">
                         <Sparkles className="h-3 w-3" />
                         Next-Gen Logistics
