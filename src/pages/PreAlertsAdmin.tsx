@@ -12,6 +12,7 @@ export function PreAlertsAdmin() {
     const [fondoTotal, setFondoTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterMode, setFilterMode] = useState('todas');
 
     // Admin manage modal
     const [selectedPrealerta, setSelectedPrealerta] = useState<any | null>(null);
@@ -351,11 +352,19 @@ export function PreAlertsAdmin() {
         }
     };
 
-    const filteredData = prealertas.filter(p =>
-        p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.clientes?.nombre?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredData = prealertas.filter(p => {
+        const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.clientes?.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
+
+        let matchesFilter = true;
+        if (filterMode === 'pendientes') matchesFilter = p.estado === 'pendiente';
+        else if (filterMode === 'procesadas') matchesFilter = p.estado === 'procesada';
+        else if (filterMode === 'recibidas') matchesFilter = p.estado === 'recibido';
+        else if (filterMode === 'seguro') matchesFilter = p.con_seguro === true;
+
+        return matchesSearch && matchesFilter;
+    });
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -414,8 +423,19 @@ export function PreAlertsAdmin() {
 
             {/* Table Section */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="relative w-full sm:w-80">
+                <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto overflow-x-auto hide-scrollbar">
+                        {['Todas', 'Pendientes', 'Procesadas', 'Recibidas', 'Seguro'].map(f => (
+                            <button
+                                key={f}
+                                onClick={() => setFilterMode(f.toLowerCase())}
+                                className={`px-4 py-1.5 text-sm font-bold rounded-lg whitespace-nowrap transition-all ${filterMode === f.toLowerCase() ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {f}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="relative w-full lg:w-80 shrink-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <input
                             type="text"
