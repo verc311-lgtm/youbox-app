@@ -154,8 +154,8 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                         created_by: user?.id
                     }]);
                 } else {
-                    // Ganar puntos (1 pt por cada Q10 pagados)
-                    const ptsEarned = Math.floor(montoFinal / 10);
+                    // Ganar puntos (1 pt por cada Q200 pagados)
+                    const ptsEarned = Math.floor(montoFinal / 200);
                     if (ptsEarned > 0) {
                         const newPuntos = puntosDisponibles + ptsEarned;
 
