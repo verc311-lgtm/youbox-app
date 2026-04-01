@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar, Building } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar, Building, Download } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../context/AuthContext';
+import { downloadReportPDF } from '../utils/generateReportPDF';
 
 interface Mensual {
     mes: string;
@@ -29,6 +30,7 @@ export function Reports() {
     const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
     const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+    const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
 
     const [kpis, setKpis] = useState({
         ingresosMesActual: 0,
@@ -49,7 +51,7 @@ export function Reports() {
 
     useEffect(() => {
         fetchData();
-    }, [selectedFilterBranch, user]);
+    }, [selectedFilterBranch, selectedMonth, user]);
 
     const fetchSucursales = async () => {
         const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
@@ -108,7 +110,7 @@ export function Reports() {
                 });
             });
 
-            const currentMonthKey = format(hoy, 'yyyy-MM');
+            const currentMonthKey = selectedMonth;
             let ingActual = 0;
             let gasActual = 0;
 
@@ -210,20 +212,38 @@ export function Reports() {
                     </p>
                 </div>
                 {isSuperAdmin && (
-                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                            <Building className="h-4.5 w-4.5" />
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                            <Calendar className="h-4.5 w-4.5 text-blue-600" />
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                            />
                         </div>
-                        <select
-                            value={selectedFilterBranch}
-                            onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                            className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full min-w-[180px]"
+                        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                <Building className="h-4.5 w-4.5" />
+                            </div>
+                            <select
+                                value={selectedFilterBranch}
+                                onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full min-w-[150px]"
+                            >
+                                <option value="all">Todas las Sedes</option>
+                                {sucursales.map(s => (
+                                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={() => downloadReportPDF(selectedMonth, selectedFilterBranch, sedeData, kpis)}
+                            className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
                         >
-                            <option value="all">Todas las Sedes (Global)</option>
-                            {sucursales.map(s => (
-                                <option key={s.id} value={s.id}>{s.nombre}</option>
-                            ))}
-                        </select>
+                            <Download className="h-4 w-4" />
+                            Exportar Reporte
+                        </button>
                     </div>
                 )}
             </div>
@@ -235,7 +255,7 @@ export function Reports() {
                         <TrendingUp className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Ingresos (Este Mes)</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5" title={format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}>Ingresos ({format(parseISO(`${selectedMonth}-01`), 'MMM yyyy', { locale: es })})</p>
                         <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.ingresosMesActual)}</p>
                     </div>
                 </div>
@@ -244,7 +264,7 @@ export function Reports() {
                         <TrendingDown className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Gastos (Este Mes)</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5" title={format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}>Gastos ({format(parseISO(`${selectedMonth}-01`), 'MMM yyyy', { locale: es })})</p>
                         <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.gastosMesActual)}</p>
                     </div>
                 </div>
@@ -342,7 +362,7 @@ export function Reports() {
                     {categoryData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                             <DollarSign className="w-10 h-10 text-slate-300 mb-3" />
-                            <p className="text-sm font-bold text-slate-500">No hay gastos en el mes actual.</p>
+                            <p className="text-sm font-bold text-slate-500">No hay gastos en {format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}.</p>
                         </div>
                     ) : (
                         <>
