@@ -75,58 +75,53 @@ export function Inventory() {
     queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4', personal: user?.role === 'cliente' ? user.id : undefined }),
     queryFn: async () => {
       console.log('DEBUG: Initiating fetch for sucursal:', user?.sucursal_id);
-      // Fetch exact total count
-      let countQuery = supabase.from('paquetes').select('*', { count: 'exact', head: true });
-      if (user?.role === 'cliente') {
-        countQuery = countQuery.eq('cliente_id', user.id);
-      } else if (!isSuperAdmin && user?.sucursal_id) {
+      let allData: any[] = [];
+      let page = 0;
+      const PAGE_SIZE = 1000;
+      let hasMore = true;
 
-        // Count for branches needs inner join on clientes or we skip it for speed and just use a reasonable number
-        // Supabase head queries with foreign tables are tricky, so we do a fast query just for the count
+      while (hasMore) {
+        let query = supabase
+          .from('paquetes')
+          .select(`
+            id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
+            bodegas (id, nombre),
+            clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
+            transportistas (id, nombre),
+            consolidacion_paquetes ( consolidaciones ( codigo ) )
+          `)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+          .order('fecha_recepcion', { ascending: false });
+
+        // 1. If it's a client, ONLY show their packages
+        if (user?.role === 'cliente') {
+          query = query.eq('cliente_id', user.id);
+        }
+        // 2. If it's branch staff (not super admin), ONLY show packages of clients in their branch
+        else if (!isSuperAdmin && user?.sucursal_id) {
+          query = query.eq('clientes.sucursal_id', user.sucursal_id);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error('DEBUG: Fetch error details:', error);
+          throw error;
+        }
+
+        if (data) {
+          allData = [...allData, ...data];
+        }
+
+        if (!data || data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          page++;
+        }
       }
 
-      let query = supabase
-        .from('paquetes')
-        .select(`
-          id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
-          bodegas (id, nombre),
-          clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
-          transportistas (id, nombre),
-          consolidacion_paquetes ( consolidaciones ( codigo ) )
-        `);
-
-      // 1. If it's a client, ONLY show their packages
-      if (user?.role === 'cliente') {
-        query = query.eq('cliente_id', user.id);
-      }
-      // 2. If it's branch staff (not super admin), ONLY show packages of clients in their branch
-      else if (!isSuperAdmin && user?.sucursal_id) {
-        query = query.eq('clientes.sucursal_id', user.sucursal_id);
-      }
-
-      const { data, error } = await query.order('fecha_recepcion', { ascending: false });
-
-      if (error) {
-        console.error('DEBUG: Fetch error details:', error);
-        throw error;
-      }
-
-      // Find global total count
-      let globalCount = data?.length || 0;
-      if (user?.role === 'cliente') {
-        const { count } = await supabase.from('paquetes').select('*', { count: 'exact', head: true }).eq('cliente_id', user.id);
-        if (count !== null) globalCount = count;
-      } else if (isSuperAdmin) {
-        const { count } = await supabase.from('paquetes').select('*', { count: 'exact', head: true });
-        if (count !== null) globalCount = count;
-      } else if (user?.sucursal_id) {
-        // Fast count for branch
-        const { count } = await supabase.from('paquetes').select('id, clientes!inner(sucursal_id)', { count: 'exact', head: true }).eq('clientes.sucursal_id', user.sucursal_id);
-        if (count !== null) globalCount = count;
-      }
-
-      console.log('DEBUG: Fetch success, rows:', data?.length);
-      return { data: data ?? [], globalCount };
+      console.log('DEBUG: Fetch success, total rows:', allData.length);
+      return { data: allData, globalCount: allData.length };
     },
     enabled: !!user,
     retry: 1
@@ -251,7 +246,7 @@ export function Inventory() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 w-fit">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
-                Vista actual: {paquetesList.length} pkgs ({filteredPaquetes.length} filtrados) | Total base de datos: {globalTotalCount} pkgs
+                Sincronizado: {paquetesList.length} paquetes ({filteredPaquetes.length} filtrados)
               </span>
             </div>
             <div className="text-[10px] text-slate-400 font-medium px-1">
