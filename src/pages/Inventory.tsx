@@ -75,13 +75,24 @@ export function Inventory() {
     queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4', personal: user?.role === 'cliente' ? user.id : undefined }),
     queryFn: async () => {
       console.log('DEBUG: Initiating fetch for sucursal:', user?.sucursal_id);
+      // Fetch exact total count
+      let countQuery = supabase.from('paquetes').select('*', { count: 'exact', head: true });
+      if (user?.role === 'cliente') {
+        countQuery = countQuery.eq('cliente_id', user.id);
+      } else if (!isSuperAdmin && user?.sucursal_id) {
+
+        // Count for branches needs inner join on clientes or we skip it for speed and just use a reasonable number
+        // Supabase head queries with foreign tables are tricky, so we do a fast query just for the count
+      }
+
       let query = supabase
         .from('paquetes')
         .select(`
           id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
           bodegas (id, nombre),
           clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
-          transportistas (id, nombre)
+          transportistas (id, nombre),
+          consolidacion_paquetes ( consolidaciones ( codigo ) )
         `);
 
       // 1. If it's a client, ONLY show their packages
@@ -99,12 +110,30 @@ export function Inventory() {
         console.error('DEBUG: Fetch error details:', error);
         throw error;
       }
+
+      // Find global total count
+      let globalCount = data?.length || 0;
+      if (user?.role === 'cliente') {
+        const { count } = await supabase.from('paquetes').select('*', { count: 'exact', head: true }).eq('cliente_id', user.id);
+        if (count !== null) globalCount = count;
+      } else if (isSuperAdmin) {
+        const { count } = await supabase.from('paquetes').select('*', { count: 'exact', head: true });
+        if (count !== null) globalCount = count;
+      } else if (user?.sucursal_id) {
+        // Fast count for branch
+        const { count } = await supabase.from('paquetes').select('id, clientes!inner(sucursal_id)', { count: 'exact', head: true }).eq('clientes.sucursal_id', user.sucursal_id);
+        if (count !== null) globalCount = count;
+      }
+
       console.log('DEBUG: Fetch success, rows:', data?.length);
-      return data ?? [];
+      return { data: data ?? [], globalCount };
     },
     enabled: !!user,
     retry: 1
   });
+
+  const paquetesList = (paquetes as any)?.data || [];
+  const globalTotalCount = (paquetes as any)?.globalCount || paquetesList.length;
 
   // ── Delete mutation with optimistic update ─────────────────────────────────
   const deleteMutation = useDeletePaquete();
@@ -124,7 +153,7 @@ export function Inventory() {
     (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
   const filteredPaquetes = useMemo(() => {
-    const list = (paquetes as any[]) || [];
+    const list = paquetesList;
     if (!searchTerm && !hasActiveFilters) return list;
 
     return list.filter(p => {
@@ -200,7 +229,7 @@ export function Inventory() {
         return true;
       }
     });
-  }, [paquetes, searchTerm, activeFilters, hasActiveFilters]);
+  }, [paquetesList, searchTerm, activeFilters, hasActiveFilters]);
 
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
@@ -222,7 +251,7 @@ export function Inventory() {
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 w-fit">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
-                Sincronizado: {paquetes.length} paquetes ({filteredPaquetes.length} filtrados)
+                Vista actual: {paquetesList.length} pkgs ({filteredPaquetes.length} filtrados) | Total base de datos: {globalTotalCount} pkgs
               </span>
             </div>
             <div className="text-[10px] text-slate-400 font-medium px-1">
@@ -311,7 +340,7 @@ export function Inventory() {
                       <div>
                         <p className="text-base font-semibold text-slate-700">No hay paquetes registrados</p>
                         <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
-                          {paquetes.length === 0
+                          {paquetesList.length === 0
                             ? 'La base de datos devolvió 0 paquetes para tu sucursal.'
                             : 'Ningún paquete coincide con los filtros aplicados.'}
                         </p>
@@ -320,108 +349,118 @@ export function Inventory() {
                   </td>
                 </tr>
               ) : (
-                filteredPaquetes.map((p, index) => (
-                  <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
-                    <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
-                      <div className="flex items-center gap-4">
-                        <div className="rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 p-2.5 hidden sm:block shadow-sm group-hover:scale-105 transition-transform">
-                          <PkgIcon className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-900 text-sm tracking-tight">{p.tracking}</div>
-                          <div className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1.5">
-                            {(p.bodegas?.nombre || '').toLowerCase().includes('tapachula') && p.notas ? (
-                              (() => {
-                                const m = p.notas.match(/\[Empaque:\s*([^\]]+)\]/);
-                                return m ? (
-                                  <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                                    📦 {m[1]}
-                                  </span>
-                                ) : (
-                                  <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
-                                );
-                              })()
-                            ) : (
-                              <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
+                filteredPaquetes.map((p, index) => {
+                  const cons = p.consolidacion_paquetes && p.consolidacion_paquetes.length > 0
+                    ? (Array.isArray(p.consolidacion_paquetes[0].consolidaciones) ? p.consolidacion_paquetes[0].consolidaciones[0]?.codigo : p.consolidacion_paquetes[0].consolidaciones?.codigo)
+                    : null;
+                  return (
+                    <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
+                        <div className="flex items-center gap-4">
+                          <div className="rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 p-2.5 hidden sm:block shadow-sm group-hover:scale-105 transition-transform">
+                            <PkgIcon className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm tracking-tight">{p.tracking}</div>
+                            {cons && (
+                              <div className="text-[10px] font-bold text-indigo-600 mt-0.5" title="Código de Consolidación">
+                                📦 Lote: {cons}
+                              </div>
                             )}
+                            <div className="text-xs font-medium text-slate-500 mt-0.5 flex items-center gap-1.5">
+                              {(p.bodegas?.nombre || '').toLowerCase().includes('tapachula') && p.notas ? (
+                                (() => {
+                                  const m = p.notas.match(/\[Empaque:\s*([^\]]+)\]/);
+                                  return m ? (
+                                    <span className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                                      📦 {m[1]}
+                                    </span>
+                                  ) : (
+                                    <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
+                                  );
+                                })()
+                              ) : (
+                                <><Truck className="h-3 w-3" />{p.transportistas?.nombre || 'Carrier'}</>
+                              )}
+                            </div>
+                            {/* Mobile only details */}
+                            <div className="sm:hidden flex items-center gap-2 text-xs font-medium text-slate-400 mt-1.5">
+                              <span className="bg-slate-100 px-2 py-0.5 rounded-md">{p.peso_lbs} lbs</span>
+                              <span>•</span>
+                              <span>{p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM', { locale: es }) : 'N/A'}</span>
+                            </div>
                           </div>
-                          {/* Mobile only details */}
-                          <div className="sm:hidden flex items-center gap-2 text-xs font-medium text-slate-400 mt-1.5">
-                            <span className="bg-slate-100 px-2 py-0.5 rounded-md">{p.peso_lbs} lbs</span>
-                            <span>•</span>
-                            <span>{p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM', { locale: es }) : 'N/A'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    {isAdmin && (
-                      <td className="whitespace-nowrap px-3 py-4">
-                        <div className="text-sm font-semibold text-slate-700">
-                          {p.clientes?.nombre} {p.clientes?.apellido}
-                        </div>
-                        <div className="text-xs font-bold text-blue-600 bg-blue-50 inline-flex items-center px-2 py-0.5 rounded-md mt-1">
-                          {p.clientes?.locker_id}
                         </div>
                       </td>
-                    )}
-                    <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-600 hidden sm:table-cell">
-                      {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd MMM yyyy', { locale: es }) : 'N/A'}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 hidden sm:table-cell">
-                      <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                        {p.peso_lbs} <span className="text-slate-400 ml-1">lbs</span>
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                        <span className="text-sm font-medium text-slate-700">{p.bodegas?.nombre || 'Bodega General'}</span>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm">
-                      <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shadow-sm ${ESTADOS[p.estado]?.color || 'bg-slate-50 text-slate-600 ring-slate-500/10'}`}>
-                        <div className={`h-1.5 w-1.5 rounded-full bg-current opacity-70`} />
-                        {ESTADOS[p.estado]?.label || p.estado}
-                      </span>
+                      {isAdmin && (
+                        <td className="whitespace-nowrap px-3 py-4">
+                          <div className="text-sm font-semibold text-slate-700">
+                            {p.clientes?.nombre} {p.clientes?.apellido}
+                          </div>
+                          <div className="text-xs font-bold text-blue-600 bg-blue-50 inline-flex items-center px-2 py-0.5 rounded-md mt-1">
+                            {p.clientes?.locker_id}
+                          </div>
+                        </td>
+                      )}
+                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-slate-600 hidden sm:table-cell">
+                        {p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd MMM yyyy', { locale: es }) : 'N/A'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 hidden sm:table-cell">
+                        <span className="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {p.peso_lbs} <span className="text-slate-400 ml-1">lbs</span>
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 hidden md:table-cell">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          <span className="text-sm font-medium text-slate-700">{p.bodegas?.nombre || 'Bodega General'}</span>
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ring-1 ring-inset shadow-sm ${ESTADOS[p.estado]?.color || 'bg-slate-50 text-slate-600 ring-slate-500/10'}`}>
+                          <div className={`h-1.5 w-1.5 rounded-full bg-current opacity-70`} />
+                          {ESTADOS[p.estado]?.label || p.estado}
+                        </span>
 
-                    </td>
-                    {isAdmin && (
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <div className="flex items-center justify-end gap-2 min-w-[120px]">
-                          <button
-                            onClick={() => setPrintingLabel({
-                              remitenteInfo: p.transportistas?.nombre || '',
-                              trackingOriginal: p.tracking,
-                              clienteCasillero: p.clientes?.locker_id || '',
-                              clienteNombre: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.trim(),
-                              bodegaDestino: p.bodegas?.nombre || 'General',
-                              pesoLbs: p.peso_lbs,
-                              piezas: 1
-                            })}
-                            className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
-                            title="Imprimir Etiqueta"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
-                          </button>
-                          <button
-                            onClick={() => setEditingPackageId(p.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
-                            title="Editar Paquete"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(p.id, p.tracking)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
-                            title="Eliminar Paquete"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                          </button>
-                        </div>
                       </td>
-                    )}
-                  </tr>
-                ))
+                      {isAdmin && (
+                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <div className="flex items-center justify-end gap-2 min-w-[120px]">
+                            <button
+                              onClick={() => setPrintingLabel({
+                                remitenteInfo: p.transportistas?.nombre || '',
+                                trackingOriginal: p.tracking,
+                                clienteCasillero: p.clientes?.locker_id || '',
+                                clienteNombre: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`.trim(),
+                                bodegaDestino: p.bodegas?.nombre || 'General',
+                                pesoLbs: p.peso_lbs,
+                                piezas: 1
+                              })}
+                              className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
+                              title="Imprimir Etiqueta"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6" /><rect x="6" y="14" width="12" height="8" rx="1" /></svg>
+                            </button>
+                            <button
+                              onClick={() => setEditingPackageId(p.id)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
+                              title="Editar Paquete"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeletePackage(p.id, p.tracking)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-200"
+                              title="Eliminar Paquete"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
