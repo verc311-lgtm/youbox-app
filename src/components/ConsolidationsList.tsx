@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck, Trash2 } from 'lucide-react';
+import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck, Trash2, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { downloadInventoryPDF } from '../utils/generateInventoryPDF';
 import { TrackingDialog } from './TrackingDialog';
 import { ManageConsolidationModal } from './ManageConsolidationModal';
 import { BulkInvoiceModal } from './billing/BulkInvoiceModal';
@@ -282,6 +283,13 @@ export function ConsolidationsList() {
                                                     title="Gestionar Carga"
                                                 >
                                                     <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Gestionar</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => downloadInventoryPDF(cons.id, cons.codigo)}
+                                                    className="inline-flex items-center justify-center gap-1.5 text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-700 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                    title="Descargar Inventario PDF"
+                                                >
+                                                    <FileText className="h-4 w-4" /> <span className="hidden lg:inline">Inventario</span>
                                                 </button>
                                                 <button
                                                     onClick={() => openTracking(cons.id, cons.codigo)}
