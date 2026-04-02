@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { FileText, Inbox, CreditCard, Download, Building, Filter, Search, RotateCcw, XCircle } from 'lucide-react';
+import { FileText, Inbox, CreditCard, Download, Building, Filter, Search, RotateCcw, XCircle, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +43,7 @@ export function Billing() {
 
   const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [activeFilters, setActiveFilters] = useState<BillingFilterState>({
     sucursalId: 'all',
     estado: 'all',
@@ -146,13 +147,18 @@ export function Billing() {
         if (new Date(f.fecha_emision) > endDate) return false;
       }
 
+      // Quick Month Filter
+      if (selectedMonth && !f.fecha_emision.startsWith(selectedMonth)) {
+        return false;
+      }
+
       // 5. Amount Range
       if (activeFilters.minMonto && f.monto_total < parseFloat(activeFilters.minMonto)) return false;
       if (activeFilters.maxMonto && f.monto_total > parseFloat(activeFilters.maxMonto)) return false;
 
       return true;
     });
-  }, [facturas, activeFilters]);
+  }, [facturas, activeFilters, selectedMonth]);
 
   const openPaymentModal = (factura: Factura) => {
     setSelectedFactura(factura);
@@ -250,7 +256,7 @@ export function Billing() {
           {isAdmin && (
             <>
               {/* Search Bar */}
-              <div className="relative flex-1 md:min-w-[300px]">
+              <div className="relative flex-1 md:min-w-[280px]">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-4.5 w-4.5 text-slate-400" />
                 </div>
@@ -261,6 +267,22 @@ export function Billing() {
                   onChange={(e) => setActiveFilters(prev => ({ ...prev, search: e.target.value }))}
                   className="block w-full pl-10 pr-3 py-2.5 bg-white/80 backdrop-blur-sm border border-slate-200/80 rounded-xl text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm hover:shadow-md"
                 />
+              </div>
+
+              {/* Quick Month Selector */}
+              <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm pl-4 pr-2 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                <Calendar className="h-4.5 w-4.5 text-blue-600" />
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer p-0"
+                />
+                {selectedMonth && (
+                  <button onClick={() => setSelectedMonth('')} className="text-slate-400 hover:text-slate-600 p-1 bg-slate-100 rounded-md transition-colors" title="Limpiar mes">
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Advanced Filters Button */}
@@ -327,16 +349,19 @@ export function Billing() {
           </div>
           {hasActiveFilters && (
             <button
-              onClick={() => setActiveFilters({
-                sucursalId: 'all',
-                estado: 'all',
-                metodo: 'all',
-                startDate: '',
-                endDate: '',
-                minMonto: '',
-                maxMonto: '',
-                search: ''
-              })}
+              onClick={() => {
+                setActiveFilters({
+                  sucursalId: 'all',
+                  estado: 'all',
+                  metodo: 'all',
+                  startDate: '',
+                  endDate: '',
+                  minMonto: '',
+                  maxMonto: '',
+                  search: ''
+                });
+                setSelectedMonth('');
+              }}
               className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg transition-colors"
             >
               <RotateCcw className="h-3 w-3" /> Limpiar filtros
@@ -378,16 +403,19 @@ export function Billing() {
                       <p className="text-sm text-slate-500 max-w-sm mx-auto">Prueba ajustando los filtros o la búsqueda.</p>
                       {hasActiveFilters && (
                         <button
-                          onClick={() => setActiveFilters({
-                            sucursalId: 'all',
-                            estado: 'all',
-                            metodo: 'all',
-                            startDate: '',
-                            endDate: '',
-                            minMonto: '',
-                            maxMonto: '',
-                            search: ''
-                          })}
+                          onClick={() => {
+                            setActiveFilters({
+                              sucursalId: 'all',
+                              estado: 'all',
+                              metodo: 'all',
+                              startDate: '',
+                              endDate: '',
+                              minMonto: '',
+                              maxMonto: '',
+                              search: ''
+                            });
+                            setSelectedMonth('');
+                          }}
                           className="mt-2 text-sm font-bold text-blue-600 hover:underline"
                         >
                           Ver todas las facturas
