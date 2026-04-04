@@ -46,7 +46,7 @@ export function PublicEstimator() {
 
     const TASA_CAMBIO = 8.00; // Fixed exchange rate
     const TASA_LIBRA = 80.00; // Fixed weight rate per pound
-    const CONCIERGE_MULTIPLIER = 1.00;
+    const CONCIERGE_MULTIPLIER = 1.17;
 
     const handleExtract = async () => {
         if (!url.trim()) return;
@@ -393,12 +393,6 @@ export function PublicEstimator() {
                                             </span>
                                         </div>
 
-                                        {weBuyIt && (
-                                            <div className="flex justify-between items-end pt-2 text-emerald-500 border-t border-slate-200">
-                                                <span className="text-[9px] font-black uppercase tracking-widest">SERVICIO CORPORATIVO</span>
-                                                <span className="font-bold text-sm">SIN RECARGO</span>
-                                            </div>
-                                        )}
                                     </div>
 
                                     {/* Grand Highlight */}

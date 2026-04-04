@@ -74,7 +74,7 @@ Guidelines:
 - Weight: If not found in text, use LOGIC based on the product type (Laptop=5lb, Shoes=2lb, Tshirt=1lb, Phone=1lb, etc).
 - Image: Find the main product image URL (og:image, twitter:image, or main product gallery img).
 
-IMPORTANT: If HTML is empty or blocked by anti-bot measures, DO NOT return an empty price. You MUST use your world knowledge to guess the Title, approximate Price Usd, and Weight based on the URL path.
+IMPORTANT: If HTML is empty or blocked by anti-bot measures, DO NOT return an empty price or empty image. You MUST use your world knowledge to guess the Title, approximate Price Usd, Weight, and providing a generic but accurate image URL (using Wikimedia, Amazon CDN, or generic placeholder if necessary) based on the product in the URL path.
 Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`,
           },
           {
