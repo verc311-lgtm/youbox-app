@@ -24,7 +24,9 @@ interface Gasto {
 }
 
 const CategoriasGastos = [
-    'Salario', 'Luz', 'Agua', 'Renta', 'Internet', 'Proveedores', 'Otros'
+    'Internet', 'Luz', 'Renta', 'Impuestos', 'Salarios',
+    'Gastos Laredo', 'Gastos Tapachula', 'Gastos Greensboro',
+    'Cargo Express', 'Gastos Oficina', 'Compras Online', 'Otros'
 ];
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
