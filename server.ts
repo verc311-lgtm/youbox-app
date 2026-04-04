@@ -128,6 +128,29 @@ Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number,
       const content = data.choices[0].message.content;
       const parsed = JSON.parse(content);
 
+      // 4. Fallback: If AI could not find an image, get a screenshot from Microlink
+      if (!parsed.imageUrl) {
+        try {
+          const mlController = new AbortController();
+          const mlTimeout = setTimeout(() => mlController.abort(), 8000);
+          const mlRes = await fetch(
+            `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&meta=false`,
+            { signal: mlController.signal }
+          );
+          clearTimeout(mlTimeout);
+          if (mlRes.ok) {
+            const mlData = await mlRes.json();
+            if (mlData?.data?.screenshot?.url) {
+              parsed.imageUrl = mlData.data.screenshot.url;
+            } else if (mlData?.data?.image?.url && !mlData.data.image.url.includes('.svg')) {
+              parsed.imageUrl = mlData.data.image.url;
+            }
+          }
+        } catch (mlErr: any) {
+          console.warn("Microlink fallback failed:", mlErr.message);
+        }
+      }
+
       res.json(parsed);
     } catch (error: any) {
       console.error("Extraction error:", error);
