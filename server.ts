@@ -37,27 +37,50 @@ async function startServer() {
       let htmlContext = "";
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        const timeout = setTimeout(() => controller.abort(), 6000); // 6 second timeout
 
         const urlResponse = await fetch(url, {
           signal: controller.signal,
           headers: {
-            "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/W.X.Y.Z Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Referer": "https://www.google.com/"
+            "Upgrade-Insecure-Requests": "1"
           }
         });
         clearTimeout(timeout);
 
         if (urlResponse.ok) {
           const rawHtml = await urlResponse.text();
-          htmlContext = rawHtml.substring(0, 150000);
-        } else {
-          console.warn(`Fetch returned status ${urlResponse.status} for ${url}`);
+          htmlContext = rawHtml.substring(0, 100000);
         }
       } catch (e: any) {
         console.warn(`Failed to fetch HTML for ${url}:`, e.message);
+      }
+
+      // 1.5 Try to fetch secondary context via DDG Search
+      let searchHtmlContext = "";
+      try {
+        const urlParts = new URL(url).pathname.split('/');
+        let keywordCandidates = urlParts.pop() || urlParts.pop() || '';
+        if (keywordCandidates.includes('dp')) keywordCandidates = urlParts.pop() || '';
+        const slug = keywordCandidates.replace(/[\-_]/g, ' ');
+
+        if (slug) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent('buy "' + slug + '" price')}`, {
+             signal: controller.signal,
+             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+          });
+          clearTimeout(timeout);
+          if (ddgRes.ok) {
+              const rootHtml = await ddgRes.text();
+              searchHtmlContext = rootHtml.substring(0, 25000);
+          }
+        }
+      } catch (e: any) {
+         console.warn(`Failed to fetch DDG for ${url}:`, e.message);
       }
 
       // 2. Build the OpenAI Payload
@@ -75,11 +98,11 @@ Guidelines:
 - Image: Find the main product image URL (og:image, twitter:image, or main product gallery img).
 
 IMPORTANT: If HTML is empty or blocked by anti-bot measures, DO NOT return an empty price or empty image. You MUST use your world knowledge to guess the Title, approximate Price Usd, Weight, and providing a generic but accurate image URL (using Wikimedia, Amazon CDN, or generic placeholder if necessary) based on the product in the URL path.
-Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`,
+Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`
           },
           {
             role: "user",
-            content: `URL: ${url}\n\nHTML Context (might be truncated or empty):\n\n${htmlContext}`,
+            content: `URL: ${url}\n\nSearch Context (Fallback):\n${searchHtmlContext}\n\nHTML Context:\n\n${htmlContext}`,
           },
         ],
         response_format: { type: "json_object" },
