@@ -46,7 +46,7 @@ export function PublicEstimator() {
 
     const TASA_CAMBIO = 8.00; // Fixed exchange rate
     const TASA_LIBRA = 80.00; // Fixed weight rate per pound
-    const CONCIERGE_MULTIPLIER = 1.17;
+    const CONCIERGE_MULTIPLIER = 1.00;
 
     const handleExtract = async () => {
         if (!url.trim()) return;
@@ -81,7 +81,7 @@ export function PublicEstimator() {
             if (data.imageUrl) setImageUrl(data.imageUrl);
 
             if (!data.priceUsd && !data.imageUrl) {
-                setExtractError('Detectamos el producto, pero el sitio bloqueó la extracción del precio. Ingresa los datos manualmente abajo.');
+                setExtractError('Detectamos el producto, pero el sitio bloqueó la extracción exacta. Por favor valida o ajusta la información aproximada que generó la IA.');
             }
 
         } catch (err: any) {
@@ -110,11 +110,11 @@ export function PublicEstimator() {
         // 3. Sum of items (before multiplier)
         const subtotalBase = priceQ + costoLogistica + costoEntrega;
 
-        // Normal = 1.00x, Concierge = 1.17x
+        // Normal = 1.00x, Concierge = 1.00x
         const multiplier = weBuyIt ? CONCIERGE_MULTIPLIER : 1.00;
         const total = subtotalBase * multiplier;
 
-        return { costoLogistica, priceQ, costoEntrega, total, multiplierLabel: weBuyIt ? '17%' : '0%' };
+        return { costoLogistica, priceQ, costoEntrega, total, multiplierLabel: weBuyIt ? '0%' : '0%' };
     };
 
     const { costoLogistica, priceQ, costoEntrega, total, multiplierLabel } = calculateEstimates();
@@ -125,9 +125,9 @@ export function PublicEstimator() {
             `📦 *Producto:* ${title || 'Sin nombre'}\n` +
             `🔗 *Link:* ${url || 'Manual'}\n` +
             `🌎 *Destino:* ${selectedDepto}\n` +
-            `⚖️ *Peso:* ${weightLbs || 1} Lbs\n` +
+            `⚖️ *Peso Estimado:* ${weightLbs || 1} Lbs (Sujeto a peso real)\n` +
             `💰 *Precio USD:* $${priceUsd}\n` +
-            `🛠️ *Modalidad:* ${weBuyIt ? 'Lo compramos por mí (+17%)' : 'Yo lo compro'}\n\n` +
+            `🛠️ *Modalidad:* ${weBuyIt ? 'Lo compramos por mí (Sin cargo extra)' : 'Yo lo compro'}\n\n` +
             `🔥 *TOTAL ESTIMADO: Q${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}*`;
 
         window.open(`https://wa.me/50256466611?text=${encodeURIComponent(message)}`, '_blank');
@@ -339,7 +339,7 @@ export function PublicEstimator() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className={`font-black uppercase tracking-tight text-sm ${weBuyIt ? 'text-white' : 'text-slate-400'}`}>Lo compramos por ti</h3>
-                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tighter leading-tight">Servicio corporativo completo (+17%) - Nosotros nos encargamos de todo.</p>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tighter leading-tight">Servicio corporativo completo (Sin cargo) - Nosotros nos encargamos de todo.</p>
                                 </div>
                                 <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${weBuyIt ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-600'}`}>
                                     {weBuyIt ? 'Activado' : 'Opcional'}
@@ -394,9 +394,9 @@ export function PublicEstimator() {
                                         </div>
 
                                         {weBuyIt && (
-                                            <div className="flex justify-between items-end pt-2 text-amber-500 border-t border-slate-200">
-                                                <span className="text-[9px] font-black uppercase tracking-widest">SERVICIO CORPORATIVO (17%)</span>
-                                                <span className="font-bold text-sm">INCLUIDO EN TOTAL</span>
+                                            <div className="flex justify-between items-end pt-2 text-emerald-500 border-t border-slate-200">
+                                                <span className="text-[9px] font-black uppercase tracking-widest">SERVICIO CORPORATIVO</span>
+                                                <span className="font-bold text-sm">SIN RECARGO</span>
                                             </div>
                                         )}
                                     </div>
