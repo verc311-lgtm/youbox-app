@@ -35,109 +35,62 @@ async function startServer() {
 
       // STRATEGY: 
       // 1. Parse product name from URL slug
-      // 2. Search DuckDuckGo Images for that product (free, no API key, returns real image URLs)
-      // 3. Ask OpenAI gpt-4o to guess price & weight from product name (faster, cheaper, more accurate than vision)
-      // 4. Combine results
+      // 2. Ask OpenAI to identify exact product name & estimate price/weight
+      // 3. Search DDG Images using the EXACT title from OpenAI (more specific = right image)
 
       // Step 1: Extract product slug from URL
       let productSlug = "";
       try {
         const parsedUrl = new URL(url);
+        const domain = parsedUrl.hostname.replace('www.', '').replace('.com', '');
         const parts = parsedUrl.pathname.split('/').filter(Boolean);
-        // find last meaningful segment (exclude things like 'dp', 'product')
         const ignoreParts = new Set(['dp', 'product', 'p', 'item', 'buy', 'en-us', 'en', 'us']);
-        for (let i = parts.length - 1; i >= 0; i--) {
-          if (!ignoreParts.has(parts[i].toLowerCase()) && parts[i].length > 3) {
-            productSlug = parts[i].replace(/[-_]/g, ' ');
-            break;
-          }
-        }
-        if (!productSlug && parts.length > 0) {
+        
+        // Combine meaningful segments (not ignored ones) to get a richer slug
+        const meaningfulParts = parts.filter(p => !ignoreParts.has(p.toLowerCase()) && p.length > 3);
+        if (meaningfulParts.length > 0) {
+          productSlug = meaningfulParts.join(' ').replace(/[-_]/g, ' ');
+        } else if (parts.length > 0) {
           productSlug = parts[parts.length - 1].replace(/[-_]/g, ' ');
+        }
+        
+        // Include domain as context hint (e.g., "bestbuy", "amazon", "lego")
+        if (domain && domain !== 'localhost') {
+          productSlug = `${productSlug} ${domain}`;
         }
       } catch {
         productSlug = url;
       }
 
-      const productName = productSlug;
-      console.log("Extracted product slug:", productName);
+      console.log("Extracted product slug:", productSlug);
 
-      // Step 2: Search DuckDuckGo Images and extract first real image URL
-      let foundImageUrl: string | null = null;
-      try {
-        const ddgImgController = new AbortController();
-        const ddgImgTimeout = setTimeout(() => ddgImgController.abort(), 6000);
-        
-        // DDG image search returns vqd token first
-        const ddgInit = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(productName)}&iax=images&ia=images`, {
-          signal: ddgImgController.signal,
-          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" }
-        });
-        clearTimeout(ddgImgTimeout);
-
-        if (ddgInit.ok) {
-          const initHtml = await ddgInit.text();
-          
-          // Extract the vqd token required for image search API
-          const vqdMatch = initHtml.match(/vqd=['"]([^'"]+)['"]/);
-          const vqd = vqdMatch ? vqdMatch[1] : null;
-
-          if (vqd) {
-            const imgController = new AbortController();
-            const imgTimeout = setTimeout(() => imgController.abort(), 6000);
-            const ddgImgRes = await fetch(
-              `https://duckduckgo.com/i.js?q=${encodeURIComponent(productName)}&vqd=${encodeURIComponent(vqd)}&o=json&p=1`,
-              {
-                signal: imgController.signal,
-                headers: {
-                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                  "Referer": "https://duckduckgo.com/"
-                }
-              }
-            );
-            clearTimeout(imgTimeout);
-
-            if (ddgImgRes.ok) {
-              const imgData = await ddgImgRes.json() as { results?: Array<{ image?: string }> };
-              const firstResult = imgData?.results?.[0];
-              if (firstResult?.image) {
-                foundImageUrl = firstResult.image;
-                console.log("DDG Image found:", foundImageUrl);
-              }
-            }
-          }
-        }
-      } catch (err: any) {
-        console.warn("DDG image search failed:", err.message);
-      }
-
-      // Step 3: Ask OpenAI to estimate the price and weight from product name only
+      // Step 2: Ask OpenAI to identify the exact product and estimate price/weight
       const payload = {
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
             content: `You are an e-commerce expert with deep knowledge of product prices and weights.
-Given a product name or URL, return your best estimate.
+Given a product URL and name hint, identify the exact product and return accurate details.
 
 Rules:
-- Title: Clean, marketable name for the product.
-- priceUsd: Your best estimate of the current retail price in USD. Be specific and realistic. Use current market knowledge (e.g. LEGO FIFA Trophy 43020 = $199.99, iPhone 16 = $799, Nike Air Max = $110 etc.)
-- estimatedWeightLbs: Realistic weight in lbs (LEGO large set ~2-5lbs, shoes 2lbs, phone 0.5lbs, laptop 5lbs, small toy 1lb).
+- Title: The EXACT product name as sold (include model number/variant if identifiable from URL).
+- priceUsd: Current retail price in USD. Be specific and realistic based on real market data.
+- estimatedWeightLbs: Realistic shipping weight in lbs based on product type and size.
 - imageUrl: Return null (image handled separately).
 
 Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": null}`
           },
           {
             role: "user",
-            content: `Product URL: ${url}\nProduct name guess from URL: "${productName}"\n\nEstimate product details.`
+            content: `Product URL: ${url}\nProduct hint from URL: "${productSlug}"\n\nIdentify and estimate this product.`
           }
         ],
         response_format: { type: "json_object" },
         max_tokens: 300,
       };
 
-      // 4. Call OpenAI
+      // 3. Call OpenAI first to get the precise product title
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -153,11 +106,72 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
         return res.status(500).json({ error: "Error communicating with AI" });
       }
 
-      const data = await response.json();
-      const content = data.choices[0].message.content;
-      const parsed = JSON.parse(content);
+      const aiData = await response.json();
+      const aiContent = aiData.choices[0].message.content;
+      const parsed = JSON.parse(aiContent);
 
-      // Step 5: Inject the image we found from DDG
+      // Step 4: Search DDG Images using the EXACT product title OpenAI returned
+      let foundImageUrl: string | null = null;
+      const imageQuery = parsed.title || productSlug;
+      console.log("Searching DDG Images for:", imageQuery);
+
+      try {
+        const ddgImgController = new AbortController();
+        const ddgImgTimeout = setTimeout(() => ddgImgController.abort(), 6000);
+
+        const ddgInit = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(imageQuery)}&iax=images&ia=images`, {
+          signal: ddgImgController.signal,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" }
+        });
+        clearTimeout(ddgImgTimeout);
+
+        if (ddgInit.ok) {
+          const initHtml = await ddgInit.text();
+          const vqdMatch = initHtml.match(/vqd=['"]([^'"]+)['"]/);
+          const vqd = vqdMatch ? vqdMatch[1] : null;
+
+          if (vqd) {
+            const imgController = new AbortController();
+            const imgTimeout = setTimeout(() => imgController.abort(), 6000);
+            const ddgImgRes = await fetch(
+              `https://duckduckgo.com/i.js?q=${encodeURIComponent(imageQuery)}&vqd=${encodeURIComponent(vqd)}&o=json&p=1`,
+              {
+                signal: imgController.signal,
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                  "Referer": "https://duckduckgo.com/"
+                }
+              }
+            );
+            clearTimeout(imgTimeout);
+
+            if (ddgImgRes.ok) {
+              const imgData = await ddgImgRes.json() as { results?: Array<{ image?: string; title?: string }> };
+              // Try to find the most relevant image by picking one with a matching title keyword
+              const titleWords = (parsed.title || '').toLowerCase().split(' ').filter((w: string) => w.length > 3);
+              let bestImage: string | null = null;
+
+              for (const result of (imgData?.results || []).slice(0, 8)) {
+                if (!result.image) continue;
+                const resultTitle = (result.title || '').toLowerCase();
+                const matchCount = titleWords.filter((w: string) => resultTitle.includes(w)).length;
+                if (matchCount >= 2) {
+                  bestImage = result.image;
+                  break;
+                }
+              }
+
+              // Fallback to first result if no title match
+              foundImageUrl = bestImage || imgData?.results?.[0]?.image || null;
+              console.log("DDG Image found:", foundImageUrl);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn("DDG image search failed:", err.message);
+      }
+
+      // Step 5: Return AI data + DDG image
       parsed.imageUrl = foundImageUrl || null;
 
       res.json(parsed);
