@@ -33,75 +33,111 @@ async function startServer() {
         return res.status(500).json({ error: "OpenAI API Key is missing on the server" });
       }
 
-      // STRATEGY: Screenshot the page with Microlink, then feed it to GPT-4o Vision.
-      // This bypasses all anti-bot blocks because the screenshot is rendered by a real browser.
-      
-      let screenshotUrl: string | null = null;
-      let microlinkImageUrl: string | null = null;
+      // STRATEGY: 
+      // 1. Parse product name from URL slug
+      // 2. Search DuckDuckGo Images for that product (free, no API key, returns real image URLs)
+      // 3. Ask OpenAI gpt-4o to guess price & weight from product name (faster, cheaper, more accurate than vision)
+      // 4. Combine results
 
+      // Step 1: Extract product slug from URL
+      let productSlug = "";
       try {
-        const mlController = new AbortController();
-        const mlTimeout = setTimeout(() => mlController.abort(), 15000);
-        const mlRes = await fetch(
-          `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&meta=true&embed=screenshot.url`,
-          { signal: mlController.signal }
-        );
-        clearTimeout(mlTimeout);
-        if (mlRes.ok) {
-          const mlData = await mlRes.json();
-          screenshotUrl = mlData?.data?.screenshot?.url || null;
-          const rawImg = mlData?.data?.image?.url || null;
-          if (rawImg && !rawImg.endsWith('.svg')) {
-            microlinkImageUrl = rawImg;
+        const parsedUrl = new URL(url);
+        const parts = parsedUrl.pathname.split('/').filter(Boolean);
+        // find last meaningful segment (exclude things like 'dp', 'product')
+        const ignoreParts = new Set(['dp', 'product', 'p', 'item', 'buy', 'en-us', 'en', 'us']);
+        for (let i = parts.length - 1; i >= 0; i--) {
+          if (!ignoreParts.has(parts[i].toLowerCase()) && parts[i].length > 3) {
+            productSlug = parts[i].replace(/[-_]/g, ' ');
+            break;
           }
         }
-      } catch (mlErr: any) {
-        console.warn("Microlink screenshot failed:", mlErr.message);
+        if (!productSlug && parts.length > 0) {
+          productSlug = parts[parts.length - 1].replace(/[-_]/g, ' ');
+        }
+      } catch {
+        productSlug = url;
       }
 
-      // Build user content for OpenAI - if we have a screenshot, use Vision
-      const userContent: any[] = [];
+      const productName = productSlug;
+      console.log("Extracted product slug:", productName);
 
-      userContent.push({
-        type: "text",
-        text: `Product URL: ${url}\n\nPlease extract the product info from this page.`
-      });
-
-      if (screenshotUrl) {
-        userContent.push({
-          type: "image_url",
-          image_url: { url: screenshotUrl, detail: "high" }
+      // Step 2: Search DuckDuckGo Images and extract first real image URL
+      let foundImageUrl: string | null = null;
+      try {
+        const ddgImgController = new AbortController();
+        const ddgImgTimeout = setTimeout(() => ddgImgController.abort(), 6000);
+        
+        // DDG image search returns vqd token first
+        const ddgInit = await fetch(`https://duckduckgo.com/?q=${encodeURIComponent(productName)}&iax=images&ia=images`, {
+          signal: ddgImgController.signal,
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" }
         });
+        clearTimeout(ddgImgTimeout);
+
+        if (ddgInit.ok) {
+          const initHtml = await ddgInit.text();
+          
+          // Extract the vqd token required for image search API
+          const vqdMatch = initHtml.match(/vqd=['"]([^'"]+)['"]/);
+          const vqd = vqdMatch ? vqdMatch[1] : null;
+
+          if (vqd) {
+            const imgController = new AbortController();
+            const imgTimeout = setTimeout(() => imgController.abort(), 6000);
+            const ddgImgRes = await fetch(
+              `https://duckduckgo.com/i.js?q=${encodeURIComponent(productName)}&vqd=${encodeURIComponent(vqd)}&o=json&p=1`,
+              {
+                signal: imgController.signal,
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                  "Referer": "https://duckduckgo.com/"
+                }
+              }
+            );
+            clearTimeout(imgTimeout);
+
+            if (ddgImgRes.ok) {
+              const imgData = await ddgImgRes.json() as { results?: Array<{ image?: string }> };
+              const firstResult = imgData?.results?.[0];
+              if (firstResult?.image) {
+                foundImageUrl = firstResult.image;
+                console.log("DDG Image found:", foundImageUrl);
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn("DDG image search failed:", err.message);
       }
 
-      // 2. Build the OpenAI Payload using gpt-4o for vision support
+      // Step 3: Ask OpenAI to estimate the price and weight from product name only
       const payload = {
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `You are an expert e-commerce price extraction assistant.
-Your task: Extract product details by looking at the screenshot of the product page provided.
+            content: `You are an e-commerce expert with deep knowledge of product prices and weights.
+Given a product name or URL, return your best estimate.
 
-Instructions:
-- Title: Product name as shown on the page. Short and clear.
-- priceUsd: The exact listed price in USD as shown on the screenshot. Return as a number (e.g., 199.99). 
-- estimatedWeightLbs: Look for weight on the page. If not visible, make an educated guess by product type (e.g., small LEGO set 1-3lbs, large set 5-10lbs, shoes 2lbs, phone 0.5lbs, laptop 5lbs, t-shirt 0.5lbs, toy 1-2lbs).
-- imageUrl: Return the EXACT product image URL visible in the screenshot (the main hero/product photo URL). If not determinable, return null.
+Rules:
+- Title: Clean, marketable name for the product.
+- priceUsd: Your best estimate of the current retail price in USD. Be specific and realistic. Use current market knowledge (e.g. LEGO FIFA Trophy 43020 = $199.99, iPhone 16 = $799, Nike Air Max = $110 etc.)
+- estimatedWeightLbs: Realistic weight in lbs (LEGO large set ~2-5lbs, shoes 2lbs, phone 0.5lbs, laptop 5lbs, small toy 1lb).
+- imageUrl: Return null (image handled separately).
 
-IMPORTANT: You are reading a REAL screenshot of the live page. Trust what you see. Do NOT guess or invent prices.
-Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`
+Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": null}`
           },
           {
             role: "user",
-            content: userContent
+            content: `Product URL: ${url}\nProduct name guess from URL: "${productName}"\n\nEstimate product details.`
           }
         ],
         response_format: { type: "json_object" },
-        max_tokens: 500,
+        max_tokens: 300,
       };
 
-      // 3. Call OpenAI securely
+      // 4. Call OpenAI
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -121,11 +157,8 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
       const content = data.choices[0].message.content;
       const parsed = JSON.parse(content);
 
-      // If the AI could not determine a product image from the screenshot,
-      // use the Microlink meta image as a fallback, otherwise the screenshot itself
-      if (!parsed.imageUrl) {
-        parsed.imageUrl = microlinkImageUrl || screenshotUrl;
-      }
+      // Step 5: Inject the image we found from DDG
+      parsed.imageUrl = foundImageUrl || null;
 
       res.json(parsed);
     } catch (error: any) {
