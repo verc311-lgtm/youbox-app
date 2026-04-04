@@ -33,79 +33,72 @@ async function startServer() {
         return res.status(500).json({ error: "OpenAI API Key is missing on the server" });
       }
 
-      // 1. Try to fetch the page HTML with a strict timeout
-      let htmlContext = "";
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000); // 6 second timeout
+      // STRATEGY: Screenshot the page with Microlink, then feed it to GPT-4o Vision.
+      // This bypasses all anti-bot blocks because the screenshot is rendered by a real browser.
+      
+      let screenshotUrl: string | null = null;
+      let microlinkImageUrl: string | null = null;
 
-        const urlResponse = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Upgrade-Insecure-Requests": "1"
+      try {
+        const mlController = new AbortController();
+        const mlTimeout = setTimeout(() => mlController.abort(), 15000);
+        const mlRes = await fetch(
+          `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&meta=true&embed=screenshot.url`,
+          { signal: mlController.signal }
+        );
+        clearTimeout(mlTimeout);
+        if (mlRes.ok) {
+          const mlData = await mlRes.json();
+          screenshotUrl = mlData?.data?.screenshot?.url || null;
+          const rawImg = mlData?.data?.image?.url || null;
+          if (rawImg && !rawImg.endsWith('.svg')) {
+            microlinkImageUrl = rawImg;
           }
+        }
+      } catch (mlErr: any) {
+        console.warn("Microlink screenshot failed:", mlErr.message);
+      }
+
+      // Build user content for OpenAI - if we have a screenshot, use Vision
+      const userContent: any[] = [];
+
+      userContent.push({
+        type: "text",
+        text: `Product URL: ${url}\n\nPlease extract the product info from this page.`
+      });
+
+      if (screenshotUrl) {
+        userContent.push({
+          type: "image_url",
+          image_url: { url: screenshotUrl, detail: "high" }
         });
-        clearTimeout(timeout);
-
-        if (urlResponse.ok) {
-          const rawHtml = await urlResponse.text();
-          htmlContext = rawHtml.substring(0, 100000);
-        }
-      } catch (e: any) {
-        console.warn(`Failed to fetch HTML for ${url}:`, e.message);
       }
 
-      // 1.5 Try to fetch secondary context via DDG Search
-      let searchHtmlContext = "";
-      try {
-        const urlParts = new URL(url).pathname.split('/');
-        let keywordCandidates = urlParts.pop() || urlParts.pop() || '';
-        if (keywordCandidates.includes('dp')) keywordCandidates = urlParts.pop() || '';
-        const slug = keywordCandidates.replace(/[\-_]/g, ' ');
-
-        if (slug) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 4000);
-          const ddgRes = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent('buy "' + slug + '" price')}`, {
-             signal: controller.signal,
-             headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-          });
-          clearTimeout(timeout);
-          if (ddgRes.ok) {
-              const rootHtml = await ddgRes.text();
-              searchHtmlContext = rootHtml.substring(0, 25000);
-          }
-        }
-      } catch (e: any) {
-         console.warn(`Failed to fetch DDG for ${url}:`, e.message);
-      }
-
-      // 2. Build the OpenAI Payload
+      // 2. Build the OpenAI Payload using gpt-4o for vision support
       const payload = {
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `You are an expert e-commerce assistant.
-Goal: Extract product data from URL and HTML.
-Guidelines:
-- Title: Clear and concise.
-- Price: Extract the MAIN current price. If there are multiple, use the lowest non-clearance price. Return as a NUMBER in USD.
-- Weight: If not found in text, use LOGIC based on the product type (Laptop=5lb, Shoes=2lb, Tshirt=1lb, Phone=1lb, etc).
-- Image: Find the main product image URL (og:image, twitter:image, or main product gallery img).
+            content: `You are an expert e-commerce price extraction assistant.
+Your task: Extract product details by looking at the screenshot of the product page provided.
 
-IMPORTANT: If HTML is empty or blocked by anti-bot measures, DO NOT return an empty price or empty image. You MUST use your world knowledge to guess the Title, approximate Price Usd, Weight, and providing a generic but accurate image URL (using Wikimedia, Amazon CDN, or generic placeholder if necessary) based on the product in the URL path.
-Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`
+Instructions:
+- Title: Product name as shown on the page. Short and clear.
+- priceUsd: The exact listed price in USD as shown on the screenshot. Return as a number (e.g., 199.99). 
+- estimatedWeightLbs: Look for weight on the page. If not visible, make an educated guess by product type (e.g., small LEGO set 1-3lbs, large set 5-10lbs, shoes 2lbs, phone 0.5lbs, laptop 5lbs, t-shirt 0.5lbs, toy 1-2lbs).
+- imageUrl: Return the EXACT product image URL visible in the screenshot (the main hero/product photo URL). If not determinable, return null.
+
+IMPORTANT: You are reading a REAL screenshot of the live page. Trust what you see. Do NOT guess or invent prices.
+Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number, "imageUrl": string | null}`
           },
           {
             role: "user",
-            content: `URL: ${url}\n\nSearch Context (Fallback):\n${searchHtmlContext}\n\nHTML Context:\n\n${htmlContext}`,
-          },
+            content: userContent
+          }
         ],
         response_format: { type: "json_object" },
+        max_tokens: 500,
       };
 
       // 3. Call OpenAI securely
@@ -128,27 +121,10 @@ Return JSON: {"title": string, "priceUsd": number, "estimatedWeightLbs": number,
       const content = data.choices[0].message.content;
       const parsed = JSON.parse(content);
 
-      // 4. Fallback: If AI could not find an image, get a screenshot from Microlink
+      // If the AI could not determine a product image from the screenshot,
+      // use the Microlink meta image as a fallback, otherwise the screenshot itself
       if (!parsed.imageUrl) {
-        try {
-          const mlController = new AbortController();
-          const mlTimeout = setTimeout(() => mlController.abort(), 8000);
-          const mlRes = await fetch(
-            `https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&meta=false`,
-            { signal: mlController.signal }
-          );
-          clearTimeout(mlTimeout);
-          if (mlRes.ok) {
-            const mlData = await mlRes.json();
-            if (mlData?.data?.screenshot?.url) {
-              parsed.imageUrl = mlData.data.screenshot.url;
-            } else if (mlData?.data?.image?.url && !mlData.data.image.url.includes('.svg')) {
-              parsed.imageUrl = mlData.data.image.url;
-            }
-          }
-        } catch (mlErr: any) {
-          console.warn("Microlink fallback failed:", mlErr.message);
-        }
+        parsed.imageUrl = microlinkImageUrl || screenshotUrl;
       }
 
       res.json(parsed);
