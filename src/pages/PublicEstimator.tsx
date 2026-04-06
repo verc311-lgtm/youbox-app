@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Loader2, Package, Store, ShoppingCart, TrendingUp, Sparkles, AlertCircle, ChevronRight, Check, ArrowLeft } from 'lucide-react';
+import { Plus, Loader2, Trash2, Edit3, Package, ShoppingCart, ArrowLeft, Check, AlertCircle, ChevronDown, Info, MessageCircle } from 'lucide-react';
 
 const DEPARTAMENTOS = [
     { nombre: 'Alta Verapaz', envio: 35 },
@@ -26,423 +26,517 @@ const DEPARTAMENTOS = [
     { nombre: 'Zacapa', envio: 35 }
 ];
 
+const TASA_CAMBIO = 8.00;
+const TASA_LIBRA = 80.00;
+const CONCIERGE_MULTIPLIER = 1.17;
+
+interface CartProduct {
+    id: string;
+    url: string;
+    title: string;
+    priceUsd: number;
+    weightLbs: number;
+    imageUrl: string | null;
+    quantity: number;
+    loading: boolean;
+    error?: string;
+}
+
+function randomId() {
+    return Math.random().toString(36).substring(2, 9);
+}
+
 export function PublicEstimator() {
-    const [selectedDepto, setSelectedDepto] = useState<string>('');
-
-    // Link extraction state
-    const [url, setUrl] = useState('');
-    const [isExtracting, setIsExtracting] = useState(false);
-    const [extractError, setExtractError] = useState('');
-
-    // Product details state
-    const [title, setTitle] = useState('');
-    const [priceUsd, setPriceUsd] = useState<number | ''>('');
-    const [weightLbs, setWeightLbs] = useState<number | ''>('');
-    const [imageUrl, setImageUrl] = useState('');
-
-    // Option state
+    const [selectedDepto, setSelectedDepto] = useState('');
+    const [deptoOpen, setDeptoOpen] = useState(false);
     const [weBuyIt, setWeBuyIt] = useState(false);
-    const [showResults, setShowResults] = useState(false);
 
-    const TASA_CAMBIO = 8.00; // Fixed exchange rate
-    const TASA_LIBRA = 80.00; // Fixed weight rate per pound
-    const CONCIERGE_MULTIPLIER = 1.17;
+    const [urlInput, setUrlInput] = useState('');
+    const [products, setProducts] = useState<CartProduct[]>([]);
+    const [editingId, setEditingId] = useState<string | null>(null);
 
-    const handleExtract = async () => {
-        if (!url.trim()) return;
+    const depto = DEPARTAMENTOS.find(d => d.nombre === selectedDepto);
+    const costoEntrega = depto ? depto.envio : 35;
 
-        setIsExtracting(true);
-        setShowResults(true);
-        setExtractError('');
-        setImageUrl('');
+    const totalLogistica = products.reduce((sum, p) => sum + (p.weightLbs * p.quantity * TASA_LIBRA), 0);
+    const totalMercaderia = products.reduce((sum, p) => sum + (p.priceUsd * p.quantity * TASA_CAMBIO), 0);
+    const subtotal = totalMercaderia + totalLogistica + (products.length > 0 ? costoEntrega : 0);
+    const multiplier = weBuyIt ? CONCIERGE_MULTIPLIER : 1.00;
+    const grandTotal = subtotal * multiplier;
+
+    const canOrder = products.length > 0 && selectedDepto;
+
+    const addProduct = async () => {
+        if (!urlInput.trim()) return;
+        const id = randomId();
+        const newProduct: CartProduct = {
+            id,
+            url: urlInput.trim(),
+            title: 'Analizando...',
+            priceUsd: 0,
+            weightLbs: 1,
+            imageUrl: null,
+            quantity: 1,
+            loading: true,
+        };
+        setProducts(prev => [...prev, newProduct]);
+        setUrlInput('');
 
         try {
             const response = await fetch('/api/extract-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url: newProduct.url }),
             });
 
-            if (!response.ok) {
-                throw new Error('No se pudo extraer la información automáticamente.');
-            }
-
+            if (!response.ok) throw new Error('Error al analizar el enlace');
             const data = await response.json();
 
-            if (data.title) setTitle(data.title);
-
-            if (data.priceUsd !== undefined && data.priceUsd !== null) {
-                setPriceUsd(data.priceUsd);
-            } else {
-                setPriceUsd(0);
-            }
-
-            if (data.estimatedWeightLbs) setWeightLbs(data.estimatedWeightLbs);
-            if (data.imageUrl) setImageUrl(data.imageUrl);
-
-            if (!data.priceUsd && !data.imageUrl) {
-                setExtractError('Detectamos el producto, pero el sitio bloqueó la extracción exacta. Por favor valida o ajusta la información aproximada que generó la IA.');
-            }
-
+            setProducts(prev => prev.map(p => p.id === id ? {
+                ...p,
+                loading: false,
+                title: data.title || 'Producto sin nombre',
+                priceUsd: data.priceUsd || 0,
+                weightLbs: data.estimatedWeightLbs || 1,
+                imageUrl: data.imageUrl || null,
+            } : p));
         } catch (err: any) {
-            setExtractError(err.message || 'Error al analizar el enlace.');
-        } finally {
-            setIsExtracting(false);
+            setProducts(prev => prev.map(p => p.id === id ? {
+                ...p,
+                loading: false,
+                title: 'Error al analizar',
+                error: err.message,
+            } : p));
         }
     };
 
-    // Calculations
-    const calculateEstimates = () => {
-        if (!showResults) {
-            return { costoLogistica: 0, priceQ: 0, costoEntrega: 0, total: 0, multiplierLabel: weBuyIt ? '20%' : '12%' };
-        }
-
-        const baseWeight = Math.max(Number(weightLbs) || 1, 1);
-        const depto = DEPARTAMENTOS.find(d => d.nombre === selectedDepto);
-        const costoEntrega = depto ? depto.envio : 35;
-
-        // 1. Logistics: Weight * Q80
-        const costoLogistica = baseWeight * TASA_LIBRA;
-
-        // 2. Price in Quetzales: USD * Rate
-        const priceQ = (Number(priceUsd) || 0) * TASA_CAMBIO;
-
-        // 3. Sum of items (before multiplier)
-        const subtotalBase = priceQ + costoLogistica + costoEntrega;
-
-        // Normal = 1.00x, Concierge = 1.00x
-        const multiplier = weBuyIt ? CONCIERGE_MULTIPLIER : 1.00;
-        const total = subtotalBase * multiplier;
-
-        return { costoLogistica, priceQ, costoEntrega, total, multiplierLabel: weBuyIt ? '0%' : '0%' };
+    const removeProduct = (id: string) => {
+        setProducts(prev => prev.filter(p => p.id !== id));
     };
 
-    const { costoLogistica, priceQ, costoEntrega, total, multiplierLabel } = calculateEstimates();
+    const updateProduct = (id: string, field: keyof CartProduct, value: any) => {
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+    };
 
     const handleWhatsApp = () => {
-        if (!total) return;
-        const message = `¡Hola YouBox! 👋 Deseo cotizar mi compra con Smart IA:\n\n` +
-            `📦 *Producto:* ${title || 'Sin nombre'}\n` +
-            `🔗 *Link:* ${url || 'Manual'}\n` +
-            `🌎 *Destino:* ${selectedDepto}\n` +
-            `⚖️ *Peso Estimado:* ${weightLbs || 1} Lbs (Sujeto a peso real)\n` +
-            `💰 *Precio USD:* $${priceUsd}\n` +
-            `🛠️ *Modalidad:* ${weBuyIt ? 'Lo compramos por mí (Sin cargo extra)' : 'Yo lo compro'}\n\n` +
-            `🔥 *TOTAL ESTIMADO: Q${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}*`;
+        if (!canOrder) return;
+        const lines = products.map((p, i) =>
+            `📦 *Producto ${i + 1}:* ${p.title}\n   🔗 ${p.url}\n   💲 $${p.priceUsd} USD × ${p.quantity} ud(s) = Q${(p.priceUsd * p.quantity * TASA_CAMBIO).toFixed(2)}\n   ⚖️ ${p.weightLbs} lbs × ${p.quantity} = Q${(p.weightLbs * p.quantity * TASA_LIBRA).toFixed(2)} logística`
+        ).join('\n\n');
+
+        const message =
+            `¡Hola YouBox! 👋 Quiero cotizar mi pedido:\n\n${lines}\n\n` +
+            `🚚 *Destino:* ${selectedDepto}\n` +
+            `🛠️ *Modalidad:* ${weBuyIt ? 'Lo compramos por ti (Gestión Premium)' : 'Yo lo compro'}\n\n` +
+            `🔥 *TOTAL ESTIMADO: Q${grandTotal.toFixed(2)}*\n` +
+            `_⚠️ Estimado sujeto a precio y peso real del producto_`;
 
         window.open(`https://wa.me/50256466611?text=${encodeURIComponent(message)}`, '_blank');
     };
 
     return (
-        <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30 pb-20">
-            {/* Ambient Background Circles */}
+        <div className="min-h-screen bg-[#0a0f1e] text-slate-200 font-sans selection:bg-blue-500/30">
+            {/* Background */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-600/5 blur-[120px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/5 blur-[120px]" />
+                <div className="absolute top-[-15%] left-[-10%] w-[55%] h-[55%] rounded-full bg-blue-700/8 blur-[140px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-700/8 blur-[140px]" />
+                <div className="absolute top-[40%] left-[45%] w-[30%] h-[30%] rounded-full bg-violet-700/5 blur-[100px]" />
             </div>
 
-            <div className="relative max-w-6xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-                {/* Back Button */}
-                <div className="absolute top-6 left-4 sm:top-12 sm:left-8 z-50">
-                    <a
-                        href="https://youboxgt.com"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white backdrop-blur-md transition-all text-sm font-medium group shadow-lg"
-                    >
-                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                        <span className="hidden sm:inline">Regresar a youboxgt.com</span>
-                        <span className="sm:hidden">Volver</span>
+            {/* Header */}
+            <div className="relative border-b border-white/5 bg-white/3 backdrop-blur-xl">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+                    <a href="https://youboxgt.com" className="flex items-center gap-2 text-white/50 hover:text-white/80 transition-colors text-sm">
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Volver</span>
                     </a>
-                </div>
-
-                {/* Modern Header */}
-                <header className="text-center mb-16 animate-in fade-in slide-in-from-top-4 duration-1000 mt-12 sm:mt-0">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-black uppercase tracking-widest mb-6">
-                        <Sparkles className="h-3 w-3" />
-                        Next-Gen Logistics
+                    <div className="text-center">
+                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+                            YouBox <span className="text-blue-400">Smart</span>
+                        </h1>
+                        <p className="text-[11px] text-slate-400 tracking-widest uppercase">Cotizador Inteligente</p>
                     </div>
-                    <h1 className="text-5xl sm:text-7xl font-black text-white tracking-tighter mb-6">
-                        YouBox <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Smart</span>
-                    </h1>
-                    <p className="text-slate-400 text-lg max-w-2xl mx-auto font-medium leading-relaxed">
-                        Cotizaciones instantáneas blindadas con Inteligencia Artificial. <br className="hidden sm:block" /> Traer tus compras nunca fue tan transparente.
-                    </p>
-                </header>
+                    <div className="w-16" />
+                </div>
+            </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_370px] gap-8 items-start">
 
-                    {/* INPUT PANEL */}
-                    <div className="lg:col-span-7 space-y-8">
+                    {/* LEFT COLUMN */}
+                    <div className="space-y-6">
 
-                        {/* DESTINATION SELECTION */}
-                        <section className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl overflow-hidden relative group border-t-white/20">
-                            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <Store className="h-24 w-24 text-white" />
+                        {/* Step 1: Destination */}
+                        <div className="bg-white/4 border border-white/8 rounded-2xl p-6 backdrop-blur-sm">
+                            <div className="flex items-center gap-3 mb-5">
+                                <span className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-black">1</span>
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400">Selecciona tu destino</span>
                             </div>
 
-                            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-4">
-                                <span className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs not-italic">01</span>
-                                Selecciona tu Destino
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div className="relative group">
-                                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition" />
-                                    <select
-                                        value={selectedDepto}
-                                        onChange={(e) => setSelectedDepto(e.target.value)}
-                                        className="relative w-full bg-[#1e293b] border border-white/10 rounded-2xl px-6 py-4 text-white font-bold appearance-none cursor-pointer outline-none focus:border-blue-500 transition-all text-sm"
-                                    >
-                                        <option value="">Buscar departamento...</option>
+                            {/* Departament selector */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setDeptoOpen(!deptoOpen)}
+                                    className="w-full flex items-center justify-between bg-white/6 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl px-4 py-3 text-left transition-all"
+                                >
+                                    <span className={selectedDepto ? 'text-white font-semibold' : 'text-slate-400'}>
+                                        {selectedDepto || 'Buscar departamento...'}
+                                    </span>
+                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${deptoOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                {deptoOpen && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#111827] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 max-h-64 overflow-y-auto">
                                         {DEPARTAMENTOS.map(d => (
-                                            <option key={d.nombre} value={d.nombre}>
-                                                {d.nombre} {d.envio === 0 ? '— ENVÍO GRATIS 📦' : `— Envío Q${d.envio}`}
-                                            </option>
+                                            <button
+                                                key={d.nombre}
+                                                onClick={() => { setSelectedDepto(d.nombre); setDeptoOpen(false); }}
+                                                className="w-full px-4 py-2.5 text-left hover:bg-white/8 flex items-center justify-between text-sm transition-colors"
+                                            >
+                                                <span>{d.nombre}</span>
+                                                {d.envio === 0
+                                                    ? <span className="text-[10px] font-black text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">GRATIS</span>
+                                                    : <span className="text-[10px] text-slate-400">Q{d.envio}</span>
+                                                }
+                                            </button>
                                         ))}
-                                    </select>
-                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-                                        <ChevronRight className="h-5 w-5 rotate-90" />
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                    {DEPARTAMENTOS.filter(d => d.destacada).map(d => (
-                                        <button
-                                            key={d.nombre}
-                                            onClick={() => setSelectedDepto(d.nombre)}
-                                            className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all ${selectedDepto === d.nombre
-                                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                                : 'bg-white/5 text-slate-500 hover:bg-white/10'}`}
-                                        >
-                                            {d.nombre} FREE
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* SMART LINK EXTRACTION */}
-                        <section className={`bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl transition-all duration-500 relative ${!selectedDepto ? 'opacity-20 grayscale pointer-events-none' : 'border-t-white/20'}`}>
-                            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-4">
-                                <span className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs not-italic">02</span>
-                                Análisis Automático (IA)
-                            </h2>
-
-                            <div className="space-y-6">
-                                <div className="relative group">
-                                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] blur opacity-20 group-focus-within:opacity-40 transition-opacity" />
-                                    <div className="relative flex items-center bg-[#1e293b] rounded-[1.5rem] p-2 pr-2 overflow-hidden border border-white/10">
-                                        <Search className="ml-4 text-slate-500 h-5 w-5" />
-                                        <input
-                                            type="url"
-                                            placeholder="Pega el link de Amazon, eBay, etc..."
-                                            value={url}
-                                            onChange={(e) => setUrl(e.target.value)}
-                                            className="w-full bg-transparent border-none focus:ring-0 px-4 py-4 text-white font-medium placeholder:text-slate-600 text-sm"
-                                        />
-                                        <button
-                                            onClick={handleExtract}
-                                            disabled={isExtracting || !url}
-                                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center gap-2 shrink-0 md:shrink"
-                                        >
-                                            {isExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                                            Analizar
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {extractError && (
-                                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
-                                        <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
-                                        <p className="text-[10px] font-black text-red-200 uppercase tracking-tighter leading-relaxed">{extractError}</p>
                                     </div>
                                 )}
-
-                                {/* Result Preview Card */}
-                                <div className={`pt-6 border-t border-white/5 transition-all duration-700 ${title || extractError ? 'opacity-100 block' : 'opacity-0 hidden'}`}>
-                                    <div className="flex flex-col md:flex-row gap-8">
-                                        {/* AI Card Preview */}
-                                        <div className="relative w-full md:w-52 h-52 bg-[#0f172a] rounded-[2rem] border border-white/10 flex items-center justify-center overflow-hidden group/thumb shrink-0">
-                                            {isExtracting ? (
-                                                <div className="flex flex-col items-center gap-3">
-                                                    <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
-                                                    <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.3em] animate-pulse">Scanning...</span>
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    {imageUrl ? (
-                                                        <img src={imageUrl} alt="Product" className="w-full h-full object-contain p-4 group-hover/thumb:scale-110 transition-transform duration-700" />
-                                                    ) : (
-                                                        <Package className="h-16 w-16 text-slate-800" />
-                                                    )}
-                                                    <div className="absolute top-3 left-3 px-2 py-1 bg-white/10 backdrop-blur-md rounded-lg text-[8px] font-black uppercase text-white tracking-widest border border-white/10">
-                                                        Visual Data
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className="flex-1 space-y-6">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Nombre Identificado</label>
-                                                <input
-                                                    type="text"
-                                                    value={title}
-                                                    onChange={(e) => setTitle(e.target.value)}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-4 text-white font-bold focus:border-blue-500 outline-none transition-all text-sm"
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Precio USD ($)</label>
-                                                    <div className="relative">
-                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-400 font-black italic">$</div>
-                                                        <input
-                                                            type="number"
-                                                            value={priceUsd}
-                                                            onChange={(e) => setPriceUsd(e.target.value ? Number(e.target.value) : '')}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-4 text-emerald-400 font-black focus:border-emerald-500 outline-none transition-all"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Peso Estimado (Lbs)</label>
-                                                    <div className="relative">
-                                                        <Package className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                                                        <input
-                                                            type="number"
-                                                            value={weightLbs}
-                                                            onChange={(e) => setWeightLbs(e.target.value ? Number(e.target.value) : '')}
-                                                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-4 text-blue-400 font-black focus:border-blue-500 outline-none transition-all"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
-                        </section>
 
-                        {/* SERVICE TOGGLE */}
-                        <section className={`bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl transition-all duration-500 ${!title ? 'opacity-20 grayscale pointer-events-none' : 'border-t-white/20 hover:border-emerald-500/30'}`}>
-                            <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-4">
-                                <span className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs not-italic">03</span>
-                                Modalidad de Compra
-                            </h2>
+                            {/* Free destinations */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                                {DEPARTAMENTOS.filter(d => d.destacada).map(d => (
+                                    <button
+                                        key={d.nombre}
+                                        onClick={() => { setSelectedDepto(d.nombre); setDeptoOpen(false); }}
+                                        className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${selectedDepto === d.nombre ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400' : 'bg-white/4 border-white/10 text-slate-500 hover:border-emerald-500/30'}`}
+                                    >
+                                        {d.nombre} — FREE
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                            <button
-                                onClick={() => setWeBuyIt(!weBuyIt)}
-                                className={`w-full group relative flex items-center gap-6 p-6 rounded-[2rem] border-2 transition-all duration-500 text-left ${weBuyIt ? 'bg-emerald-600/10 border-emerald-500' : 'bg-white/5 border-transparent hover:bg-white/10'}`}
-                            >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${weBuyIt ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'border-slate-700 text-slate-700'}`}>
-                                    {weBuyIt ? <Check className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />}
+                        {/* Step 2: Add Products */}
+                        <div className="bg-white/4 border border-white/8 rounded-2xl p-6 backdrop-blur-sm">
+                            <div className="flex items-center gap-3 mb-5">
+                                <span className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-black">2</span>
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400">Agrega tus productos</span>
+                            </div>
+
+                            {/* URL Input */}
+                            <div className="flex gap-3">
+                                <input
+                                    type="url"
+                                    value={urlInput}
+                                    onChange={e => setUrlInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && addProduct()}
+                                    placeholder="https://www.amazon.com/dp/B08..."
+                                    className="flex-1 bg-white/6 border border-white/10 focus:border-blue-500/50 focus:bg-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-500 outline-none transition-all"
+                                    disabled={products.some(p => p.loading)}
+                                />
+                                <button
+                                    onClick={addProduct}
+                                    disabled={!urlInput.trim() || products.some(p => p.loading)}
+                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase tracking-wider text-xs px-5 py-3 rounded-xl transition-all shrink-0"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Agregar
+                                </button>
+                            </div>
+
+                            {/* Approximate values notice */}
+                            <div className="mt-4 flex items-start gap-3 bg-amber-500/8 border border-amber-500/20 rounded-xl px-4 py-3">
+                                <Info className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                                <p className="text-xs text-amber-300/80 leading-relaxed">
+                                    <span className="font-bold text-amber-400">¡Puedes editar los valores!</span> Esta es una cotización aproximada basada en el conocimiento de la IA. Si el precio o el peso no es correcto, haz clic en ✏️ para modificarlos manualmente.
+                                </p>
+                            </div>
+
+                            {/* Product Cards */}
+                            {products.length > 0 && (
+                                <div className="mt-5 space-y-4">
+                                    {products.map(product => (
+                                        <ProductCard
+                                            key={product.id}
+                                            product={product}
+                                            isEditing={editingId === product.id}
+                                            onEdit={() => setEditingId(editingId === product.id ? null : product.id)}
+                                            onRemove={() => removeProduct(product.id)}
+                                            onUpdate={(field, value) => updateProduct(product.id, field, value)}
+                                        />
+                                    ))}
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className={`font-black uppercase tracking-tight text-sm ${weBuyIt ? 'text-white' : 'text-slate-400'}`}>Lo compramos por ti</h3>
-                                    <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-tighter leading-tight">Servicio corporativo completo (Sin cargo) - Nosotros nos encargamos de todo.</p>
+                            )}
+
+                            {products.length === 0 && (
+                                <div className="mt-8 text-center">
+                                    <ShoppingCart className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                                    <p className="text-slate-500 text-sm">Tu carrito está vacío</p>
+                                    <p className="text-slate-600 text-xs mt-1">Pega un enlace de Amazon, BestBuy, Lego u otra tienda</p>
                                 </div>
-                                <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${weBuyIt ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-600'}`}>
-                                    {weBuyIt ? 'Activado' : 'Opcional'}
+                            )}
+                        </div>
+
+                        {/* Step 3: Modality */}
+                        {products.filter(p => !p.loading).length > 0 && (
+                            <div className="bg-white/4 border border-white/8 rounded-2xl p-6 backdrop-blur-sm">
+                                <div className="flex items-center gap-3 mb-5">
+                                    <span className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-black">3</span>
+                                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Modalidad de compra</span>
                                 </div>
-                            </button>
-                        </section>
+                                <button
+                                    onClick={() => setWeBuyIt(!weBuyIt)}
+                                    className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${weBuyIt ? 'border-green-500/60 bg-green-500/10' : 'border-white/10 bg-white/4 hover:border-white/20'}`}
+                                >
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all ${weBuyIt ? 'bg-green-500' : 'bg-white/8'}`}>
+                                        {weBuyIt ? <Check className="w-5 h-5 text-white" /> : <ShoppingCart className="w-5 h-5 text-slate-400" />}
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <p className={`font-black uppercase text-sm tracking-tight ${weBuyIt ? 'text-white' : 'text-slate-400'}`}>Lo compramos por ti</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-tight">Servicio corporativo premium — nos encargamos de todo</p>
+                                    </div>
+                                    <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${weBuyIt ? 'bg-green-500 text-white' : 'bg-white/8 text-slate-500'}`}>
+                                        {weBuyIt ? 'Activado' : 'Opcional'}
+                                    </span>
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    {/* RECEIPT PANEL */}
-                    <div className="lg:col-span-5 sticky top-12">
-                        <div className="relative">
-                            {/* Physical Detail: Side Notches */}
-                            <div className="absolute -left-3 top-[32%] w-6 h-6 bg-[#0f172a] rounded-full z-20 hidden lg:block shadow-inner" />
-                            <div className="absolute -right-3 top-[32%] w-6 h-6 bg-[#0f172a] rounded-full z-20 hidden lg:block shadow-inner" />
+                    {/* RIGHT COLUMN — Receipt */}
+                    <div className="sticky top-6">
+                        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden text-slate-800">
+                            {/* Receipt Header */}
+                            <div className="bg-slate-50 border-b border-slate-100 px-6 py-4 text-center">
+                                <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-400">Estimate Summary</p>
+                                <p className="text-lg font-black tracking-widest text-slate-700 mt-1">YB-SMART-SYS</p>
+                                <div className="w-24 h-px bg-slate-200 mx-auto mt-3" />
+                            </div>
 
-                            <div className="bg-white text-slate-900 rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.8)] overflow-hidden transform lg:rotate-2 hover:rotate-0 transition-transform duration-700 animate-in zoom-in-95 duration-700">
-                                {/* Receipt Head */}
-                                <div className="bg-slate-100/50 p-10 text-center border-b-2 border-dashed border-slate-200">
-                                    <img
-                                        src="https://youboxgt.online/wp-content/uploads/2024/10/Manual-de-logo-YouBoxGt-03-1.png"
-                                        alt="YouBox GT"
-                                        className="h-10 mx-auto opacity-60 mb-6"
-                                    />
-                                    <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mb-2">Estimate Summary</h3>
-                                    <div className="text-2xl font-black uppercase tracking-tighter text-slate-900 font-mono">YB-SMART-SYS</div>
-                                </div>
+                            {/* Line Items */}
+                            <div className="px-6 py-4 space-y-3">
+                                {products.filter(p => !p.loading && !p.error).length > 0 ? (
+                                    <>
+                                        {/* Products */}
+                                        {products.filter(p => !p.loading).map((p, i) => (
+                                            <div key={p.id} className="flex justify-between items-start text-sm border-b border-slate-100 pb-2">
+                                                <div className="flex flex-col text-left max-w-[55%]">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Producto {i + 1}</span>
+                                                    <span className="text-[11px] font-semibold text-slate-600 leading-tight mt-0.5">{p.title}</span>
+                                                    <span className="text-[9px] text-slate-400 mt-0.5">${p.priceUsd} × {p.quantity} ud</span>
+                                                </div>
+                                                <span className="font-bold text-base">Q {(p.priceUsd * p.quantity * TASA_CAMBIO).toFixed(2)}</span>
+                                            </div>
+                                        ))}
 
-                                {/* Receipt Lines */}
-                                <div className="p-10 space-y-8 font-mono">
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-end border-b border-slate-100 pb-2">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-left leading-none w-1/2">VALOR MERCADERÍA</span>
-                                            <span className="font-bold text-lg uppercase text-right">Q {priceQ.toFixed(2)}</span>
-                                        </div>
-
+                                        {/* Logistics */}
                                         <div className="flex justify-between items-start border-b border-slate-100 pb-2">
                                             <div className="flex flex-col text-left">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">LOGÍSTICA ({weightLbs || 1} LB)</span>
-                                                <span className="text-[7px] font-bold text-slate-400 mt-0.5">@ Q80.00 / LB</span>
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Logística total</span>
+                                                <span className="text-[9px] text-slate-400 mt-0.5">@ Q80.00 / lb</span>
                                             </div>
-                                            <span className="font-bold text-lg uppercase text-right">Q {costoLogistica.toFixed(2)}</span>
+                                            <span className="font-bold text-base">Q {totalLogistica.toFixed(2)}</span>
                                         </div>
 
+                                        {/* Delivery */}
                                         <div className="flex justify-between items-start border-b border-slate-100 pb-2">
                                             <div className="flex flex-col text-left">
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ENVÍO LOCAL</span>
-                                                <span className="text-[7px] font-bold text-emerald-600 mt-0.5 uppercase">{selectedDepto || 'Sin destino'}</span>
+                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Envío local</span>
+                                                <span className="text-[9px] text-emerald-600 uppercase mt-0.5">{selectedDepto || 'Sin destino'}</span>
                                             </div>
-                                            <span className={`font-bold text-lg uppercase text-right ${costoEntrega === 0 ? 'text-emerald-600' : ''}`}>
-                                                {costoEntrega === 0 ? 'GRATIS' : `Q ${costoEntrega.toFixed(2)}`}
+                                            <span className={`font-bold text-base ${costoEntrega === 0 ? 'text-emerald-600' : ''}`}>
+                                                {products.length > 0 ? (costoEntrega === 0 ? 'GRATIS' : `Q ${costoEntrega.toFixed(2)}`) : 'Q 0.00'}
                                             </span>
                                         </div>
-
+                                    </>
+                                ) : (
+                                    <div className="py-6 text-center space-y-1">
+                                        <Package className="w-8 h-8 text-slate-300 mx-auto" />
+                                        <p className="text-slate-400 text-xs">Agrega productos para ver el resumen</p>
                                     </div>
+                                )}
+                            </div>
 
-                                    {/* Grand Highlight */}
-                                    <div className="py-6 text-center">
-                                        <div className="inline-block relative">
-                                            <div className="absolute -inset-4 bg-yellow-400 rotate-1 rounded-2xl" />
-                                            <div className="relative bg-black text-white px-8 py-4 rounded-xl rotate-0 shadow-xl">
-                                                <span className="text-[9px] font-black uppercase tracking-[0.3em] block opacity-50 mb-1">Total Estimado</span>
-                                                <span className="text-4xl font-black tracking-tight">Q{total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                            </div>
+                            {/* Grand Total */}
+                            <div className="px-6 pb-4">
+                                <div className="py-5 text-center">
+                                    <div className="inline-block relative">
+                                        <div className="absolute -inset-3 bg-yellow-400 rotate-1 rounded-2xl" />
+                                        <div className="relative bg-black text-white px-7 py-4 rounded-xl shadow-xl">
+                                            <span className="text-[9px] font-black uppercase tracking-[0.3em] block opacity-50 mb-1">Total Estimado</span>
+                                            <span className="text-3xl font-black tracking-tight">Q{grandTotal.toFixed(2)}</span>
                                         </div>
-
-                                        <div className="mt-8 flex items-center justify-center gap-2 text-slate-400 opacity-60">
-                                            <TrendingUp className="h-3 w-3" />
-                                            <span className="text-[8px] font-black uppercase tracking-widest">Rate: ${TASA_CAMBIO.toFixed(2)}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Bar */}
-                                    <div className="space-y-3">
-                                        <button
-                                            onClick={handleWhatsApp}
-                                            disabled={!selectedDepto || !priceUsd}
-                                            className="w-full py-5 bg-slate-900 text-white font-black uppercase tracking-[0.3em] text-[10px] rounded-2xl hover:bg-black hover:scale-[1.02] transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale disabled:scale-100"
-                                        >
-                                            REALIZAR PEDIDO
-                                            <ChevronRight className="h-4 w-4 text-emerald-400" />
-                                        </button>
-                                        <p className="text-[7px] font-bold text-slate-400 uppercase text-center leading-relaxed max-w-[200px] mx-auto opacity-50">
-                                            Estimado calculado automáticamente. Envíanos el resumen por WhatsApp para confirmar existencias.
-                                        </p>
-                                    </div>
-
-                                    {/* Barcode Deco */}
-                                    <div className="pt-6 opacity-10">
-                                        <div className="h-10 w-full bg-[repeating-linear-gradient(90deg,black,black_1px,transparent_1px,transparent_3px,black_3px,black_4px)]" />
-                                        <div className="text-[8px] font-mono tracking-[1em] mt-2 text-center uppercase">Smart-Logistics-Verified</div>
                                     </div>
                                 </div>
+                                <p className="text-[9px] text-slate-400 text-center mt-2">↗ RATE: Q{TASA_CAMBIO.toFixed(2)}</p>
+                            </div>
+
+                            {/* Approximate notice */}
+                            <div className="mx-4 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-start gap-2">
+                                <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                                <p className="text-[9px] text-amber-700 leading-relaxed">
+                                    <span className="font-bold">Cotización aproximada.</span> Los valores de precio y peso son estimados por IA y pueden variar. Confírmales con el agente de YouBox.
+                                </p>
+                            </div>
+
+                            {/* CTA */}
+                            <div className="px-4 pb-5">
+                                <button
+                                    onClick={handleWhatsApp}
+                                    disabled={!canOrder}
+                                    className="w-full flex items-center justify-center gap-3 bg-slate-900 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest text-xs py-4 rounded-xl transition-all group"
+                                >
+                                    <MessageCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                    {!selectedDepto ? 'Selecciona un destino' : products.length === 0 ? 'Agrega un producto' : 'Realizar Pedido'}
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <footer className="mt-32 border-t border-white/5 pt-12 text-center">
-                    <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.6em]">
-                        Developed by YouBox Labs &copy; 2026
-                    </p>
-                </footer>
             </div>
+        </div>
+    );
+}
+
+/* ─── Product Card Component ─────────────────────────────────── */
+interface ProductCardProps {
+    product: CartProduct;
+    isEditing: boolean;
+    onEdit: () => void;
+    onRemove: () => void;
+    onUpdate: (field: keyof CartProduct, value: any) => void;
+}
+
+function ProductCard({ product, isEditing, onEdit, onRemove, onUpdate }: ProductCardProps) {
+    if (product.loading) {
+        return (
+            <div className="flex gap-4 p-4 rounded-xl border border-white/8 bg-white/3 animate-pulse">
+                <div className="w-20 h-20 rounded-lg bg-white/8 shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3 bg-white/10 rounded w-3/4" />
+                    <div className="h-3 bg-white/8 rounded w-1/2" />
+                    <div className="flex gap-3 mt-3">
+                        <div className="h-8 bg-white/8 rounded-lg flex-1" />
+                        <div className="h-8 bg-white/8 rounded-lg flex-1" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (product.error) {
+        return (
+            <div className="flex items-center gap-4 p-4 rounded-xl border border-red-500/20 bg-red-500/8">
+                <AlertCircle className="w-8 h-8 text-red-400 shrink-0" />
+                <div className="flex-1">
+                    <p className="text-xs font-bold text-red-400">No se pudo analizar el enlace</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5 break-all">{product.url}</p>
+                </div>
+                <button onClick={onRemove} className="text-red-400 hover:text-red-300 transition-colors p-1">
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-white/10 bg-white/4 overflow-hidden transition-all">
+            <div className="flex gap-4 p-4">
+                {/* Product Image */}
+                <div className="w-20 h-20 rounded-lg bg-white/8 overflow-hidden shrink-0 border border-white/5">
+                    {product.imageUrl ? (
+                        <img
+                            src={product.imageUrl}
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Package className="w-8 h-8 text-slate-600" />
+                        </div>
+                    )}
+                </div>
+
+                {/* Product Info */}
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white leading-snug line-clamp-2">{product.title}</p>
+                    <p className="text-[10px] text-slate-500 mt-1 break-all line-clamp-1">{product.url}</p>
+
+                    {!isEditing && (
+                        <div className="flex gap-3 mt-3">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5 text-center">
+                                <p className="text-[9px] text-emerald-400 uppercase font-bold">Precio USD</p>
+                                <p className="text-sm font-black text-emerald-400">${product.priceUsd}</p>
+                            </div>
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-1.5 text-center">
+                                <p className="text-[9px] text-blue-400 uppercase font-bold">Peso (lbs)</p>
+                                <p className="text-sm font-black text-blue-400">{product.weightLbs}</p>
+                            </div>
+                            <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-center">
+                                <p className="text-[9px] text-slate-400 uppercase font-bold">Cantidad</p>
+                                <p className="text-sm font-black text-slate-300">{product.quantity}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2">
+                    <button onClick={onEdit} className="p-2 rounded-lg bg-white/6 hover:bg-blue-500/20 hover:text-blue-400 text-slate-400 transition-all" title="Editar valores">
+                        <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={onRemove} className="p-2 rounded-lg bg-white/6 hover:bg-red-500/20 hover:text-red-400 text-slate-400 transition-all" title="Eliminar">
+                        <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Edit Panel */}
+            {isEditing && (
+                <div className="border-t border-white/8 bg-white/3 px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                        <Edit3 className="w-3 h-3" /> Editar valores estimados
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                        <div>
+                            <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Precio USD ($)</label>
+                            <input
+                                type="number"
+                                value={product.priceUsd}
+                                onChange={e => onUpdate('priceUsd', parseFloat(e.target.value) || 0)}
+                                className="w-full bg-white/8 border border-white/10 focus:border-emerald-500/50 rounded-lg px-3 py-2 text-sm font-bold text-emerald-400 outline-none"
+                                step="0.01"
+                                min="0"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Peso (lbs)</label>
+                            <input
+                                type="number"
+                                value={product.weightLbs}
+                                onChange={e => onUpdate('weightLbs', parseFloat(e.target.value) || 1)}
+                                className="w-full bg-white/8 border border-white/10 focus:border-blue-500/50 rounded-lg px-3 py-2 text-sm font-bold text-blue-400 outline-none"
+                                step="0.1"
+                                min="0.1"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Cantidad</label>
+                            <input
+                                type="number"
+                                value={product.quantity}
+                                onChange={e => onUpdate('quantity', parseInt(e.target.value) || 1)}
+                                className="w-full bg-white/8 border border-white/10 focus:border-slate-500/50 rounded-lg px-3 py-2 text-sm font-bold text-slate-300 outline-none"
+                                min="1"
+                                max="20"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-[9px] text-slate-600 mt-2">💡 Los cambios se reflejan en el recibo automáticamente</p>
+                </div>
+            )}
         </div>
     );
 }
