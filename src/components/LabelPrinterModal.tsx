@@ -71,9 +71,7 @@ export function LabelPrinterModal({ isOpen, onClose, paquete }: LabelPrinterProp
             doc.setFont("helvetica", "bold");
             doc.text("YOUBOX GT", 5, 10);
 
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "normal");
-            doc.text("Quetzaltenango", 5, 14);
+            doc.text("Sede Central", 5, 14);
 
             // To: DESTINATION / BRANCH (Huge)
             doc.setFontSize(24);
@@ -199,7 +197,7 @@ export function LabelPrinterModal({ isOpen, onClose, paquete }: LabelPrinterProp
                             <div className="flex justify-between items-start mb-2">
                                 <div className="text-left">
                                     <p className="text-[10px] font-bold">YOUBOX GT</p>
-                                    <p className="text-[8px] text-slate-500">Quetzaltenango</p>
+                                    <p className="text-[8px] text-slate-500">Sede Central</p>
                                 </div>
                                 <h3 className="text-xl font-bold bg-slate-100 px-2 py-0.5 rounded">{info.bodegaDestino}</h3>
                             </div>

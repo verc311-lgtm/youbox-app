@@ -57,9 +57,7 @@ export const generateBulkLabelsPDF = async (paquetes: BulkLabelPaquete[]) => {
             doc.setFont("helvetica", "bold");
             doc.text("YOUBOX GT", 5, 10);
 
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "normal");
-            doc.text("Quetzaltenango", 5, 14);
+            doc.text("Sede Central", 5, 14);
 
             doc.setFontSize(24);
             doc.setFont("helvetica", "bold");
