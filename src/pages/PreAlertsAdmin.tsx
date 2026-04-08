@@ -140,7 +140,7 @@ export function PreAlertsAdmin() {
                     .from('fondo_seguros')
                     .select('id')
                     .eq('prealerta_id', prealerta.id)
-                    .single();
+                    .maybeSingle();
 
                 if (!existing) {
                     const { error: insError } = await supabase
@@ -573,7 +573,7 @@ export function PreAlertsAdmin() {
                                             Seguro Solicitado
                                         </p>
                                         <p className="text-sm text-blue-800 leading-relaxed">
-                                            El cliente debe haber enviado un comprobante por <b>${Number(selectedPrealerta.monto_seguro).toFixed(2)}</b> (10% de ${selectedPrealerta.valor_factura}) a tu WhatsApp. Revisa el banco.
+                                            El cliente debe haber enviado un comprobante por <b>${Number(selectedPrealerta.monto_seguro).toFixed(2)}</b> (5% de ${selectedPrealerta.valor_factura}) a tu WhatsApp. Revisa el banco.
                                         </p>
                                     </div>
                                 )}
