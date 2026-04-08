@@ -150,13 +150,10 @@ export function PreAlertsAdmin() {
                             monto_ingreso: prealerta.monto_seguro,
                             metodo_pago: 'transferencia',
                             referencia: 'Aprobación manual de Admin',
-                            verificado_por: user?.id
+                            verificado_por: user?.id === 'admin-001' ? null : user?.id
                         });
                     if (insError) throw insError;
                 }
-
-                // Generate & download insurance receipt PDF
-                generateInsuranceReceipt(prealerta);
             }
 
             const { error: updError } = await supabase
@@ -166,12 +163,22 @@ export function PreAlertsAdmin() {
 
             if (updError) throw updError;
 
+            // Try to generate receipt but don't block success if PDF fails
+            if (estadoDestino === 'procesada' && prealerta.con_seguro) {
+                try {
+                    generateInsuranceReceipt(prealerta);
+                } catch (pdfErr) {
+                    console.error('Error generating insurance PDF receipt:', pdfErr);
+                    // Just log, don't throw
+                }
+            }
+
             setSelectedPrealerta(null);
             fetchData();
 
         } catch (err: any) {
             console.error('Error procesando:', err);
-            alert('Error al validar: ' + (err.message || JSON.stringify(err)));
+            alert('Error al procesar: ' + (err.message || err.details || JSON.stringify(err)));
         } finally {
             setProcesando(false);
         }
