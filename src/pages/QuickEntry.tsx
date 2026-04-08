@@ -56,6 +56,7 @@ export function QuickEntry() {
   const [rows, setRows] = useState<RowData[]>([]);
   const [globalBodega, setGlobalBodega] = useState('');
   const [globalTransportista, setGlobalTransportista] = useState('');
+  const savingRef = useRef<Set<string>>(new Set());
 
   // Auto-save toggle
   const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(false);
@@ -167,11 +168,14 @@ export function QuickEntry() {
 
   // Per-row save
   const handleSaveRow = async (rowId: string) => {
+    if (savingRef.current.has(rowId)) return;
+
     const row = rows.find(r => r.id === rowId);
     if (!row || row.isSaving || row.isSaved) return;
     if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
     if (!row.cliente_id) { toast.error('Selecciona un cliente / casillero válido.'); return; }
 
+    savingRef.current.add(rowId);
     setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: true } : r));
 
     try {
@@ -242,6 +246,8 @@ export function QuickEntry() {
       console.error('Error saving row:', e);
       toast.error('Error al guardar: ' + e.message);
       setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
+    } finally {
+      savingRef.current.delete(rowId);
     }
   };
 
