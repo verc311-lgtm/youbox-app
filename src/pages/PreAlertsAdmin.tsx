@@ -169,8 +169,9 @@ export function PreAlertsAdmin() {
             setSelectedPrealerta(null);
             fetchData();
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error procesando:', err);
+            alert('Error al validar: ' + (err.message || JSON.stringify(err)));
         } finally {
             setProcesando(false);
         }
