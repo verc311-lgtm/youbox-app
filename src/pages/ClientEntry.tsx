@@ -32,7 +32,7 @@ const createEmptyRow = (defaultBodega = '', defaultTransportista = ''): RowData 
     bodega_id: defaultBodega,
     transportista_id: defaultTransportista,
     peso_lbs: '',
-    empaque: 'Sobre', // Default value for Tapachula
+    empaque: 'Bolsa', // Default value for Tapachula
     piezas: '1',
     notas: '',
     isSaving: false,
@@ -192,7 +192,7 @@ export function ClientEntry() {
 
             if (isTapachula && row.empaque !== 'Libra') {
                 finalPesoResult = 0;
-                const empaqueInfo = `[Empaque: ${row.empaque || 'Sobre'}]`;
+                const empaqueInfo = `[Empaque: ${row.empaque || 'Bolsa'}]`;
                 finalNotas = finalNotas ? `${empaqueInfo} ${finalNotas}` : empaqueInfo;
             }
 
@@ -476,7 +476,7 @@ export function ClientEntry() {
                                                 {isTapachula ? (
                                                     <div className="flex items-center gap-1.5">
                                                         <select
-                                                            value={row.empaque || 'Sobre'}
+                                                            value={row.empaque || 'Bolsa'}
                                                             onChange={(e) => updateRow(row.id, 'empaque', e.target.value)}
                                                             disabled={row.isSaved}
                                                             className="block w-full rounded-lg border-slate-200/80 bg-blue-50/50 py-1.5 px-1 sm:px-2 text-blue-700 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 sm:text-xs font-bold disabled:opacity-60 outline-none"
