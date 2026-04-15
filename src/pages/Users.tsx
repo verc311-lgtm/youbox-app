@@ -362,11 +362,16 @@ export function Users() {
 
     const filteredClientes = useMemo(() => {
         const q = normalize(searchTerm);
+        const qStripped = (searchTerm || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
         let list = clientes.filter(c => {
             const fullName = normalize(`${c.nombre} ${c.apellido || ''}`);
+            const lockerStripped = (c.locker_id || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
             const matchesSearch = !q ||
                 fullName.includes(q) ||
                 normalize(c.locker_id).includes(q) ||
+                (qStripped && lockerStripped.includes(qStripped)) ||
                 normalize(c.email).includes(q) ||
                 normalize(c.telefono).includes(q) ||
                 normalize(c.departamento).includes(q) ||
