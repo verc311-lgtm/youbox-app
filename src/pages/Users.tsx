@@ -174,6 +174,7 @@ export function Users() {
                     .from('clientes')
                     .select(`*, sucursales ( nombre )`)
                     .order('created_at', { ascending: true })
+                    .order('id', { ascending: true })
                     .range(from, from + BATCH_SIZE - 1);
 
                 if (!isSuperAdmin && user?.sucursal_id) {
@@ -365,12 +366,16 @@ export function Users() {
         const qStripped = (searchTerm || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 
         let list = clientes.filter(c => {
+            const firstName = normalize(c.nombre);
+            const lastName = normalize(c.apellido);
             const fullName = normalize(`${c.nombre} ${c.apellido || ''}`);
+            const fullStripped = (fullName + (c.locker_id || '') + (c.email || '') + (c.telefono || '')).replace(/[^a-z0-9]/gi, '').toLowerCase();
             const lockerStripped = (c.locker_id || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 
             const matchesSearch = !q ||
                 fullName.includes(q) ||
                 normalize(c.locker_id).includes(q) ||
+                (qStripped && fullStripped.includes(qStripped)) ||
                 (qStripped && lockerStripped.includes(qStripped)) ||
                 normalize(c.email).includes(q) ||
                 normalize(c.telefono).includes(q) ||
