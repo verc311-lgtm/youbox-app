@@ -45,7 +45,7 @@ export function Login() {
             const { data: client, error: clientError } = await supabase
                 .from('clientes')
                 .select('id, nombre, email')
-                .eq('email', forgotEmail.toLowerCase())
+                .eq('email', forgotEmail.trim().toLowerCase())
                 .single();
 
             if (clientError || !client) {
@@ -53,7 +53,7 @@ export function Login() {
                 const { data: staff, error: staffError } = await supabase
                     .from('usuarios')
                     .select('id')
-                    .eq('email', forgotEmail.toLowerCase())
+                    .eq('email', forgotEmail.trim().toLowerCase())
                     .single();
 
                 if (staff && !staffError) {

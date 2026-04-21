@@ -43,6 +43,14 @@ export const downloadInventoryPDF = async (consolidationId: string, consolidatio
         if (linkError) throw linkError;
 
         const packages = (linkData || []).map((link: any) => link.paquetes).filter(Boolean);
+
+        // Sort alphabetically by client name
+        packages.sort((a: any, b: any) => {
+            const nameA = a.clientes ? `${a.clientes.nombre || ''} ${a.clientes.apellido || ''}`.trim().toLowerCase() : '';
+            const nameB = b.clientes ? `${b.clientes.nombre || ''} ${b.clientes.apellido || ''}`.trim().toLowerCase() : '';
+            return nameA.localeCompare(nameB);
+        });
+
         const configRes = await supabase.from('configuracion_empresa').select('nombre_empresa').limit(1).single();
         const config = configRes.data || { nombre_empresa: 'YOUBOXGT' };
 
@@ -112,30 +120,32 @@ export const downloadInventoryPDF = async (consolidationId: string, consolidatio
             const clientInfo = p.clientes ? `${p.clientes.locker_id || ''} - ${p.clientes.nombre} ${p.clientes.apellido}` : 'Desconocido';
             return [
                 index + 1,
-                p.tracking,
+                p.tracking || '',
                 clientInfo,
                 p.peso_lbs?.toFixed(2) || '0.00',
                 p.piezas || '1',
                 `${p.largo_in || 0}x${p.ancho_in || 0}x${p.alto_in || 0}`,
-                (p.notas || '').substring(0, 30)
+                '', // Firma de recibido (empty for writing)
+                ''  // No. DPI (empty for writing)
             ];
         });
 
         autoTable(doc, {
             startY: currentY,
-            head: [['#', 'Tracking', 'Cliente', 'Peso (Lbs)', 'Piezas', 'Dimensiones (in)', 'Notas']],
+            head: [['#', 'Tracking', 'Cliente', 'Peso (Lbs)', 'Piezas', 'Dimensiones', 'Firma de Recibido', 'No. DPI']],
             body: tableBody,
             theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 3, textColor: [30, 41, 59], overflow: 'linebreak' },
+            styles: { fontSize: 8, cellPadding: 4, textColor: [30, 41, 59], overflow: 'linebreak' }, // Slightly larger padding for writing
             headStyles: { fillColor: colorPrimary, textColor: 255, fontStyle: 'bold' },
             columnStyles: {
                 0: { cellWidth: 10, halign: 'center' },
-                1: { cellWidth: 50 },
-                2: { cellWidth: 60 },
-                3: { cellWidth: 20, halign: 'right' },
+                1: { cellWidth: 40 },
+                2: { cellWidth: 50 },
+                3: { cellWidth: 15, halign: 'right' },
                 4: { cellWidth: 15, halign: 'center' },
-                5: { cellWidth: 30, halign: 'center' },
-                6: { cellWidth: 'auto' }
+                5: { cellWidth: 25, halign: 'center' },
+                6: { cellWidth: 60 }, // Firma
+                7: { cellWidth: 'auto' } // DPI
             }
         });
 

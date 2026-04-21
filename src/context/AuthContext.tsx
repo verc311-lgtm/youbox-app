@@ -172,8 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const login = async (email: string, password: string): Promise<{ error?: string }> => {
+        const cleanEmail = email.trim().toLowerCase();
+
         // Admin hardcoded (fallback maestro)
-        if (email.toLowerCase() === 'admin' && password === '1234') {
+        if (cleanEmail === 'admin' && password === '1234') {
             const adminUser: AuthUser = {
                 id: 'admin-001',
                 nombre: 'Administrador',
@@ -191,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data: clientData, error: clientError } = await supabase
                 .from('clientes')
                 .select('*')
-                .eq('email', email.toLowerCase())
+                .eq('email', cleanEmail)
                 .single();
 
             if (!clientError && clientData) {
@@ -218,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { data: staffData, error: staffError } = await supabase
                 .from('usuarios')
                 .select('*, roles(nombre)')
-                .eq('email', email.toLowerCase())
+                .eq('email', cleanEmail)
                 .single();
 
             if (staffError || !staffData) {
@@ -261,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .insert([{
                     nombre: data.nombre,
                     apellido: data.apellido,
-                    email: data.email.toLowerCase(),
+                    email: data.email.trim().toLowerCase(),
                     telefono: data.telefono,
                     locker_id: lockerId,
                     notas: data.password, // guardamos contraseña en 'notas' hasta que exista password_hash
