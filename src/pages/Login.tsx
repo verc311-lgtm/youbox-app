@@ -20,10 +20,11 @@ export function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage('');
-        if (!email || !password) { setError('Completa todos los campos.'); return; }
+        const identifier = email.trim();
+        if (!identifier || !password) { setError('Completa todos los campos.'); return; }
         setError('');
         setLoading(true);
-        const result = await login(email, password);
+        const result = await login(identifier, password);
         setLoading(false);
         if (result.error) { setError(result.error); return; }
         navigate('/');
