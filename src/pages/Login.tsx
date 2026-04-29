@@ -154,9 +154,8 @@ export function Login() {
                                     type="text"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="admin o tu@correo.com"
-                                    autoFocus
                                 />
                             </div>
 
@@ -169,7 +168,7 @@ export function Login() {
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Contraseña"
                                     />
                                     <button
@@ -215,9 +214,8 @@ export function Login() {
                                     type="email"
                                     value={forgotEmail}
                                     onChange={e => setForgotEmail(e.target.value)}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="tu@correo.com"
-                                    autoFocus
                                 />
                                 <p className="text-xs text-slate-400 mt-2">
                                     Te enviaremos una contraseña temporal a este correo.

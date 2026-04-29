@@ -273,7 +273,8 @@ export function PreAlertsAdmin() {
                     .from('clientes')
                     .select('id, nombre, apellido, locker_id')
                     .or(`locker_id.ilike.%${text}%,nombre.ilike.%${text}%,apellido.ilike.%${text}%`)
-                    .limit(10);
+                    .order('locker_id')
+                    .limit(20);
 
                 if (!isSuperAdmin && user?.sucursal_id) {
                     clientQuery = clientQuery.eq('sucursal_id', user.sucursal_id);

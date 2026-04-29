@@ -310,7 +310,7 @@ export function Register() {
                                 name="sucursal_id"
                                 value={form.sucursal_id}
                                 onChange={handleChange}
-                                className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2.5 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors text-sm font-medium"
+                                className="w-full rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2.5 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors text-base font-medium"
                             >
                                 {sucursales.map(s => (
                                     <option key={s.id} value={s.id} className="bg-slate-800">{s.nombre}</option>
@@ -328,7 +328,7 @@ export function Register() {
                                     <label className="block text-xs font-medium text-slate-400 mb-1">Nombre *</label>
                                     <input
                                         name="nombre" value={form.nombre} onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Juan"
                                     />
                                 </div>
@@ -336,7 +336,7 @@ export function Register() {
                                     <label className="block text-xs font-medium text-slate-400 mb-1">Apellido *</label>
                                     <input
                                         name="apellido" value={form.apellido} onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Perez"
                                     />
                                 </div>
@@ -345,7 +345,7 @@ export function Register() {
                                 <label className="block text-xs font-medium text-slate-400 mb-1">Correo Electrónico *</label>
                                 <input
                                     name="email" type="email" value={form.email} onChange={handleChange}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="tu@correo.com"
                                 />
                             </div>
@@ -355,7 +355,7 @@ export function Register() {
                                 </label>
                                 <input
                                     name="telefono" value={form.telefono} onChange={handleChange}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="50255551234"
                                 />
                             </div>
@@ -374,7 +374,7 @@ export function Register() {
                                         name="departamento"
                                         value={form.departamento}
                                         onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     >
                                         <option value="" className="bg-slate-800">— Selecciona tu departamento —</option>
                                         {DEPARTAMENTOS.map(dep => (
@@ -391,7 +391,7 @@ export function Register() {
                                         value={form.municipio}
                                         onChange={handleChange}
                                         disabled={!form.departamento}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm disabled:opacity-40"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base disabled:opacity-40"
                                     >
                                         <option value="" className="bg-slate-800">— Selecciona tu municipio —</option>
                                         {municipios.map(mun => (
@@ -405,7 +405,7 @@ export function Register() {
                                     <label className="block text-xs font-medium text-slate-400 mb-1">Calle / Avenida / Zona *</label>
                                     <input
                                         name="direccion_linea1" value={form.direccion_linea1} onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Ej: 5ta Calle 10-25, Zona 1"
                                     />
                                 </div>
@@ -415,7 +415,7 @@ export function Register() {
                                     <label className="block text-xs font-medium text-slate-400 mb-1">Colonia / Residencial / Apartamento</label>
                                     <input
                                         name="direccion_linea2" value={form.direccion_linea2} onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Ej: Residencial Las Flores, Casa 3"
                                     />
                                 </div>
@@ -426,7 +426,7 @@ export function Register() {
                                     <textarea
                                         name="referencia" value={form.referencia} onChange={handleChange}
                                         rows={2}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm resize-none"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base resize-none"
                                         placeholder="Ej: Frente al parque, casa verde con portón negro"
                                     />
                                 </div>
@@ -444,7 +444,7 @@ export function Register() {
                                     <div className="relative">
                                         <input
                                             name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={handleChange}
-                                            className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                            className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                             placeholder="Mínimo 6 caracteres"
                                         />
                                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-slate-400 hover:text-white">
@@ -456,7 +456,7 @@ export function Register() {
                                     <label className="block text-xs font-medium text-slate-400 mb-1">Confirmar Contraseña *</label>
                                     <input
                                         name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-3 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Repite tu contraseña"
                                     />
                                 </div>

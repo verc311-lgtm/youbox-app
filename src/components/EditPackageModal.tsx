@@ -147,7 +147,8 @@ export function EditPackageModal({ isOpen, onClose, paqueteId, onSuccess }: Edit
                     .from('clientes')
                     .select('id, nombre, apellido, locker_id')
                     .or(`locker_id.ilike.%${text}%,nombre.ilike.%${text}%,apellido.ilike.%${text}%`)
-                    .limit(10);
+                    .order('locker_id')
+                    .limit(20);
 
                 if (error) throw error;
                 setClientResults(data || []);

@@ -135,7 +135,8 @@ export function QuickEntry() {
         .select('id, locker_id, nombre, apellido')
         .or(`locker_id.ilike.%${query}%,nombre.ilike.%${query}%,apellido.ilike.%${query}%`)
         .eq('activo', true)
-        .limit(8);
+        .order('locker_id')
+        .limit(20);
       if (!error && data) {
         setRows(cur => cur.map(r =>
           r.id === id ? { ...r, clientResults: data, showClientDropdown: true, isSearchingClient: false } : r

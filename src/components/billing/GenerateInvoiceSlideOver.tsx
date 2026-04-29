@@ -106,7 +106,8 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
                 .select('id, nombre, apellido, locker_id, email')
                 .eq('activo', true)
                 .or(`nombre.ilike.%${term}%,apellido.ilike.%${term}%,locker_id.ilike.%${term}%`)
-                .limit(10);
+                .order('locker_id')
+                .limit(20);
 
             if (error) throw error;
             setClientes(data || []);

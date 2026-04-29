@@ -78,7 +78,8 @@ export function GlobalSearch() {
                     supabase.from('clientes')
                         .select('id, locker_id, nombre, apellido, email')
                         .or(`locker_id.ilike.${searchTerm},nombre.ilike.${searchTerm},apellido.ilike.${searchTerm},email.ilike.${searchTerm}`)
-                        .limit(5),
+                        .order('locker_id')
+                        .limit(15),
                     supabase.from('facturas')
                         .select('id, numero, clientes(nombre, apellido)')
                         .or(`numero.ilike.${searchTerm}`)
