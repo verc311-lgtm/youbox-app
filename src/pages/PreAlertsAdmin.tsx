@@ -372,6 +372,9 @@ export function PreAlertsAdmin() {
         else if (filterMode === 'recibidas') matchesFilter = p.estado === 'recibido';
         else if (filterMode === 'seguro') matchesFilter = p.con_seguro === true;
         else if (filterMode === 'seguros confirmados') matchesFilter = p.con_seguro === true && (p.estado === 'procesada' || p.estado === 'recibido');
+        else if (filterMode === 'greensboro') matchesFilter = p.bodegas?.nombre?.toLowerCase().includes('greensboro');
+        else if (filterMode === 'tapachula') matchesFilter = p.bodegas?.nombre?.toLowerCase().includes('tapachula');
+        else if (filterMode === 'laredo') matchesFilter = p.bodegas?.nombre?.toLowerCase().includes('laredo');
 
         return matchesSearch && matchesFilter;
     });
@@ -435,7 +438,7 @@ export function PreAlertsAdmin() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto overflow-x-auto hide-scrollbar">
-                        {['Todas', 'Pendientes', 'Procesadas', 'Recibidas', 'Seguro', 'Seguros Confirmados'].map(f => (
+                        {['Todas', 'Pendientes', 'Procesadas', 'Recibidas', 'Seguro', 'Seguros Confirmados', 'Greensboro', 'Tapachula', 'Laredo'].map(f => (
                             <button
                                 key={f}
                                 onClick={() => setFilterMode(f.toLowerCase())}
