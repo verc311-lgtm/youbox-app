@@ -83,6 +83,23 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
         setError(null);
 
         try {
+            const cleanTracking = tracking.trim().toUpperCase();
+            
+            // Check if tracking already exists
+            const { data: existingPrealerta, error: checkError } = await supabase
+                .from('prealertas')
+                .select('id')
+                .eq('tracking', cleanTracking)
+                .maybeSingle();
+
+            if (checkError) throw checkError;
+
+            if (existingPrealerta) {
+                setError('Este tracking ya ha sido pre-alertado anteriormente y no se puede volver a registrar.');
+                setLoading(false);
+                return;
+            }
+
             // 1. Upload file to Supabase Storage
             const fileExt = file.name.split('.').pop();
             const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;

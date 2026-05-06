@@ -313,6 +313,23 @@ export function PreAlertsAdmin() {
 
         setSaving(true);
         try {
+            const cleanTracking = newTracking.trim().toUpperCase();
+            
+            // Check if tracking already exists
+            const { data: existingPrealerta, error: checkError } = await supabase
+                .from('prealertas')
+                .select('id')
+                .eq('tracking', cleanTracking)
+                .maybeSingle();
+
+            if (checkError) throw checkError;
+
+            if (existingPrealerta) {
+                alert('Este tracking ya ha sido pre-alertado anteriormente.');
+                setSaving(false);
+                return;
+            }
+
             let facturaUrl = null;
 
             // 1. Upload file if exists
