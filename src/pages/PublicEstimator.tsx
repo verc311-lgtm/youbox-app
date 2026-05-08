@@ -401,6 +401,7 @@ export function PublicEstimator() {
 
 /* ─── Product Card Component ─────────────────────────────────── */
 interface ProductCardProps {
+    key?: string;
     product: CartProduct;
     isEditing: boolean;
     onEdit: () => void;
