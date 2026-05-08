@@ -111,7 +111,7 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
       const parsed = JSON.parse(aiContent);
 
       // Step 4: Search DDG Images using the EXACT product title OpenAI returned
-      let foundImageUrl: string | null = null;
+      let foundImageUrl = null;
       const imageQuery = parsed.title || productSlug;
       console.log("Searching DDG Images for:", imageQuery);
 
@@ -149,12 +149,12 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
               const imgData = await ddgImgRes.json();
               // Try to find the most relevant image by picking one with a matching title keyword
               const titleWords = (parsed.title || '').toLowerCase().split(' ').filter((w) => w.length > 3);
-              let bestImage: string | null = null;
+              let bestImage = null;
 
               for (const result of (imgData?.results || []).slice(0, 8)) {
                 if (!result.image) continue;
                 const resultTitle = (result.title || '').toLowerCase();
-                const matchCount = titleWords.filter((w: string) => resultTitle.includes(w)).length;
+                const matchCount = titleWords.filter((w) => resultTitle.includes(w)).length;
                 if (matchCount >= 2) {
                   bestImage = result.image;
                   break;
