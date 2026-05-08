@@ -146,9 +146,9 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
             clearTimeout(imgTimeout);
 
             if (ddgImgRes.ok) {
-              const imgData = await ddgImgRes.json() as { results?: Array<{ image?: string; title?: string }> };
+              const imgData = await ddgImgRes.json();
               // Try to find the most relevant image by picking one with a matching title keyword
-              const titleWords = (parsed.title || '').toLowerCase().split(' ').filter((w: string) => w.length > 3);
+              const titleWords = (parsed.title || '').toLowerCase().split(' ').filter((w) => w.length > 3);
               let bestImage: string | null = null;
 
               for (const result of (imgData?.results || []).slice(0, 8)) {
@@ -167,7 +167,7 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
             }
           }
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn("DDG image search failed:", err.message);
       }
 
@@ -175,7 +175,7 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
       parsed.imageUrl = foundImageUrl || null;
 
       res.json(parsed);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Extraction error:", error);
       res.status(500).json({ error: error.message });
     }
