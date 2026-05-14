@@ -23,6 +23,7 @@ interface Cliente {
     apellido: string;
     locker_id: string;
     email: string;
+    nivel_ybp?: string;
 }
 
 interface GenerateInvoiceSlideOverProps {
@@ -103,7 +104,7 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
         try {
             const { data, error } = await supabase
                 .from('clientes')
-                .select('id, nombre, apellido, locker_id, email')
+                .select('id, nombre, apellido, locker_id, email, nivel_ybp')
                 .eq('activo', true)
                 .or(`nombre.ilike.%${term}%,apellido.ilike.%${term}%,locker_id.ilike.%${term}%`)
                 .order('locker_id')
@@ -124,6 +125,35 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
             console.error('Error fetching tarifas', error);
         }
     };
+
+    // Auto-apply YBP Rate
+    useEffect(() => {
+        if (!selectedCliente || !selectedCliente.locker_id?.startsWith('YBP') || !selectedBodegaId || tarifas.length === 0) return;
+        
+        const nivel = selectedCliente.nivel_ybp;
+        if (!nivel) return;
+
+        const ybpTarifa = tarifas.find(t => t.nombre_servicio.toLowerCase() === nivel.toLowerCase());
+        if (ybpTarifa) {
+            setConceptos(prev => {
+                // If this rate is already in the list, don't duplicate
+                if (prev.some(c => c.descripcion === ybpTarifa.nombre_servicio)) return prev;
+
+                // Replace empty row if it exists
+                const emptyIndex = prev.findIndex(c => c.descripcion === '' && c.cantidad === 1 && c.precio_unitario === 0);
+                if (emptyIndex >= 0) {
+                    const newConceptos = [...prev];
+                    newConceptos[emptyIndex] = { ...newConceptos[emptyIndex], descripcion: ybpTarifa.nombre_servicio, precio_unitario: ybpTarifa.tarifa_q };
+                    toast.success(`Tarifa YBP (${ybpTarifa.nombre_servicio}) aplicada automáticamente.`, { id: 'ybp-rate-toast' });
+                    return newConceptos;
+                }
+
+                // Or append a new row
+                toast.success(`Tarifa YBP (${ybpTarifa.nombre_servicio}) añadida automáticamente.`, { id: 'ybp-rate-toast' });
+                return [...prev, { id: crypto.randomUUID(), descripcion: ybpTarifa.nombre_servicio, cantidad: 1, precio_unitario: ybpTarifa.tarifa_q }];
+            });
+        }
+    }, [selectedCliente, selectedBodegaId, tarifas]);
 
     const addConcepto = () => {
         setConceptos([...conceptos, { id: crypto.randomUUID(), descripcion: '', cantidad: 1, precio_unitario: 0 }]);
