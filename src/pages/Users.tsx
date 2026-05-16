@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users as UsersIcon, Plus, Shield, ShieldCheck, Mail, Phone, Trash2, KeyRound, Search, X, SlidersHorizontal, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { UserRole } from '../context/AuthContext';
+import { UserRole, useAuth } from '../context/AuthContext';
 
 interface Rol {
     id: string;
@@ -42,9 +42,11 @@ interface Cliente {
     municipio: string;
     activo: boolean;
     created_at: string;
+    puntos?: number;
 }
 
 export function Users() {
+    const { user } = useAuth();
     const [searchParams] = useSearchParams();
     const initialSearch = searchParams.get('search') || '';
 
@@ -58,6 +60,16 @@ export function Users() {
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [searchTerm, setSearchTerm] = useState(initialSearch);
+
+    // Synchronize searchTerm state with URL search parameters (for global search support)
+    useEffect(() => {
+        const urlSearch = searchParams.get('search');
+        if (urlSearch !== null && urlSearch !== searchTerm) {
+            setSearchTerm(urlSearch);
+            if (urlSearch) setActiveTab('clients');
+            setCurrentPage(1);
+        }
+    }, [searchParams]);
     const [editingId, setEditingId] = useState<string | null>(null);
 
     // New user form state
@@ -127,10 +139,17 @@ export function Users() {
     async function fetchUsers() {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            let query = supabase
                 .from('usuarios')
                 .select(`*, roles ( nombre ), sucursales ( nombre )`)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: true });
+
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            if (!isSuperAdmin && user?.sucursal_id) {
+                query = query.eq('sucursal_id', user.sucursal_id);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
             setUsers(data || []);
@@ -145,17 +164,24 @@ export function Users() {
         try {
             setLoading(true);
             // Supabase has a hard limit of 1000 rows per request.
-            // We fetch in batches of 1000 until all records are loaded.
             const BATCH_SIZE = 1000;
             let allClientes: Cliente[] = [];
             let from = 0;
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
 
             while (true) {
-                const { data, error } = await supabase
+                let query = supabase
                     .from('clientes')
                     .select(`*, sucursales ( nombre )`)
-                    .order('created_at', { ascending: false })
+                    .order('created_at', { ascending: true })
+                    .order('id', { ascending: true })
                     .range(from, from + BATCH_SIZE - 1);
+
+                if (!isSuperAdmin && user?.sucursal_id) {
+                    query = query.eq('sucursal_id', user.sucursal_id);
+                }
+
+                const { data, error } = await query;
 
                 if (error) throw error;
                 if (!data || data.length === 0) break;
@@ -320,9 +346,15 @@ export function Users() {
         }
     }
 
+    const normalize = (str: string) =>
+        (str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
     const filteredUsers = users.filter(u => {
-        const matchesSearch = (u.nombre + ' ' + (u.apellido || '')).toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.email?.toLowerCase().includes(searchTerm.toLowerCase());
+        const fullName = normalize(`${u.nombre} ${u.apellido || ''}`);
+        const search = normalize(searchTerm);
+        const matchesSearch = !search ||
+            fullName.includes(search) ||
+            normalize(u.email).includes(search);
         const matchesRol = filterRol === 'all' || u.rol_id === filterRol;
         const matchesSucursal = filterSucursal === 'all' || u.sucursal_id === filterSucursal;
         const matchesEstado = filterEstado === 'all' || (filterEstado === 'active' ? u.activo : !u.activo);
@@ -330,16 +362,25 @@ export function Users() {
     });
 
     const filteredClientes = useMemo(() => {
-        const q = searchTerm.trim().toLowerCase();
+        const q = normalize(searchTerm);
+        const qStripped = (searchTerm || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
         let list = clientes.filter(c => {
-            const fullName = (c.nombre + ' ' + (c.apellido || '')).toLowerCase();
+            const firstName = normalize(c.nombre);
+            const lastName = normalize(c.apellido);
+            const fullName = normalize(`${c.nombre} ${c.apellido || ''}`);
+            const fullStripped = (fullName + (c.locker_id || '') + (c.email || '') + (c.telefono || '')).replace(/[^a-z0-9]/gi, '').toLowerCase();
+            const lockerStripped = (c.locker_id || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+
             const matchesSearch = !q ||
                 fullName.includes(q) ||
-                c.locker_id?.toLowerCase().includes(q) ||
-                c.email?.toLowerCase().includes(q) ||
-                c.telefono?.toLowerCase().includes(q) ||
-                c.departamento?.toLowerCase().includes(q) ||
-                c.municipio?.toLowerCase().includes(q);
+                normalize(c.locker_id).includes(q) ||
+                (qStripped && fullStripped.includes(qStripped)) ||
+                (qStripped && lockerStripped.includes(qStripped)) ||
+                normalize(c.email).includes(q) ||
+                normalize(c.telefono).includes(q) ||
+                normalize(c.departamento).includes(q) ||
+                normalize(c.municipio).includes(q);
             const matchesSucursal = filterSucursal === 'all' || c.sucursal_id === filterSucursal;
             const matchesEstado = filterEstado === 'all' || (filterEstado === 'active' ? c.activo : !c.activo);
             return matchesSearch && matchesSucursal && matchesEstado;
@@ -800,6 +841,7 @@ export function Users() {
                                                 <ArrowUpDown className={`h-3 w-3 transition-colors ${sortField === 'sucursal' ? 'text-blue-500' : 'text-slate-300 group-hover:text-blue-300'}`} />
                                             </button>
                                         </th>
+                                        <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">YouPoints</th>
                                         <th scope="col" className="px-3 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Estado</th>
                                         <th scope="col" className="relative py-4 pl-3 pr-4 sm:pr-6"><span className="sr-only">Acciones</span></th>
                                     </tr>
@@ -807,7 +849,7 @@ export function Users() {
                                 <tbody className="divide-y divide-slate-100 bg-white/40">
                                     {loading ? (
                                         <tr>
-                                            <td colSpan={6} className="py-20 text-center text-slate-500 text-sm">
+                                            <td colSpan={7} className="py-20 text-center text-slate-500 text-sm">
                                                 <div className="flex flex-col items-center justify-center gap-3">
                                                     <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mb-2"></div>
                                                     <p className="text-sm font-medium text-slate-500">Cargando base de clientes...</p>
@@ -816,7 +858,7 @@ export function Users() {
                                         </tr>
                                     ) : paginatedClientes.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="py-20 text-center">
+                                            <td colSpan={7} className="py-20 text-center">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2">
                                                         <UsersIcon className="h-8 w-8 text-slate-400" />
@@ -858,6 +900,11 @@ export function Users() {
                                                             {c.sucursales.nombre}
                                                         </span>
                                                     )}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                                    <span className="inline-flex items-center gap-1 font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 shadow-sm">
+                                                        {c.puntos || 0} <span className="text-xs">🪙</span>
+                                                    </span>
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-600">
                                                     <button

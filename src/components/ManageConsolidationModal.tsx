@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 import { Package, Search, Trash2, X, Plus, Loader2, ChevronsRight, CheckCircle2 } from 'lucide-react';
 
 interface Paquete {
@@ -15,17 +17,25 @@ interface Paquete {
     } | null;
 }
 
+interface Sucursal {
+    id: string;
+    nombre: string;
+}
+
 interface ManageConsolidationModalProps {
     isOpen: boolean;
     onClose: () => void;
     consolidationId: string;
     consolidationCodigo: string;
+    bodegaId: string;
     onSuccess: () => void;
 }
 
-export function ManageConsolidationModal({ isOpen, onClose, consolidationId, consolidationCodigo, onSuccess }: ManageConsolidationModalProps) {
+export function ManageConsolidationModal({ isOpen, onClose, consolidationId, consolidationCodigo, bodegaId, onSuccess }: ManageConsolidationModalProps) {
     const [attachedPaquetes, setAttachedPaquetes] = useState<Paquete[]>([]);
     const [availablePaquetes, setAvailablePaquetes] = useState<Paquete[]>([]);
+    const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+    const [currentSedeId, setCurrentSedeId] = useState<string>('');
     const [loading, setLoading] = useState(true);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +50,21 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
     async function fetchData() {
         setLoading(true);
         try {
+            // Fetch branches and current assigned branch
+            const [sucursalesRes, consRes] = await Promise.all([
+                supabase.from('sucursales').select('id, nombre').eq('activa', true),
+                supabase.from('consolidaciones').select('sucursal_id').eq('id', consolidationId).single()
+            ]);
+
+            if (sucursalesRes.data) {
+                setSucursales(sucursalesRes.data);
+            }
+            if (consRes.data && consRes.data.sucursal_id) {
+                setCurrentSedeId(consRes.data.sucursal_id);
+            } else {
+                setCurrentSedeId('');
+            }
+
             // Fetch packages attached to this consolidation
             const { data: pivotData } = await supabase
                 .from('consolidacion_paquetes')
@@ -59,14 +84,22 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             }
             setAttachedPaquetes(attachedData);
 
-            // Fetch available packages (en_bodega or recibido)
-            const { data: availData } = await supabase
+            // Fetch available packages (en_bodega or recibido) for the specific bodega
+            let query = supabase
                 .from('paquetes')
                 .select('id, tracking, peso_lbs, piezas, estado, clientes(nombre, apellido, locker_id)')
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
 
-            setAvailablePaquetes((availData as any) || []);
+            if (bodegaId) {
+                query = query.eq('bodega_id', bodegaId);
+            }
+
+            const { data: availData, error: availError } = await query;
+            if (availError) throw availError;
+
+            const filtered = (availData as any[] || []).filter(p => !attachedIds.includes(p.id));
+            setAvailablePaquetes(filtered);
 
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -81,12 +114,41 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
         onSuccess(); // Refresh parent list silently
     };
 
+    const handleSedeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSedeId = e.target.value;
+        const dbValue = newSedeId === '' ? null : newSedeId;
+
+        try {
+            setActionLoading('sede');
+            const { error } = await supabase.from('consolidaciones').update({ sucursal_id: dbValue }).eq('id', consolidationId);
+            if (error) throw error;
+
+            setCurrentSedeId(newSedeId);
+            toast.success("Sede actualizada correctamente.");
+            onSuccess(); // Refresh parent list
+        } catch (error: any) {
+            console.error("Error updating sede:", error);
+            toast.error("Error al actualizar la sede.");
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const handleAddPackage = async (paquete: Paquete) => {
         setActionLoading(paquete.id);
         try {
-            // Add to pivot and update status
-            await supabase.from('consolidacion_paquetes').insert({ consolidacion_id: consolidationId, paquete_id: paquete.id });
-            await supabase.from('paquetes').update({ estado: 'consolidado' }).eq('id', paquete.id);
+            // Add to pivot
+            const { error: pivotError } = await supabase.from('consolidacion_paquetes').insert({
+                consolidacion_id: consolidationId,
+                paquete_id: paquete.id
+            });
+            if (pivotError) throw pivotError;
+
+            // Update status
+            const { error: statusError } = await supabase.from('paquetes').update({
+                estado: 'consolidado'
+            }).eq('id', paquete.id);
+            if (statusError) throw statusError;
 
             // Update UI State locally for speed
             const newAttached = [...attachedPaquetes, paquete];
@@ -96,7 +158,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Add error:', err);
-            alert('Error al agregar paquete: ' + err.message);
+            toast.error('Error al agregar paquete: ' + (err.message || 'Error desconocido'));
         } finally {
             setActionLoading(null);
         }
@@ -105,9 +167,17 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
     const handleRemovePackage = async (paquete: Paquete) => {
         setActionLoading(paquete.id);
         try {
-            // Remove from pivot and restore status
-            await supabase.from('consolidacion_paquetes').delete().eq('consolidacion_id', consolidationId).eq('paquete_id', paquete.id);
-            await supabase.from('paquetes').update({ estado: 'en_bodega' }).eq('id', paquete.id);
+            // Remove from pivot
+            const { error: pivotError } = await supabase.from('consolidacion_paquetes').delete()
+                .eq('consolidacion_id', consolidationId)
+                .eq('paquete_id', paquete.id);
+            if (pivotError) throw pivotError;
+
+            // Restore status
+            const { error: statusError } = await supabase.from('paquetes').update({
+                estado: 'en_bodega'
+            }).eq('id', paquete.id);
+            if (statusError) throw statusError;
 
             // Update UI State locally
             const newAttached = attachedPaquetes.filter(p => p.id !== paquete.id);
@@ -117,7 +187,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             await updateConsolidationWeight(newAttached);
         } catch (err: any) {
             console.error('Remove error:', err);
-            alert('Error al remover paquete: ' + err.message);
+            toast.error('Error al remover paquete: ' + (err.message || 'Error desconocido'));
         } finally {
             setActionLoading(null);
         }
@@ -133,29 +203,51 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
 
     if (!isOpen) return null;
 
-    return (
+    const modalContent = (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl flex flex-col h-[90vh] overflow-hidden transform transition-all">
 
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50 gap-4">
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 tracking-tight">Gestionar Carga</h2>
                         <p className="text-sm font-medium text-slate-500 mt-0.5">Consolidado Maestro: <span className="text-blue-600 font-bold">{consolidationCodigo}</span></p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-xl hover:bg-slate-200/50 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-bold text-slate-700 whitespace-nowrap">Sede Asignada:</label>
+                            <div className="relative">
+                                <select
+                                    value={currentSedeId}
+                                    onChange={handleSedeChange}
+                                    disabled={actionLoading === 'sede'}
+                                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 pr-8 text-sm font-medium text-slate-700 outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10 appearance-none disabled:opacity-50"
+                                >
+                                    <option value="">General / Todas</option>
+                                    {sucursales.map(s => (
+                                        <option key={s.id} value={s.id}>{s.nombre}</option>
+                                    ))}
+                                </select>
+                                {actionLoading === 'sede' && (
+                                    <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
+                                )}
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="p-2 rounded-xl hover:bg-slate-200/50 text-slate-400 hover:text-slate-600 transition-colors self-start sm:self-auto"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Content Area: Dos Columnas */}
-                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2 bg-slate-100/50">
+                <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 bg-slate-100/50">
 
                     {/* Columna Izquierda: Paquetes Disponibles */}
-                    <div className="flex flex-col border-b lg:border-b-0 lg:border-r border-slate-200/60 bg-white">
+                    <div className="flex flex-col min-h-0 overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200/60 bg-white">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
                                 <Package className="h-4 w-4 text-blue-500" /> Paquetes sin procesar
@@ -177,7 +269,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                                 <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
                             ) : filteredAvailable.length === 0 ? (
                                 <div className="text-center py-10 text-slate-500 text-sm">
-                                    {searchTerm ? 'No se encontraron resultados.' : 'No hay paquetes sin procesar en bodega.'}
+                                    {searchTerm ? 'No se encontraron resultados.' : 'No hay paquetes sin procesar en esta bodega.'}
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -205,7 +297,7 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
                     </div>
 
                     {/* Columna Derecha: Paquetes en el Consolidado */}
-                    <div className="flex flex-col bg-slate-50/50">
+                    <div className="flex flex-col min-h-0 overflow-hidden bg-slate-50/50">
                         <div className="p-4 border-b border-slate-200/60 bg-white flex items-center justify-between">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500" /> En este Consolidado
@@ -257,4 +349,6 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }

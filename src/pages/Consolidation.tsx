@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Layers, Search, Plus, Package, MapPin, Loader2, CheckSquare, Square, ClipboardList, PlusCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { ConsolidationsList } from '../components/ConsolidationsList';
 import { sendEmail } from '../utils/sendEmail';
+import { calculateConsolidationEstimate, Tarifa } from '../utils/pricingUtils';
 
 interface Bodega { id: string; nombre: string; }
 interface Zona { id: string; nombre: string; }
+interface Sucursal { id: string; nombre: string; }
 interface Paquete {
   id: string;
   tracking: string;
@@ -33,7 +36,9 @@ export function Consolidation() {
   // Data States
   const [bodegas, setBodegas] = useState<Bodega[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [paquetes, setPaquetes] = useState<Paquete[]>([]);
+  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -42,7 +47,8 @@ export function Consolidation() {
   const [formData, setFormData] = useState({
     nombre_alternativo: '',
     origen_id: '',
-    destino_id: ''
+    destino_id: '',
+    sede_id: ''
   });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -54,23 +60,43 @@ export function Consolidation() {
     setLoading(true);
     try {
       // Fetch Catalogs
-      const [bodegasRes, zonasRes, paquetesRes] = await Promise.all([
+      const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+      let paquetesQuery = supabase.from('paquetes')
+        .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes!inner(nombre, apellido, locker_id, sucursal_id), bodegas(id, nombre)')
+        .in('estado', ['en_bodega', 'recibido'])
+        .order('fecha_recepcion', { ascending: false });
+
+      if (!isSuperAdmin && user?.sucursal_id) {
+        paquetesQuery = paquetesQuery.eq('clientes.sucursal_id', user.sucursal_id);
+      }
+
+      const [bodegasRes, zonasRes, paquetesRes, sucursalesRes] = await Promise.all([
         supabase.from('bodegas').select('id, nombre').eq('activo', true),
         supabase.from('zonas').select('id, nombre').eq('activo', true),
-        supabase.from('paquetes')
-          .select('id, tracking, peso_lbs, peso_volumetrico, piezas, clientes(nombre, apellido, locker_id), bodegas(id, nombre)')
-          .in('estado', ['en_bodega', 'recibido'])
-          .order('fecha_recepcion', { ascending: false })
+        paquetesQuery,
+        supabase.from('sucursales').select('id, nombre').eq('activa', true)
       ]);
 
       if (bodegasRes.data) {
         setBodegas(bodegasRes.data);
-        if (bodegasRes.data.length > 0) setFormData(f => ({ ...f, origen_id: bodegasRes.data[0].id }));
+        if (bodegasRes.data.length > 0) {
+          const firstBodegaId = bodegasRes.data[0].id;
+          setFormData(f => ({ ...f, origen_id: firstBodegaId }));
+          fetchTarifas(firstBodegaId);
+        }
       }
 
       if (zonasRes.data) {
         setZonas(zonasRes.data);
         if (zonasRes.data.length > 0) setFormData(f => ({ ...f, destino_id: zonasRes.data[0].id }));
+      }
+
+      if (sucursalesRes.data) {
+        setSucursales(sucursalesRes.data);
+        if (sucursalesRes.data.length > 0) {
+          const defaultSede = user?.sucursal_id || sucursalesRes.data[0].id;
+          setFormData(f => ({ ...f, sede_id: defaultSede }));
+        }
       }
 
       if (paquetesRes.data) {
@@ -89,9 +115,19 @@ export function Consolidation() {
       if (selectedIds.size > 0) {
         setSelectedIds(new Set());
       }
+      fetchTarifas(e.target.value);
     }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  async function fetchTarifas(bodegaId: string) {
+    const { data } = await supabase
+      .from('tarifas')
+      .select('id, nombre_servicio, tarifa_q, tipo_cobro')
+      .eq('bodega_id', bodegaId)
+      .eq('activa', true);
+    if (data) setTarifas(data as Tarifa[]);
+  }
 
   const filteredPaquetes = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -99,10 +135,13 @@ export function Consolidation() {
       // Filtrar forzosamente por la bodega seleccionada en "Origen"
       if (formData.origen_id && p.bodegas?.id !== formData.origen_id) return false;
 
+      // Filtrar por la Sede seleccionada
+      if (formData.sede_id && p.clientes?.sucursal_id !== formData.sede_id) return false;
+
       const lockName = `${p.clientes?.locker_id} ${p.clientes?.nombre} ${p.clientes?.apellido}`.toLowerCase();
       return lockName.includes(q) || p.tracking.toLowerCase().includes(q);
     });
-  }, [paquetes, searchQuery, formData.origen_id]);
+  }, [paquetes, searchQuery, formData.origen_id, formData.sede_id]);
 
   const handleToggleSelect = (id: string) => {
     const newSet = new Set(selectedIds);
@@ -132,20 +171,27 @@ export function Consolidation() {
       }
     });
 
+    const selectedPacks = Array.from(selectedIds)
+      .map(id => paquetes.find(x => x.id === id))
+      .filter(Boolean) as any[];
+
+    const totalQ = calculateConsolidationEstimate(selectedPacks, tarifas);
+
     return {
       cantidad: selectedIds.size,
       peso: pesoTotal,
-      volumen: volTotal
+      volumen: volTotal,
+      totalQ
     };
-  }, [selectedIds, paquetes]);
+  }, [selectedIds, paquetes, tarifas]);
 
   const handleCreateConsolidation = async () => {
     if (selectedIds.size === 0) {
-      alert('Debes seleccionar al menos un paquete.');
+      toast.error('Debes seleccionar al menos un paquete.');
       return;
     }
     if (!formData.origen_id || !formData.destino_id) {
-      alert('Origen y Destino son obligatorios.');
+      toast.error('Origen y Destino son obligatorios.');
       return;
     }
 
@@ -159,6 +205,7 @@ export function Consolidation() {
         codigo: formData.nombre_alternativo || code,
         bodega_id: formData.origen_id,
         zona_destino_id: formData.destino_id,
+        sucursal_id: formData.sede_id || null,
         estado: 'abierta',
         peso_total_lbs: resumen.peso,
         notas: `Consolidación generada por ${user?.nombre || 'Operador'}`,
@@ -275,7 +322,7 @@ export function Consolidation() {
         }
       }
 
-      alert('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
+      toast.success('Consolidación creada con éxito. Los paquetes ahora están listos para envío y se notificó a los clientes.');
 
       // Refresh Data
       setFormData(f => ({ ...f, nombre_alternativo: '' }));
@@ -284,7 +331,7 @@ export function Consolidation() {
 
     } catch (e: any) {
       console.error('Error creating consolidation:', e);
-      alert('Hubo un error al crear la consolidación: ' + (e.message || 'Desconocido'));
+      toast.error('Hubo un error al crear la consolidación: ' + (e.message || 'Desconocido'));
     } finally {
       setSaving(false);
     }
@@ -382,6 +429,21 @@ export function Consolidation() {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-slate-700">Sede Asignada</label>
+                  <select
+                    name="sede_id"
+                    value={formData.sede_id}
+                    onChange={handleChange}
+                    className="block w-full rounded-xl border-slate-200/80 bg-slate-50/50 py-2.5 px-3.5 text-slate-900 shadow-sm transition-all duration-300 focus:border-indigo-500/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 hover:border-slate-300 sm:text-sm sm:leading-6 font-medium"
+                    disabled={user?.role !== 'admin' || !!user?.sucursal_id}
+                  >
+                    <option value="">Todas las Sedes / Sin Asignar</option>
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -406,6 +468,10 @@ export function Consolidation() {
                 <div className="flex justify-between py-2 px-3">
                   <dt className="text-sm font-medium text-slate-500">Vol. total estimado:</dt>
                   <dd className="font-bold text-slate-800 font-mono bg-slate-100/50 px-2 rounded-md">{resumen.volumen.toFixed(2)} ft³</dd>
+                </div>
+                <div className="flex justify-between py-3 px-3 mt-2 border-t border-slate-100 bg-indigo-50/50 rounded-xl">
+                  <dt className="text-sm font-bold text-indigo-700">Importe Estimado:</dt>
+                  <dd className="font-black text-indigo-900 text-lg">Q{resumen.totalQ.toFixed(2)}</dd>
                 </div>
               </dl>
               <button

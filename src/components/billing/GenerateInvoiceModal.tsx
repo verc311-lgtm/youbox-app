@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, Loader2, Calculator } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { sendEmail } from '../../utils/sendEmail';
@@ -130,22 +131,22 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
 
     const handleSave = async () => {
         if (!isManualClient && !selectedCliente) {
-            alert("Seleccione un cliente registrado o use la opción de cliente manual.");
+            toast.error("Seleccione un cliente registrado o use la opción de cliente manual.");
             return;
         }
 
         if (isManualClient && !manualName.trim()) {
-            alert("Ingrese el nombre del cliente manual.");
+            toast.error("Ingrese el nombre del cliente manual.");
             return;
         }
 
         if (conceptos.length === 0) {
-            alert("Agregue al menos un concepto a la factura.");
+            toast.error("Agregue al menos un concepto a la factura.");
             return;
         }
 
         if (conceptos.some(c => !c.descripcion || c.cantidad <= 0 || c.precio_unitario < 0)) {
-            alert("Revise que todos los conceptos tengan descripción, cantidad válida y precio válido.");
+            toast.error("Revise que todos los conceptos tengan descripción, cantidad válida y precio válido.");
             return;
         }
 
@@ -212,7 +213,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
             onClose();
         } catch (error: any) {
             console.error(error);
-            alert('Error al generar la factura: ' + error.message);
+            toast.error('Error al generar la factura: ' + error.message);
         } finally {
             setLoading(false);
         }

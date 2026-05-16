@@ -1,6 +1,10 @@
-import { Users, Map, Calculator, Bell, Palette } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Map, Calculator, Bell, Palette, Building2 } from 'lucide-react';
+import { CompanySettingsModal } from '../components/CompanySettingsModal';
 
 export function Settings() {
+  const [showCompanySettings, setShowCompanySettings] = useState(false);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in relative z-10 w-full pb-10">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
@@ -59,7 +63,19 @@ export function Settings() {
           <h3 className="text-lg font-extrabold text-slate-900 relative z-10">Personalización y Marca</h3>
           <p className="mt-2 text-sm font-medium text-slate-500 relative z-10 leading-relaxed">Etiquetas térmicas, formatos Excel y despliegues visuales.</p>
         </div>
+        <div onClick={() => setShowCompanySettings(true)} className="glass rounded-2xl border border-slate-200/60 p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer group relative overflow-hidden animate-slide-up" style={{ animationDelay: '250ms' }}>
+          <div className="absolute inset-0 bg-gradient-to-br from-rose-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-rose-100 to-pink-100 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform shadow-sm relative z-10 border border-rose-200/50">
+            <Building2 className="h-6 w-6 text-rose-600" />
+          </div>
+          <h3 className="text-lg font-extrabold text-slate-900 relative z-10">Información de Factura</h3>
+          <p className="mt-2 text-sm font-medium text-slate-500 relative z-10 leading-relaxed">Configura el diseño, logo, y datos de contacto en los PDFs de facturas.</p>
+        </div>
       </div>
+
+      {showCompanySettings && (
+        <CompanySettingsModal onClose={() => setShowCompanySettings(false)} />
+      )}
     </div>
   );
 }

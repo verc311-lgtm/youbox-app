@@ -43,7 +43,20 @@ export interface RegisterData {
 }
 
 // ─── Addresses (from company images) ────────────────────────────────────────
-export const YOUBOX_ADDRESSES = {
+export const YOUBOX_ADDRESSES: Record<string, {
+    titulo: string;
+    bodega: string;
+    nombre: string;
+    direccion: string;
+    suiteApt?: string;
+    ciudad: string;
+    estado: string;
+    zipCode?: string;
+    telefono: string;
+    referencias?: string;
+    distrito?: string;
+    codPostal?: string;
+}> = {
     greensboro: {
         titulo: '🇺🇸 Vía Marítima — Estados Unidos',
         bodega: 'Greensboro, NC',
@@ -158,9 +171,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
     }, []);
 
-    const login = async (email: string, password: string): Promise<{ error?: string }> => {
+    const login = async (emailOrLocker: string, password: string): Promise<{ error?: string }> => {
+        const identifier = emailOrLocker.trim().toLowerCase();
+
         // Admin hardcoded (fallback maestro)
-        if (email.toLowerCase() === 'admin' && password === '1234') {
+        if (identifier === 'admin' && password === '1234') {
             const adminUser: AuthUser = {
                 id: 'admin-001',
                 nombre: 'Administrador',
@@ -174,11 +189,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         try {
-            // First check if it's a client
+            // First check if it's a client (by email OR locker_id)
             const { data: clientData, error: clientError } = await supabase
                 .from('clientes')
                 .select('*')
-                .eq('email', email.toLowerCase())
+                .or(`email.eq.${identifier},locker_id.eq.${identifier.toUpperCase()}`)
                 .single();
 
             if (!clientError && clientData) {
@@ -201,15 +216,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 return {};
             }
 
-            // Si no fue cliente, revisamos si es Staff en la tabla 'usuarios'
+            // Si no fue cliente, revisamos si es Staff en la tabla 'usuarios' (solo por email)
             const { data: staffData, error: staffError } = await supabase
                 .from('usuarios')
                 .select('*, roles(nombre)')
-                .eq('email', email.toLowerCase())
+                .eq('email', identifier)
                 .single();
 
             if (staffError || !staffData) {
-                return { error: 'Credenciales incorrectas. Verifica tu email.' };
+                return { error: 'Credenciales incorrectas. Verifica tu email o casillero.' };
             }
 
             if (!staffData.activo) {
@@ -234,13 +249,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem('youbox_user', JSON.stringify(staffUser));
             return {};
 
-        } catch {
+        } catch (err) {
+            console.error('LOGIN ERROR:', err);
             return { error: 'Error de conexión. Intenta de nuevo.' };
         }
     };
 
     const register = async (data: RegisterData): Promise<{ error?: string; user?: AuthUser }> => {
         try {
+            const cleanEmail = data.email.trim().toLowerCase();
+
+            // Verificar si el correo ya existe en la tabla de staff (usuarios)
+            const { data: existingStaff } = await supabase
+                .from('usuarios')
+                .select('id')
+                .eq('email', cleanEmail)
+                .single();
+
+            if (existingStaff) {
+                return { error: 'Este correo ya está registrado como miembro del equipo (Staff). Usa otro correo.' };
+            }
+
             const lockerId = await generateNextLocker(data.sucursal_prefix || 'YBG');
 
             const { data: inserted, error } = await supabase
@@ -248,7 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .insert([{
                     nombre: data.nombre,
                     apellido: data.apellido,
-                    email: data.email.toLowerCase(),
+                    email: cleanEmail,
                     telefono: data.telefono,
                     locker_id: lockerId,
                     notas: data.password, // guardamos contraseña en 'notas' hasta que exista password_hash
@@ -286,7 +315,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(newUser);
             localStorage.setItem('youbox_user', JSON.stringify(newUser));
             return { user: newUser };
-        } catch {
+        } catch (err) {
+            console.error('REGISTER ERROR:', err);
             return { error: 'Error inesperado. Intenta de nuevo.' };
         }
     };

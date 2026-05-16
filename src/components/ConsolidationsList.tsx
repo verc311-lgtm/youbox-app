@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck } from 'lucide-react';
+import { Layers, Search, MapPin, Calendar, ExternalLink, ChevronRight, Truck, Trash2, FileText } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { downloadInventoryPDF } from '../utils/generateInventoryPDF';
 import { TrackingDialog } from './TrackingDialog';
 import { ManageConsolidationModal } from './ManageConsolidationModal';
 import { BulkInvoiceModal } from './billing/BulkInvoiceModal';
@@ -16,7 +18,10 @@ interface Consolidacion {
     created_at: string;
     bodegas: { id: string, nombre: string } | null;
     zonas: { id: string, nombre: string } | null;
+    sucursales?: { nombre: string } | null;
     paquetes_count?: number;
+    facturas_count?: number;
+    monto_facturado?: number;
 }
 
 export function ConsolidationsList() {
@@ -37,6 +42,7 @@ export function ConsolidationsList() {
     const [manageModalOpen, setManageModalOpen] = useState(false);
     const [manageConsId, setManageConsId] = useState('');
     const [manageConsCodigo, setManageConsCodigo] = useState('');
+    const [manageBodegaId, setManageBodegaId] = useState('');
 
     const { user, isAdmin } = useAuth();
 
@@ -50,24 +56,25 @@ export function ConsolidationsList() {
             const { data, error } = await supabase
                 .from('consolidaciones')
                 .select(`
-          id, codigo, estado, peso_total_lbs, created_at,
+          *,
           bodegas(id, nombre),
           zonas(id, nombre),
-          consolidacion_paquetes(count)
+          sucursales(nombre),
+          consolidacion_paquetes(id),
+          facturas(monto_total)
         `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
 
             const formatted = (data || []).map((d: any) => ({
-                id: d.id,
-                codigo: d.codigo,
-                estado: d.estado,
-                peso_total_lbs: d.peso_total_lbs,
-                created_at: d.created_at,
+                ...d,
                 bodegas: Array.isArray(d.bodegas) ? d.bodegas[0] : d.bodegas,
                 zonas: Array.isArray(d.zonas) ? d.zonas[0] : d.zonas,
-                paquetes_count: Array.isArray(d.consolidacion_paquetes) ? d.consolidacion_paquetes[0]?.count || 0 : d.consolidacion_paquetes?.count || 0
+                sucursales: Array.isArray(d.sucursales) ? d.sucursales[0] : d.sucursales,
+                paquetes_count: d.consolidacion_paquetes?.length || 0,
+                facturas_count: d.facturas?.length || 0,
+                monto_facturado: (d.facturas || []).reduce((sum: number, f: any) => sum + (f.monto_total || 0), 0)
             }));
             setConsolidaciones(formatted as Consolidacion[]);
         } catch (e) {
@@ -88,9 +95,10 @@ export function ConsolidationsList() {
         setInvoiceModalOpen(true);
     };
 
-    const openManageModal = (consId: string, codigo: string) => {
+    const openManageModal = (consId: string, codigo: string, bodegaId: string) => {
         setManageConsId(consId);
         setManageConsCodigo(codigo);
+        setManageBodegaId(bodegaId);
         setManageModalOpen(true);
     };
 
@@ -103,24 +111,57 @@ export function ConsolidationsList() {
         }
     };
 
+    const handleDeleteConsolidation = async (id: string, codigo: string) => {
+        if (!window.confirm(`¿Está seguro de eliminar el consolidado ${codigo}? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const { error } = await supabase
+                .from('consolidaciones')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            toast.success('Consolidado eliminado con éxito.');
+            fetchConsolidaciones();
+        } catch (e: any) {
+            console.error('Error deleting consolidation:', e);
+            toast.error('Hubo un error al eliminar el consolidado: ' + (e.message || 'Desconocido'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const filtered = consolidaciones.filter(c =>
         c.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.estado.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const totalFacturado = filtered.reduce((sum, c) => sum + (c.monto_facturado || 0), 0);
+
     return (
         <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
             {/* List Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4 glass p-4 rounded-2xl w-full">
-                <div className="relative w-full sm:w-96 group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por código de Consolidado o Estatus..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="h-10 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300"
-                    />
+                <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto flex-1">
+                    <div className="relative w-full sm:w-96 group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por código de Consolidado o Estatus..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="h-10 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-300 focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 hover:border-slate-300"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200/60 font-bold whitespace-nowrap shadow-sm">
+                        <Layers className="h-4 w-4 text-emerald-600" />
+                        <span className="text-emerald-700/80 font-medium text-sm">Total Facturado Lote:</span>
+                        <span className="text-emerald-700 text-lg">Q{totalFacturado.toFixed(2)}</span>
+                    </div>
                 </div>
                 <button
                     onClick={fetchConsolidaciones}
@@ -154,6 +195,7 @@ export function ConsolidationsList() {
                                     <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Ruta</th>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Estatus Actual</th>
                                     <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Carga</th>
+                                    <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Facturado</th>
                                     <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Acciones</th>
                                 </tr>
                             </thead>
@@ -185,6 +227,7 @@ export function ConsolidationsList() {
                                             <div className="flex flex-col text-sm text-slate-600 space-y-1">
                                                 <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" /> <span className="font-semibold text-slate-700">Origen:</span> {cons.bodegas?.nombre || 'N/A'}</span>
                                                 <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" /> <span className="font-semibold text-slate-700">Destino:</span> {cons.zonas?.nombre || 'N/A'}</span>
+                                                <span className="flex items-center gap-1.5 text-xs mt-1 text-slate-500"><MapPin className="h-3 w-3 text-indigo-400" /> <span className="font-semibold text-slate-600">Sede:</span> {cons.sucursales?.nombre || 'General'}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center hidden md:table-cell">
@@ -196,23 +239,57 @@ export function ConsolidationsList() {
                                             <p className="text-sm font-bold text-slate-800 bg-slate-100 inline-block px-2 py-0.5 rounded-md">{cons.paquetes_count} <span className="text-xs text-slate-500 font-medium">Paquetes</span></p>
                                             <p className="text-xs font-bold text-slate-500 mt-1">{cons.peso_total_lbs?.toFixed(2)} lbs</p>
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            {cons.monto_facturado && cons.monto_facturado > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-sm font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
+                                                        Q{cons.monto_facturado.toFixed(2)}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase mt-1">Cerrado</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                                                        Pendiente
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-medium mt-1">Por facturar</span>
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div className="flex items-center justify-end gap-2">
                                                 {isAdmin && cons.bodegas && (
-                                                    <button
-                                                        onClick={() => openInvoiceModal(cons.id, (cons.bodegas as any).id)}
-                                                        className="inline-flex items-center justify-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
-                                                        title="Generar Facturas"
-                                                    >
-                                                        <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
-                                                    </button>
+                                                    (cons.facturas_count && cons.facturas_count > 0) ? (
+                                                        <button
+                                                            disabled
+                                                            className="inline-flex items-center justify-center gap-1.5 text-slate-500 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-bold shadow-sm opacity-60 cursor-not-allowed"
+                                                            title="Facturas ya generadas para este consolidado"
+                                                        >
+                                                            <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturado</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => openInvoiceModal(cons.id, (cons.bodegas as any).id)}
+                                                            className="inline-flex items-center justify-center gap-1.5 text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                            title="Generar Facturas"
+                                                        >
+                                                            <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Facturar Lote</span>
+                                                        </button>
+                                                    )
                                                 )}
                                                 <button
-                                                    onClick={() => openManageModal(cons.id, cons.codigo)}
+                                                    onClick={() => openManageModal(cons.id, cons.codigo, (cons.bodegas as any)?.id || '')}
                                                     className="inline-flex items-center justify-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
                                                     title="Gestionar Carga"
                                                 >
                                                     <Layers className="h-4 w-4" /> <span className="hidden lg:inline">Gestionar</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => downloadInventoryPDF(cons.id, cons.codigo)}
+                                                    className="inline-flex items-center justify-center gap-1.5 text-slate-700 bg-slate-100 border border-slate-200 hover:bg-slate-700 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                    title="Descargar Inventario PDF"
+                                                >
+                                                    <FileText className="h-4 w-4" /> <span className="hidden lg:inline">Inventario</span>
                                                 </button>
                                                 <button
                                                     onClick={() => openTracking(cons.id, cons.codigo)}
@@ -220,6 +297,15 @@ export function ConsolidationsList() {
                                                 >
                                                     <ExternalLink className="h-4 w-4" /> <span className="hidden lg:inline">Tracking</span>
                                                 </button>
+                                                {isAdmin && cons.paquetes_count === 0 && (
+                                                    <button
+                                                        onClick={() => handleDeleteConsolidation(cons.id, cons.codigo)}
+                                                        className="inline-flex items-center justify-center gap-1.5 text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition-all duration-200 font-bold shadow-sm"
+                                                        title="Eliminar Consolidado (Sin paquetes)"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" /> <span className="hidden lg:inline">Eliminar</span>
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -230,36 +316,41 @@ export function ConsolidationsList() {
                 )}
             </div>
 
-            {trackingId && (
-                <TrackingDialog
-                    consolidacionId={trackingId}
-                    codigoMaster={trackingCodigo}
-                    onClose={() => setTrackingId(null)}
-                    onUpdate={fetchConsolidaciones}
-                />
-            )}
+            {
+                trackingId && (
+                    <TrackingDialog
+                        consolidacionId={trackingId}
+                        codigoMaster={trackingCodigo}
+                        onClose={() => setTrackingId(null)}
+                        onUpdate={fetchConsolidaciones}
+                    />
+                )
+            }
 
-            {invoiceModalOpen && (
-                <BulkInvoiceModal
-                    isOpen={invoiceModalOpen}
-                    onClose={() => setInvoiceModalOpen(false)}
-                    onSuccess={() => {
-                        fetchConsolidaciones();
-                    }}
-                    consolidacionId={selectedConsolidationId}
-                    bodegaId={selectedBodegaId}
-                />
-            )}
+            {
+                invoiceModalOpen && (
+                    <BulkInvoiceModal
+                        isOpen={invoiceModalOpen}
+                        onClose={() => setInvoiceModalOpen(false)}
+                        onSuccess={() => {
+                            fetchConsolidaciones();
+                        }}
+                        consolidacionId={selectedConsolidationId}
+                        bodegaId={selectedBodegaId}
+                    />
+                )
+            }
 
             <ManageConsolidationModal
                 isOpen={manageModalOpen}
                 onClose={() => setManageModalOpen(false)}
                 consolidationId={manageConsId}
                 consolidationCodigo={manageConsCodigo}
+                bodegaId={manageBodegaId}
                 onSuccess={() => {
                     fetchConsolidaciones();
                 }}
             />
-        </div>
+        </div >
     );
 }

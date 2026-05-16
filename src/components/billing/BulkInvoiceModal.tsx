@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Save, Loader2, Calculator, Users, Package } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { sendEmail } from '../../utils/sendEmail';
@@ -14,7 +15,10 @@ interface BulkInvoiceModalProps {
 
 interface PaqueteDatos {
     id: string;
+    tracking: string;
     peso_lbs: number;
+    piezas: number;
+    notas: string | null;
     cliente_id: string;
     clientes: {
         id: string;
@@ -42,7 +46,9 @@ interface ClienteAgrupado {
     };
     paquetes: PaqueteDatos[];
     totalLbs: number;
-    tarifaAplicada: Tarifa | null;
+    // Per-package breakdown for display
+    paquetesCosto: { paq: PaqueteDatos; tarifa: Tarifa | null; costo: number }[];
+    tarifaAplicada: Tarifa | null; // fallback/primary tariff for display
     totalQ: number;
 }
 
@@ -99,10 +105,17 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
             const packageIds = pivotData.map(p => p.paquete_id);
 
             // 3. Obtener los paquetes completos con cliente y peso
-            const { data: paquetesData, error: paqError } = await supabase
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            let paqQuery = supabase
                 .from('paquetes')
-                .select('id, peso_lbs, cliente_id, clientes(id, nombre, apellido, locker_id, email)')
+                .select('id, tracking, peso_lbs, piezas, notas, cliente_id, clientes!inner(id, nombre, apellido, locker_id, email, sucursal_id)')
                 .in('id', packageIds);
+
+            if (!isSuperAdmin && user?.sucursal_id) {
+                paqQuery = paqQuery.eq('clientes.sucursal_id', user.sucursal_id);
+            }
+
+            const { data: paquetesData, error: paqError } = await paqQuery;
 
             if (paqError) throw paqError;
 
@@ -118,6 +131,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                         cliente: paq.clientes,
                         paquetes: [],
                         totalLbs: 0,
+                        paquetesCosto: [],
                         tarifaAplicada: null,
                         totalQ: 0
                     });
@@ -125,33 +139,58 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
 
                 const grupo = gruposMap.get(cid)!;
                 grupo.paquetes.push(paq);
-                grupo.totalLbs += (Number(paq.peso_lbs) || 0); // sumar peso
+                grupo.totalLbs += (Number(paq.peso_lbs) || 0);
             });
+
+            // Helper: extract empaque type from notas
+            const getEmpaque = (notas: string | null): string | null => {
+                if (!notas) return null;
+                const m = notas.match(/\[Empaque:\s*([^\]]+)\]/);
+                return m ? m[1].trim().toLowerCase() : null;
+            };
+
+            // Helper: find matching tariff for a package
+            const findTariffForPack = (paq: PaqueteDatos, allTarifas: Tarifa[]): { tarifa: Tarifa | null; costo: number } => {
+                if (allTarifas.length === 0) return { tarifa: null, costo: 0 };
+                const empaque = getEmpaque(paq.notas);
+                if (empaque && empaque !== 'libra') {
+                    // Try to match "Shein Bolsa", "Shein Sobre", "Shein Caja" etc.
+                    const matched = allTarifas.find(t =>
+                        t.nombre_servicio.toLowerCase().includes(empaque)
+                    );
+                    if (matched) {
+                        // por_paquete: tarifa_q × 1 package
+                        const costo = matched.tipo_cobro === 'por_libra'
+                            ? matched.tarifa_q * (Number(paq.peso_lbs) || 1)
+                            : matched.tarifa_q; // fijo or por_paquete
+                        return { tarifa: matched, costo };
+                    }
+                }
+                // Fallback: por_libra (Flete General)
+                const libraT = allTarifas.find(t => t.tipo_cobro === 'por_libra') || allTarifas[0];
+                const costo = libraT.tipo_cobro === 'por_libra'
+                    ? libraT.tarifa_q * (Number(paq.peso_lbs) > 0 ? Number(paq.peso_lbs) : 1)
+                    : libraT.tarifa_q;
+                return { tarifa: libraT, costo };
+            };
 
             // 5. Aplicar tarifas y calculo a cada grupo
             const gruposArr = Array.from(gruposMap.values()).map(grupo => {
-                // Lógica de cálculo: buscar la tarifa que encaje con su peso
-                // Opcional: Para simplificar, si el tipo cobro es 'por_libra', multiplicar tarifa_q * totalLbs.
-                let t_aplicada: Tarifa | null = null;
-                let t_costo = 0;
+                // Per-package cost calculation using empaque type from notas
+                const paquetesCosto = grupo.paquetes.map(paq => {
+                    const { tarifa, costo } = findTariffForPack(paq, fetchedTarifas);
+                    return { paq, tarifa, costo };
+                });
 
-                if (fetchedTarifas.length > 0) {
-                    // Try to find the generic "por_libra" tariff as default fallback
-                    t_aplicada = fetchedTarifas.find(t => t.tipo_cobro === 'por_libra') || fetchedTarifas[0];
-
-                    if (t_aplicada.tipo_cobro === 'por_libra') {
-                        t_costo = t_aplicada.tarifa_q * (grupo.totalLbs > 0 ? grupo.totalLbs : 1); // min 1 lb
-                    } else if (t_aplicada.tipo_cobro === 'fijo') {
-                        t_costo = t_aplicada.tarifa_q; // costo plano
-                    } else if (t_aplicada.tipo_cobro === 'por_paquete') {
-                        t_costo = t_aplicada.tarifa_q * grupo.paquetes.length;
-                    }
-                }
+                const totalQ = paquetesCosto.reduce((s, x) => s + x.costo, 0);
+                // Primary tariff for display = most-used in this group
+                const tarifaAplicada = paquetesCosto[0]?.tarifa || null;
 
                 return {
                     ...grupo,
-                    tarifaAplicada: t_aplicada,
-                    totalQ: t_costo
+                    paquetesCosto,
+                    tarifaAplicada,
+                    totalQ
                 };
             });
 
@@ -159,7 +198,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
 
         } catch (error) {
             console.error("Error cargando previsualización:", error);
-            alert("Ocurrió un error leyendo los paquetes de la consolidación.");
+            toast.error("Ocurrió un error leyendo los paquetes de la consolidación.");
         } finally {
             setLoadingData(false);
         }
@@ -200,12 +239,16 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 const facturaNueva = resFactura.data;
 
                 // 2. Crear un concepto agrupado. 
-                // Optimizamos poniendo 1 concepto "Flete Internacional" en vez de 1 línea por caja si están consolidadas, 
-                // o se puede crear un concepto por paquete si se desea desglosar. Aquí unificamos.
+                // Extraemos los trackings para agregarlos a la descripcion
+                const trackingsStr = grupo.paquetes.map(p => p.tracking).filter(Boolean).join(', ');
+                // Build per-package breakdown for the concepto description
+                const detalle = grupo.paquetesCosto.map(({ paq, tarifa, costo }) =>
+                    `${paq.tracking} → ${tarifa?.nombre_servicio || 'Genérico'} Q${costo.toFixed(2)}`
+                ).join(' | ');
                 const resConcepto = await supabase.from('conceptos_factura').insert([{
                     factura_id: facturaNueva.id,
-                    descripcion: `Servicio de Logística (${grupo.tarifaAplicada?.nombre_servicio || 'Genérico'}) - ${grupo.totalLbs.toFixed(2)} lbs agrupadas.`,
-                    cantidad: 1, // o grupo.totalLbs si quisiéramos detallar unitariamente
+                    descripcion: `Logística Consolidado — ${grupo.paquetes.length} paq, ${grupo.totalLbs.toFixed(2)} lbs. Detalle: ${detalle}`,
+                    cantidad: 1,
                     precio_unitario: grupo.totalQ,
                     subtotal: grupo.totalQ
                 }]);
@@ -235,18 +278,17 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 processed++;
             }
 
-            alert(`¡Facturación Masiva Completada! Se generaron ${processed} facturas.`);
+            toast.success(`¡Facturación Masiva Completada! Se generaron ${processed} facturas.`);
             onSuccess();
             onClose();
 
         } catch (error: any) {
             console.error(error);
-            alert("Error al generar las facturas: " + error.message);
+            toast.error("Error al generar las facturas: " + error.message);
         } finally {
             setSaving(false);
         }
     };
-
 
     if (!isOpen) return null;
 
@@ -333,14 +375,16 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                                                     <p className="text-xs text-slate-500">{g.totalLbs.toFixed(2)} Lbs</p>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {g.tarifaAplicada ? (
-                                                        <>
-                                                            <p className="font-medium text-slate-800 text-xs inline-flex items-center px-2 py-0.5 rounded-md bg-slate-200">{g.tarifaAplicada.nombre_servicio}</p>
-                                                            <p className="text-[10px] text-slate-500 mt-1">Q{g.tarifaAplicada.tarifa_q} - {g.tarifaAplicada.tipo_cobro}</p>
-                                                        </>
-                                                    ) : (
-                                                        <span className="text-red-500 text-xs font-medium">Asignación Manual Requerida</span>
-                                                    )}
+                                                    {/* Per-package tariff breakdown */}
+                                                    <div className="space-y-1">
+                                                        {g.paquetesCosto.map(({ paq, tarifa, costo }, pi) => (
+                                                            <div key={pi} className="flex items-center gap-1.5 text-xs">
+                                                                <span className="font-mono text-slate-500 truncate max-w-[90px]" title={paq.tracking}>{paq.tracking?.slice(-8)}</span>
+                                                                <span className="font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{tarifa?.nombre_servicio || 'Genérico'}</span>
+                                                                <span className="text-emerald-700 font-bold">Q{costo.toFixed(0)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3 text-right">
                                                     <span className="font-bold bg-green-100 text-green-800 px-2 py-1 rounded-md border border-green-200">

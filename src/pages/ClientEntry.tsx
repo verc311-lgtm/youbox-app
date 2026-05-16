@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Plus, Search, Loader2, Trash2, Save, ImagePlus, CheckCircle2, Upload, Printer, Monitor, User } from 'lucide-react';
+import { Plus, Search, Loader2, Trash2, Save, CheckCircle2, Printer, User } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { LabelPrinterModal } from '../components/LabelPrinterModal';
-import { WebcamModal } from '../components/WebcamModal';
 
 interface Cliente {
     id: string;
@@ -18,13 +18,9 @@ interface RowData {
     bodega_id: string;
     transportista_id: string;
     peso_lbs: string;
+    empaque?: string;
     piezas: string;
     notas: string;
-    // Photo
-    photoFile: File | null;
-    photoPreview: string | null;
-    // UI states
-    showPhotoMenu: boolean;
     // Save state
     isSaving: boolean;
     isSaved: boolean;
@@ -36,11 +32,9 @@ const createEmptyRow = (defaultBodega = '', defaultTransportista = ''): RowData 
     bodega_id: defaultBodega,
     transportista_id: defaultTransportista,
     peso_lbs: '',
+    empaque: 'Bolsa', // Default value for Tapachula
     piezas: '1',
     notas: '',
-    photoFile: null,
-    photoPreview: null,
-    showPhotoMenu: false,
     isSaving: false,
     isSaved: false,
 });
@@ -63,15 +57,11 @@ export function ClientEntry() {
 
     // Rows Data
     const [rows, setRows] = useState<RowData[]>([]);
+    const savingRef = useRef<Set<string>>(new Set());
 
     // Toggles & Modals
-    const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(true);
+    const [autoSaveOnEnter, setAutoSaveOnEnter] = useState(false);
     const [printLabelData, setPrintLabelData] = useState<any | null>(null);
-    const [activeWebcamRow, setActiveWebcamRow] = useState<string | null>(null);
-
-    // Refs
-    const cameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
-    const galleryRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
     useEffect(() => { fetchCatalogs(); }, []);
 
@@ -119,7 +109,8 @@ export function ClientEntry() {
                 .select('id, locker_id, nombre, apellido')
                 .or(`locker_id.ilike.%${query}%,nombre.ilike.%${query}%,apellido.ilike.%${query}%`)
                 .eq('activo', true)
-                .limit(8);
+                .order('locker_id')
+                .limit(20);
             if (!error && data) {
                 setClientResults(data);
                 setShowClientDropdown(true);
@@ -142,16 +133,18 @@ export function ClientEntry() {
     };
 
     // --- Row Handlers ---
-    const addRow = () => {
+    const addRow = (shouldFocus = true) => {
         const lastRow = rows[rows.length - 1];
         const bId = lastRow ? lastRow.bodega_id : globalBodega;
         const tId = lastRow ? lastRow.transportista_id : globalTransportista;
         const newRow = createEmptyRow(bId, tId);
         setRows(prev => [...prev, newRow]);
-        setTimeout(() => {
-            const el = document.getElementById(`tracking-${newRow.id}`);
-            if (el) el.focus();
-        }, 50);
+        if (shouldFocus) {
+            setTimeout(() => {
+                const el = document.getElementById(`tracking-${newRow.id}`);
+                if (el) el.focus();
+            }, 50);
+        }
     };
 
     const removeRow = (idToRemove: string) => {
@@ -163,34 +156,18 @@ export function ClientEntry() {
         setRows(cur => cur.map(r => r.id === id ? { ...r, [field]: value } : r));
     };
 
-    // --- Photos ---
-    const handlePhotoChange = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (file.size > 8 * 1024 * 1024) { alert('Imagen muy grande. Máx 8MB.'); return; }
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setRows(cur => cur.map(r =>
-                r.id === id ? { ...r, photoFile: file, photoPreview: reader.result as string, showPhotoMenu: false } : r
-            ));
-        };
-        reader.readAsDataURL(file);
-        e.target.value = ''; // Reset
-    };
 
-    const handleWebcamCapture = (id: string, file: File, previewUrl: string) => {
-        setRows(cur => cur.map(r =>
-            r.id === id ? { ...r, photoFile: file, photoPreview: previewUrl, showPhotoMenu: false } : r
-        ));
-    };
 
     // --- Saving ---
     const handleSaveRow = async (rowId: string) => {
-        const row = rows.find(r => r.id === rowId);
-        if (!row) return;
-        if (!globalClient) { alert('Debes seleccionar un cliente general arriba.'); return; }
-        if (!row.tracking.trim()) { alert('El número de tracking es requerido.'); return; }
+        if (savingRef.current.has(rowId)) return;
 
+        const row = rows.find(r => r.id === rowId);
+        if (!row || row.isSaving || row.isSaved) return;
+        if (!globalClient) { toast.error('Debes seleccionar un cliente general arriba.'); return; }
+        if (!row.tracking.trim()) { toast.error('El número de tracking es requerido.'); return; }
+
+        savingRef.current.add(rowId);
         setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: true } : r));
 
         try {
@@ -204,34 +181,34 @@ export function ClientEntry() {
             if (checkError) {
                 console.error('Error checking tracking check:', checkError);
             } else if (existingPaquete) {
-                alert(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
+                toast.error(`¡Alerta! El tracking ${row.tracking.trim()} ya existe registrado en el sistema.`);
                 setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
                 return;
             }
 
-            let foto_url: string | null = null;
 
-            // Upload photo if exists
-            if (row.photoFile) {
-                const ext = row.photoFile.name.split('.').pop();
-                const path = `${user?.id || 'sys'}/${Date.now()}_${rowId}.${ext}`;
-                const { error: uploadErr, data: uploadData } = await supabase.storage
-                    .from('recibos_gastos') // Used for package photos too currently
-                    .upload(path, row.photoFile, { cacheControl: '3600', upsert: false });
-                if (!uploadErr && uploadData) {
-                    const { data: pub } = supabase.storage.from('recibos_gastos').getPublicUrl(uploadData.path);
-                    foto_url = pub.publicUrl;
-                }
+
+            // Check if it's the Tapachula warehouse
+            const bodegaRow = bodegas.find(b => b.id === (row.bodega_id || globalBodega));
+            const isTapachula = bodegaRow?.nombre?.toLowerCase().includes('tapachula');
+
+            let finalPesoResult = parseFloat(row.peso_lbs) || null;
+            let finalNotas = row.notas || '';
+
+            if (isTapachula && row.empaque !== 'Libra') {
+                finalPesoResult = 0;
+                const empaqueInfo = `[Empaque: ${row.empaque || 'Bolsa'}]`;
+                finalNotas = finalNotas ? `${empaqueInfo} ${finalNotas}` : empaqueInfo;
             }
 
             const payload = {
                 tracking: row.tracking.trim(),
-                cliente_id: globalClient.id,
+                cliente_id: globalClient.id, // Using global client
                 bodega_id: row.bodega_id || globalBodega,
                 transportista_id: row.transportista_id || globalTransportista,
-                peso_lbs: parseFloat(row.peso_lbs) || null,
+                peso_lbs: finalPesoResult,
                 piezas: parseInt(row.piezas) || 1,
-                notas: row.notas || null,
+                notas: finalNotas || null,
                 estado: 'en_bodega',
                 usuario_recepcion: user?.id === 'admin-001' ? null : user?.id,
             };
@@ -258,17 +235,19 @@ export function ClientEntry() {
 
         } catch (e: any) {
             console.error('Error saving row:', e);
-            alert('Error al guardar: ' + e.message);
+            toast.error('Error al guardar: ' + e.message);
             setRows(cur => cur.map(r => r.id === rowId ? { ...r, isSaving: false } : r));
+        } finally {
+            savingRef.current.delete(rowId);
         }
     };
 
     const handleSaveAll = async () => {
-        if (!globalClient) { alert('Debes seleccionar un cliente general arriba.'); return; }
+        if (!globalClient) { toast.error('Debes seleccionar un cliente general arriba.'); return; }
 
         const unsavedRows = rows.filter(r => !r.isSaved && r.tracking.trim() !== '');
         if (unsavedRows.length === 0) {
-            alert('No hay paquetes pendientes con tracking para guardar.');
+            toast.error('No hay paquetes pendientes con tracking para guardar.');
             return;
         }
 
@@ -281,11 +260,11 @@ export function ClientEntry() {
     // --- Printer ---
     const openLabelPrinter = (row: RowData) => {
         if (!row.tracking) {
-            alert("Por favor ingresa un número de tracking primero.");
+            toast.error("Por favor ingresa un número de tracking primero.");
             return;
         }
         if (!globalClient) {
-            alert("Por favor selecciona un cliente en la parte superior primero.");
+            toast.error("Por favor selecciona un cliente en la parte superior primero.");
             return;
         }
         const bodegaName = bodegas.find(b => b.id === (row.bodega_id || globalBodega))?.nombre || 'General';
@@ -309,14 +288,24 @@ export function ClientEntry() {
                     if (globalClient) {
                         const row = rows.find(r => r.id === currentId);
                         if (row && row.tracking.trim()) {
-                            // Automatically save the row directly from the tracking field if scanner is used
+                            // Automatically save in background
                             handleSaveRow(currentId);
+
+                            // Logical jump: create/focus next row directly for the scanner
+                            const isLastRow = rows[rows.length - 1].id === currentId;
+                            if (isLastRow) {
+                                addRow(true);
+                            } else {
+                                const nextRowId = rows[index + 1].id;
+                                const el = document.getElementById(`tracking-${nextRowId}`);
+                                if (el) el.focus();
+                            }
                         } else {
                             const el = document.getElementById(`peso-${currentId}`);
                             if (el) el.focus();
                         }
                     } else {
-                        alert('Debes seleccionar un cliente antes de guardar automáticamente.');
+                        toast.error('Debes seleccionar un cliente antes de guardar automáticamente.');
                     }
                 } else {
                     const el = document.getElementById(`peso-${currentId}`);
@@ -327,7 +316,7 @@ export function ClientEntry() {
                     if (globalClient) {
                         handleSaveRow(currentId);
                     } else {
-                        alert('Debes seleccionar un cliente antes de guardar automáticamente.');
+                        toast.error('Debes seleccionar un cliente antes de guardar automáticamente.');
                     }
                 } else {
                     const isLastRow = rows[rows.length - 1].id === currentId;
@@ -450,138 +439,123 @@ export function ClientEntry() {
                                     <th className="px-3 py-3.5 min-w-[300px]">Tracking Number <span className="text-red-500">*</span></th>
                                     <th className="px-3 py-3.5 w-24">Peso (lbs)</th>
                                     <th className="px-3 py-3.5 w-16 text-center">Pzas</th>
-                                    <th className="px-3 py-3.5 w-32 text-center">Foto</th>
                                     <th className="px-3 py-3.5 w-28 text-center">Acciones</th>
                                     <th className="px-3 py-3.5 w-10 text-center"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100/50 bg-white/40">
-                                {rows.map((row, index) => (
-                                    <tr
-                                        key={row.id}
-                                        className={`transition-colors group ${row.isSaved ? 'bg-emerald-50/60' : 'hover:bg-blue-50/30'}`}
-                                    >
-                                        <td className="px-3 py-2.5 text-center text-slate-400 font-bold font-mono text-xs">{index + 1}</td>
+                                {rows.map((row, index) => {
+                                    const currentBodega = bodegas.find(b => b.id === row.bodega_id);
+                                    const isTapachula = currentBodega?.nombre?.toLowerCase().includes('tapachula');
 
-                                        <td className="px-3 py-2.5">
-                                            <select
-                                                value={row.bodega_id}
-                                                onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
-                                                disabled={row.isSaved}
-                                                className="block w-full rounded-lg border-slate-200/80 bg-slate-50/50 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-xs font-semibold disabled:opacity-60 outline-none"
-                                            >
-                                                {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-                                            </select>
-                                        </td>
+                                    return (
+                                        <tr
+                                            key={row.id}
+                                            className={`transition-colors group ${row.isSaved ? 'bg-emerald-50/60' : 'hover:bg-blue-50/30'}`}
+                                        >
+                                            <td className="px-3 py-2.5 text-center text-slate-400 font-bold font-mono text-xs">{index + 1}</td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                id={`tracking-${row.id}`}
-                                                type="text"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
-                                                placeholder="Escribe o escanea..."
-                                                value={row.tracking}
-                                                onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
-                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
+                                            <td className="px-3 py-2.5">
+                                                <select
+                                                    value={row.bodega_id}
+                                                    onChange={(e) => updateRow(row.id, 'bodega_id', e.target.value)}
+                                                    disabled={row.isSaved}
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-slate-50/50 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-xs font-semibold disabled:opacity-60 outline-none"
+                                                >
+                                                    {bodegas.map(b => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                                                </select>
+                                            </td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                id={`peso-${row.id}`}
-                                                type="number"
-                                                step="0.01"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 text-right sm:text-sm font-mono font-bold outline-none disabled:opacity-60"
-                                                placeholder="0.00"
-                                                value={row.peso_lbs}
-                                                onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
-                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
+                                            <td className="px-3 py-2.5">
+                                                <input
+                                                    id={`tracking-${row.id}`}
+                                                    type="text"
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-3 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 sm:text-sm font-bold tracking-tight uppercase disabled:opacity-60 outline-none"
+                                                    placeholder="Escribe o escanea..."
+                                                    value={row.tracking}
+                                                    onChange={(e) => updateRow(row.id, 'tracking', e.target.value.toUpperCase())}
+                                                    onKeyDown={(e) => handleKeyDown(e, row.id, 'tracking', index)}
+                                                    disabled={row.isSaved}
+                                                />
+                                            </td>
 
-                                        <td className="px-3 py-2.5">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-sm text-center font-bold outline-none disabled:opacity-60"
-                                                value={row.piezas}
-                                                onChange={(e) => updateRow(row.id, 'piezas', e.target.value)}
-                                                disabled={row.isSaved}
-                                            />
-                                        </td>
-
-                                        <td className="px-3 py-2.5 text-center relative">
-                                            <input
-                                                id={`camera-${row.id}`}
-                                                ref={el => { cameraRefs.current[row.id] = el; }}
-                                                type="file"
-                                                accept="image/*"
-                                                capture="environment"
-                                                className="hidden"
-                                                onChange={(e) => handlePhotoChange(row.id, e)}
-                                            />
-                                            <input
-                                                id={`gallery-${row.id}`}
-                                                ref={el => { galleryRefs.current[row.id] = el; }}
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={(e) => handlePhotoChange(row.id, e)}
-                                            />
-                                            <div className="relative inline-block text-left">
-                                                {row.photoPreview ? (
-                                                    <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} disabled={row.isSaved} className="relative inline-block">
-                                                        <img src={row.photoPreview} alt="preview" className="h-9 w-9 rounded-lg object-cover shadow ring-2 ring-blue-400/40 hover:ring-blue-500/70" />
-                                                    </button>
-                                                ) : (
-                                                    <button onClick={() => updateRow(row.id, 'showPhotoMenu', !row.showPhotoMenu)} onBlur={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 200)} disabled={row.isSaved} className="inline-flex items-center justify-center gap-1.5 px-2.5 h-9 rounded-lg border border-slate-300 text-slate-600 bg-white hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 text-xs font-bold">
-                                                        <ImagePlus className="h-4 w-4" /> <span className="hidden xl:inline">Foto</span>
-                                                    </button>
-                                                )}
-                                                {row.showPhotoMenu && (
-                                                    <div className="absolute z-[9999] right-0 mt-2 w-48 rounded-xl bg-white shadow-xl ring-1 ring-black/5 divide-y divide-slate-100 overflow-hidden"
-                                                        style={{ bottom: 'auto', left: '50%', transform: 'translateX(-50%)' }}>
-                                                        <label htmlFor={`camera-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 cursor-pointer">
-                                                            <div className="bg-blue-100/50 p-1.5 rounded-lg"><Camera className="h-4 w-4" /></div>Móvil
-                                                        </label>
-                                                        <button type="button" onMouseDown={(e) => { e.preventDefault(); setActiveWebcamRow(row.id); updateRow(row.id, 'showPhotoMenu', false); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-purple-600 text-left">
-                                                            <div className="bg-purple-100/50 p-1.5 rounded-lg"><Monitor className="h-4 w-4" /></div>Cámara PC
-                                                        </button>
-                                                        <label htmlFor={`gallery-${row.id}`} onMouseDown={() => setTimeout(() => updateRow(row.id, 'showPhotoMenu', false), 150)} className="flex w-full items-center gap-2.5 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 cursor-pointer">
-                                                            <div className="bg-emerald-100/50 p-1.5 rounded-lg"><Upload className="h-4 w-4" /></div>Galería
-                                                        </label>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </td>
-
-                                        <td className="px-3 py-2.5 text-center">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                                {row.isSaved ? (
-                                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
-                                                        <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
+                                            <td className="px-3 py-2.5">
+                                                {isTapachula ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <select
+                                                            value={row.empaque || 'Bolsa'}
+                                                            onChange={(e) => updateRow(row.id, 'empaque', e.target.value)}
+                                                            disabled={row.isSaved}
+                                                            className="block w-full rounded-lg border-slate-200/80 bg-blue-50/50 py-1.5 px-1 sm:px-2 text-blue-700 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 sm:text-xs font-bold disabled:opacity-60 outline-none"
+                                                        >
+                                                            <option value="Sobre">Sobre</option>
+                                                            <option value="Bolsa">Bolsa</option>
+                                                            <option value="Caja">Caja</option>
+                                                            <option value="Libra">Libra</option>
+                                                        </select>
+                                                        {row.empaque === 'Libra' && (
+                                                            <input
+                                                                id={`peso-${row.id}`}
+                                                                type="number"
+                                                                step="0.01"
+                                                                className="block w-16 rounded-lg border-blue-200/80 text-blue-700 bg-white/80 py-1.5 px-1.5 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-blue-300 hover:border-blue-300 text-right sm:text-xs font-mono font-bold outline-none disabled:opacity-60"
+                                                                placeholder="0"
+                                                                value={row.peso_lbs}
+                                                                onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
+                                                                onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
+                                                                disabled={row.isSaved}
+                                                            />
+                                                        )}
                                                     </div>
                                                 ) : (
-                                                    <button onClick={() => handleSaveRow(row.id)} disabled={row.isSaving || !row.tracking.trim() || !globalClient} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-sm hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40">
-                                                        {row.isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                                                        <span className="hidden xl:inline">{row.isSaving ? '...' : 'Guarda'}</span>
-                                                    </button>
+                                                    <input
+                                                        id={`peso-${row.id}`}
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2.5 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white placeholder:text-slate-400 hover:border-slate-300 text-right sm:text-sm font-mono font-bold outline-none disabled:opacity-60"
+                                                        placeholder="0.00"
+                                                        value={row.peso_lbs}
+                                                        onChange={(e) => updateRow(row.id, 'peso_lbs', e.target.value)}
+                                                        onKeyDown={(e) => handleKeyDown(e, row.id, 'peso', index)}
+                                                        disabled={row.isSaved}
+                                                    />
                                                 )}
-                                                <button type="button" onClick={() => openLabelPrinter(row)} disabled={!row.tracking.trim() || !globalClient} className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40">
-                                                    <Printer className="h-4 w-4" />
+                                            </td>
+
+                                            <td className="px-3 py-2.5">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    className="block w-full rounded-lg border-slate-200/80 bg-white/80 py-1.5 px-2 text-slate-900 shadow-sm transition-all focus:border-blue-500/50 focus:bg-white sm:text-sm text-center font-bold outline-none disabled:opacity-60"
+                                                    value={row.piezas}
+                                                    onChange={(e) => updateRow(row.id, 'piezas', e.target.value)}
+                                                    disabled={row.isSaved}
+                                                />
+                                            </td>
+
+
+
+                                            <td className="px-3 py-2.5 text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    {row.isSaved && (
+                                                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs border border-emerald-200">
+                                                            <CheckCircle2 className="h-3.5 w-3.5" /> Guardado
+                                                        </div>
+                                                    )}
+                                                    <button type="button" onClick={() => openLabelPrinter(row)} disabled={!row.tracking.trim() || !globalClient} className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-300 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40">
+                                                        <Printer className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+
+                                            <td className="px-3 py-2.5 text-center">
+                                                <button onClick={() => removeRow(row.id)} disabled={rows.length === 1 || row.isSaving} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg disabled:opacity-30">
+                                                    <Trash2 className="h-4 w-4" />
                                                 </button>
-                                            </div>
-                                        </td>
-
-                                        <td className="px-3 py-2.5 text-center">
-                                            <button onClick={() => removeRow(row.id)} disabled={rows.length === 1 || row.isSaving} className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg disabled:opacity-30">
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -606,16 +580,7 @@ export function ClientEntry() {
                 />
             )}
 
-            <WebcamModal
-                isOpen={!!activeWebcamRow}
-                onClose={() => setActiveWebcamRow(null)}
-                rowId={activeWebcamRow || ''}
-                onCapture={(file, previewUrl) => {
-                    if (activeWebcamRow) {
-                        handleWebcamCapture(activeWebcamRow, file, previewUrl);
-                    }
-                }}
-            />
+
         </div>
     );
 }

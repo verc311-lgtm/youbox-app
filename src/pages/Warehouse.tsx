@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Package, Inbox, Calendar, Search, MapPin, Truck, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
+import { generateBulkLabelsPDF } from '../utils/bulkLabelPrinter';
 
 interface PaqueteWithDetails {
     id: string;
     tracking: string;
     peso_lbs: number;
     piezas: number;
+    notas?: string | null;
     fecha_recepcion: string;
     transportistas: {
         nombre: string;
@@ -39,8 +43,10 @@ interface PaquetesPorCliente {
 }
 
 export function Warehouse() {
+    const { user } = useAuth();
+    const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('bodega') || '');
     const [groupedPackages, setGroupedPackages] = useState<Record<string, PaquetesPorCliente>>({});
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
@@ -51,20 +57,18 @@ export function Warehouse() {
     async function fetchWarehousePackages() {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('paquetes')
                 .select(`
-          id,
-          tracking,
-          peso_lbs,
-          piezas,
-          fecha_recepcion,
-          transportistas(nombre),
-          clientes(id, nombre, apellido, locker_id),
+          *,
+          transportistas(id, nombre),
+          clientes(id, nombre, apellido, locker_id, sucursal_id),
           bodegas(id, nombre)
         `)
                 .in('estado', ['en_bodega', 'recibido'])
                 .order('fecha_recepcion', { ascending: false });
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -103,8 +107,8 @@ export function Warehouse() {
         const searchLow = searchTerm.toLowerCase();
         const matchLocker = groupKey.toLowerCase().includes(searchLow);
         const matchName = group.cliente ? `${group.cliente.nombre} ${group.cliente.apellido}`.toLowerCase().includes(searchLow) : false;
-        const matchBodega = group.bodega?.nombre.toLowerCase().includes(searchLow);
-        const matchTracking = group.paquetes.some(p => p.tracking.toLowerCase().includes(searchLow));
+        const matchBodega = (group.bodega?.nombre || '').toLowerCase().includes(searchLow);
+        const matchTracking = group.paquetes.some(p => (p.tracking || '').toLowerCase().includes(searchLow));
 
         return matchLocker || matchName || matchBodega || matchTracking;
     });
@@ -114,11 +118,17 @@ export function Warehouse() {
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
-                        Warehouse
+                        Control de Warehouse
                     </h1>
                     <p className="text-sm font-medium text-slate-500 mt-1">
-                        Agrupación temporal de paquetes por cliente y bodega.
+                        Gestiona los paquetes agrupados por cliente y ubicación.
                     </p>
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                            Sincronizado: {Object.values(groupedPackages).reduce((acc: number, g: any) => acc + g.paquetes.length, 0)} paquetes ({Object.keys(groupedPackages).length} clientes)
+                        </span>
+                    </div>
                 </div>
 
                 <div className="relative group/search outline-none">
@@ -140,15 +150,21 @@ export function Warehouse() {
                     <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-500 border-t-transparent shadow-sm"></div>
                     <p className="text-sm font-bold text-slate-500">Cargando inventario...</p>
                 </div>
-            ) : filteredLockers.length === 0 ? (
+            ) : Object.keys(groupedPackages).length === 0 ? (
                 <div className="text-center glass rounded-2xl border border-slate-200/60 py-20 px-8 shadow-sm">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 shadow-inner mb-5">
                         <Inbox className="h-10 w-10 text-slate-300" />
                     </div>
                     <h3 className="mt-4 text-lg font-extrabold text-slate-800 tracking-tight">No hay paquetes en bodega</h3>
                     <p className="mt-2 text-sm font-medium text-slate-500 max-w-md mx-auto">
-                        Todos los paquetes han sido consolidados o la búsqueda actual no arrojó resultados. Intenta ajustar tus filtros.
+                        La base de datos devolvió 0 paquetes con estatus "En Bodega" o "Recibido".
                     </p>
+                    <button
+                        onClick={() => fetchWarehousePackages()}
+                        className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
+                    >
+                        Reintentar Sincronización
+                    </button>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -196,9 +212,19 @@ export function Warehouse() {
                                             <Package className="h-4.5 w-4.5 text-blue-500" />
                                             <span className="font-extrabold text-blue-900">{group.paquetes.length} pz</span>
                                         </div>
-                                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border ${isExpanded ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
-                                            <span>{isExpanded ? 'Ocultar' : 'Ver Contenido'}</span>
-                                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); generateBulkLabelsPDF(group.paquetes as any); }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border bg-slate-800 text-white border-slate-700 hover:bg-slate-700 shadow-sm"
+                                                title="Imprimir todas las etiquetas de este casillero"
+                                            >
+                                                <Printer className="h-4 w-4" />
+                                                <span className="hidden sm:inline">Imprimir</span>
+                                            </button>
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors border ${isExpanded ? 'bg-indigo-50 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
+                                                <span>{isExpanded ? 'Ocultar' : 'Ver Contenido'}</span>
+                                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -223,8 +249,20 @@ export function Warehouse() {
                                                     </div>
                                                     <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                                                         <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                                                            <Truck className="h-3.5 w-3.5 text-slate-400" />
-                                                            <span>{paquete.transportistas?.nombre || 'Desconocido'}</span>
+                                                            {(group.bodega?.nombre || '').toLowerCase().includes('tapachula') && paquete.notas ? (
+                                                                (() => {
+                                                                    const m = paquete.notas.match(/\[Empaque:\s*([^\]]+)\]/);
+                                                                    return m ? (
+                                                                        <span className="inline-flex items-center gap-1 text-teal-700 font-bold text-[10px] uppercase tracking-wide">
+                                                                            📦 {m[1]}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <><Truck className="h-3.5 w-3.5 text-slate-400" /><span>{paquete.transportistas?.nombre || 'Desconocido'}</span></>
+                                                                    );
+                                                                })()
+                                                            ) : (
+                                                                <><Truck className="h-3.5 w-3.5 text-slate-400" /><span>{paquete.transportistas?.nombre || 'Desconocido'}</span></>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                                                             <Calendar className="h-3.5 w-3.5 text-slate-400" />

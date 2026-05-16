@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar, Building } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Loader2, Calendar, Building, Download } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../context/AuthContext';
+import { downloadReportPDF } from '../utils/generateReportPDF';
 
 interface Mensual {
     mes: string;
@@ -26,8 +27,10 @@ export function Reports() {
     const [monthlyData, setMonthlyData] = useState<Mensual[]>([]);
     const [categoryData, setCategoryData] = useState<Categoria[]>([]);
     const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
     const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
+    const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
 
     const [kpis, setKpis] = useState({
         ingresosMesActual: 0,
@@ -35,15 +38,20 @@ export function Reports() {
         balanceMesActual: 0
     });
 
+    const [sedeData, setSedeData] = useState({
+        xela: { ingresos: 0, gastos: 0 },
+        quiche: { ingresos: 0, gastos: 0 }
+    });
+
     useEffect(() => {
-        if (user?.role === 'admin') {
+        if (isSuperAdmin) {
             fetchSucursales();
         }
-    }, [user]);
+    }, [user, isSuperAdmin]);
 
     useEffect(() => {
         fetchData();
-    }, [selectedFilterBranch, user]);
+    }, [selectedFilterBranch, selectedMonth, user]);
 
     const fetchSucursales = async () => {
         const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
@@ -57,29 +65,32 @@ export function Reports() {
             const hoy = new Date();
             const hace6Meses = subMonths(hoy, 5);
 
-            let queryFacturas = supabase
-                .from('facturas')
-                .select('monto_total, fecha_emision, clientes!inner(sucursal_id)')
-                .eq('estado', 'verificado')
-                .gte('fecha_emision', hace6Meses.toISOString());
+            // IDs de Sedes específicas para el resumen solicitado
+            const ID_XELA = '9c4bf811-5a12-4c44-a99a-418b289154cb';
+            const ID_QUICHE = 'fe88dcfb-df66-400d-be57-91acb25c4dd7';
+
+            let queryPagos = supabase
+                .from('pagos')
+                .select('monto, created_at, facturas!inner(estado, clientes!inner(sucursal_id))')
+                .gte('created_at', hace6Meses.toISOString());
 
             let queryGastos = supabase
                 .from('gastos_financieros')
-                .select('monto_q, fecha_pago, categoria')
+                .select('monto_q, fecha_pago, categoria, sucursal_id')
                 .eq('estado', 'verificado')
                 .gte('fecha_pago', hace6Meses.toISOString());
 
-            // Filtros de Sucursal
-            if (user?.role !== 'admin' && user?.sucursal_id) {
-                queryFacturas = queryFacturas.eq('clientes.sucursal_id', user.sucursal_id);
+            // Filtros de Sucursal para las gráficas principales
+            if (!isSuperAdmin && user?.sucursal_id) {
+                queryPagos = queryPagos.eq('facturas.clientes.sucursal_id', user.sucursal_id);
                 queryGastos = queryGastos.eq('sucursal_id', user.sucursal_id);
-            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
-                queryFacturas = queryFacturas.eq('clientes.sucursal_id', selectedFilterBranch);
+            } else if (isSuperAdmin && selectedFilterBranch !== 'all') {
+                queryPagos = queryPagos.eq('facturas.clientes.sucursal_id', selectedFilterBranch);
                 queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
             }
 
-            const { data: facturas, error: facturasErr } = await queryFacturas;
-            if (facturasErr) throw facturasErr;
+            const { data: pagos, error: pagosErr } = await queryPagos;
+            if (pagosErr) throw pagosErr;
 
             const { data: gastos, error: gastosErr } = await queryGastos;
             if (gastosErr) throw gastosErr;
@@ -99,18 +110,31 @@ export function Reports() {
                 });
             });
 
-            const currentMonthKey = format(hoy, 'yyyy-MM');
+            const currentMonthKey = selectedMonth;
             let ingActual = 0;
             let gasActual = 0;
 
+            const xelaTotals = { ingresos: 0, gastos: 0 };
+            const quicheTotals = { ingresos: 0, gastos: 0 };
+
             // Populate Incomes
-            facturas?.forEach(f => {
-                const key = f.fecha_emision.substring(0, 7); // yyyy-MM
+            pagos?.forEach(p => {
+                const fact = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas;
+                // Strict check: only count payments belonging to finalized invoices (like Billing and Payments pages)
+                if (!fact || !['verificado', 'pagado'].includes((fact.estado || '').toLowerCase())) return;
+
+                const key = (p.created_at as string).substring(0, 7); // yyyy-MM
+                const sucursalId = (p as any).facturas?.clientes?.sucursal_id;
+
                 if (monthMap.has(key)) {
                     const obj = monthMap.get(key)!;
-                    obj.ingresos += Number(f.monto_total);
-                    if (key === currentMonthKey) ingActual += Number(f.monto_total);
+                    obj.ingresos += Number(p.monto);
+                    if (key === currentMonthKey) ingActual += Number(p.monto);
                 }
+
+                // Totales por Sede (Historial de 6 meses)
+                if (sucursalId === ID_XELA) xelaTotals.ingresos += Number(p.monto);
+                if (sucursalId === ID_QUICHE) quicheTotals.ingresos += Number(p.monto);
             });
 
             // Populate Expenses
@@ -128,6 +152,10 @@ export function Reports() {
                     const cat = g.categoria || 'Otros';
                     catMap.set(cat, (catMap.get(cat) || 0) + Number(g.monto_q));
                 }
+
+                // Totales por Sede (Historial de 6 meses)
+                if (g.sucursal_id === ID_XELA) xelaTotals.gastos += Number(g.monto_q);
+                if (g.sucursal_id === ID_QUICHE) quicheTotals.gastos += Number(g.monto_q);
             });
 
             // Process final arrays
@@ -145,6 +173,10 @@ export function Reports() {
                 gastosMesActual: gasActual,
                 balanceMesActual: ingActual - gasActual
             });
+            setSedeData({
+                xela: xelaTotals,
+                quiche: quicheTotals
+            });
 
         } catch (error) {
             console.error("Error fetching report data", error);
@@ -153,6 +185,7 @@ export function Reports() {
             setLoading(false);
         }
     };
+
 
     const formatQ = (val: number) => {
         return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', minimumFractionDigits: 0 }).format(val);
@@ -178,21 +211,39 @@ export function Reports() {
                         Métricas clave e historial de utilidad de los últimos 6 meses.
                     </p>
                 </div>
-                {user?.role === 'admin' && (
-                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                            <Building className="h-4.5 w-4.5" />
+                {isSuperAdmin && (
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                            <Calendar className="h-4.5 w-4.5 text-blue-600" />
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer"
+                            />
                         </div>
-                        <select
-                            value={selectedFilterBranch}
-                            onChange={(e) => setSelectedFilterBranch(e.target.value)}
-                            className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full min-w-[180px]"
+                        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-center p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                <Building className="h-4.5 w-4.5" />
+                            </div>
+                            <select
+                                value={selectedFilterBranch}
+                                onChange={(e) => setSelectedFilterBranch(e.target.value)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer w-full min-w-[150px]"
+                            >
+                                <option value="all">Todas las Sedes</option>
+                                {sucursales.map(s => (
+                                    <option key={s.id} value={s.id}>{s.nombre}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <button
+                            onClick={() => downloadReportPDF(selectedMonth, selectedFilterBranch, sedeData, kpis)}
+                            className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
                         >
-                            <option value="all">Todas las Sedes (Global)</option>
-                            {sucursales.map(s => (
-                                <option key={s.id} value={s.id}>{s.nombre}</option>
-                            ))}
-                        </select>
+                            <Download className="h-4 w-4" />
+                            Exportar Reporte
+                        </button>
                     </div>
                 )}
             </div>
@@ -204,7 +255,7 @@ export function Reports() {
                         <TrendingUp className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Ingresos (Este Mes)</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5" title={format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}>Ingresos ({format(parseISO(`${selectedMonth}-01`), 'MMM yyyy', { locale: es })})</p>
                         <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.ingresosMesActual)}</p>
                     </div>
                 </div>
@@ -213,7 +264,7 @@ export function Reports() {
                         <TrendingDown className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-xs font-black uppercase tracking-wider text-slate-500 mb-0.5">Gastos (Este Mes)</p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5" title={format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}>Gastos ({format(parseISO(`${selectedMonth}-01`), 'MMM yyyy', { locale: es })})</p>
                         <p className="text-2xl font-black text-slate-900 tracking-tight font-mono">{formatQ(kpis.gastosMesActual)}</p>
                     </div>
                 </div>
@@ -227,6 +278,49 @@ export function Reports() {
                         <p className={`text-2xl font-black tracking-tight font-mono ${kpis.balanceMesActual >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
                             {formatQ(kpis.balanceMesActual)}
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Resumen por Sedes Solicitadas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-slide-up" style={{ animationDelay: '120ms' }}>
+                <div className="glass rounded-2xl border border-slate-200/60 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-black text-sm text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Building className="h-4 w-4 text-emerald-600" />
+                            Quetzaltenango (6 Meses)
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                            <p className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Ingresos</p>
+                            <p className="text-xl font-black text-emerald-900 font-mono tracking-tight">{formatQ(sedeData.xela.ingresos)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-red-50/50 border border-red-100">
+                            <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Egresos</p>
+                            <p className="text-xl font-black text-red-900 font-mono tracking-tight">{formatQ(sedeData.xela.gastos)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="glass rounded-2xl border border-slate-200/60 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-black text-sm text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Building className="h-4 w-4 text-amber-600" />
+                            Quiché (6 Meses)
+                        </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                            <p className="text-[10px] font-bold text-amber-700 uppercase mb-1">Ingresos</p>
+                            <p className="text-xl font-black text-amber-900 font-mono tracking-tight">{formatQ(sedeData.quiche.ingresos)}</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-red-50/50 border border-red-100">
+                            <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Egresos</p>
+                            <p className="text-xl font-black text-red-900 font-mono tracking-tight">{formatQ(sedeData.quiche.gastos)}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -268,7 +362,7 @@ export function Reports() {
                     {categoryData.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                             <DollarSign className="w-10 h-10 text-slate-300 mb-3" />
-                            <p className="text-sm font-bold text-slate-500">No hay gastos en el mes actual.</p>
+                            <p className="text-sm font-bold text-slate-500">No hay gastos en {format(parseISO(`${selectedMonth}-01`), 'MMMM yyyy', { locale: es })}.</p>
                         </div>
                     ) : (
                         <>

@@ -20,10 +20,11 @@ export function Login() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage('');
-        if (!email || !password) { setError('Completa todos los campos.'); return; }
+        const identifier = email.trim();
+        if (!identifier || !password) { setError('Completa todos los campos.'); return; }
         setError('');
         setLoading(true);
-        const result = await login(email, password);
+        const result = await login(identifier, password);
         setLoading(false);
         if (result.error) { setError(result.error); return; }
         navigate('/');
@@ -45,7 +46,7 @@ export function Login() {
             const { data: client, error: clientError } = await supabase
                 .from('clientes')
                 .select('id, nombre, email')
-                .eq('email', forgotEmail.toLowerCase())
+                .eq('email', forgotEmail.trim().toLowerCase())
                 .single();
 
             if (clientError || !client) {
@@ -53,7 +54,7 @@ export function Login() {
                 const { data: staff, error: staffError } = await supabase
                     .from('usuarios')
                     .select('id')
-                    .eq('email', forgotEmail.toLowerCase())
+                    .eq('email', forgotEmail.trim().toLowerCase())
                     .single();
 
                 if (staff && !staffError) {
@@ -153,9 +154,8 @@ export function Login() {
                                     type="text"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="admin o tu@correo.com"
-                                    autoFocus
                                 />
                             </div>
 
@@ -168,7 +168,7 @@ export function Login() {
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                        className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 pr-10 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                         placeholder="Contraseña"
                                     />
                                     <button
@@ -214,9 +214,8 @@ export function Login() {
                                     type="email"
                                     value={forgotEmail}
                                     onChange={e => setForgotEmail(e.target.value)}
-                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-sm"
+                                    className="w-full rounded-lg bg-white/10 border border-white/15 px-4 py-2.5 text-white placeholder-slate-500 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors text-base"
                                     placeholder="tu@correo.com"
-                                    autoFocus
                                 />
                                 <p className="text-xs text-slate-400 mt-2">
                                     Te enviaremos una contraseña temporal a este correo.
@@ -253,12 +252,18 @@ export function Login() {
                                 Crear cuenta de cliente
                             </Link>
                         </p>
-                        <div className="border-t border-white/10 pt-3">
+                        <div className="border-t border-white/10 pt-4 flex flex-col gap-3">
+                            <Link
+                                to="/cotizador"
+                                className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-indigo-600/60 hover:bg-indigo-600 rounded-xl py-3 px-4 transition-all shadow-lg hover:scale-105 active:scale-95 border border-indigo-400/50"
+                            >
+                                🤖 Cotizador Inteligente (AI)
+                            </Link>
                             <Link
                                 to="/tracking"
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
+                                className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors"
                             >
-                                📦 Rastrear mi paquete sin iniciar sesión
+                                📦 Rastrear mi paquete
                             </Link>
                         </div>
                     </div>

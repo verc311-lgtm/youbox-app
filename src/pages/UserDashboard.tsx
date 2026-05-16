@@ -2,12 +2,23 @@ import React, { useState } from 'react';
 import { useAuth, YOUBOX_ADDRESSES } from '../context/AuthContext';
 import { Package, Search, Calculator, FileUp, ChevronRight, X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PreAlertModal } from '../components/PreAlertModal';
+import { supabase } from '../lib/supabase';
 
 export function UserDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showComingSoon, setShowComingSoon] = useState(false);
   const [showAddresses, setShowAddresses] = useState(false);
+  const [showPreAlertModal, setShowPreAlertModal] = useState(false);
+  const [puntos, setPuntos] = useState(0);
+
+  React.useEffect(() => {
+    if (user?.id) {
+      supabase.from('clientes').select('puntos').eq('id', user.id).single()
+        .then(({ data }) => setPuntos(data?.puntos || 0));
+    }
+  }, [user]);
 
   const handeComingSoon = () => {
     setShowComingSoon(true);
@@ -21,12 +32,25 @@ export function UserDashboard() {
 
         {/* Top Header Section */}
         <div className="px-6 pb-6">
-          <h1 className="text-3xl font-bold text-slate-800">
-            ¡Hola! <span className="text-blue-700">{user?.nombre || 'Usuario'}</span>
-          </h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
-            Tu código: <span className="font-bold text-slate-700 text-lg">{user?.locker_id || 'YBG000'}</span>
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-800">
+                ¡Hola! <span className="text-blue-700">{user?.nombre || 'Usuario'}</span>
+              </h1>
+              <p className="text-sm font-medium text-slate-500 mt-1">
+                Tu código: <span className="font-bold text-slate-700 text-lg">{user?.locker_id || 'YBG000'}</span>
+              </p>
+            </div>
+
+            {/* Puntos Badge */}
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-3 shadow-lg shadow-indigo-500/20 text-white flex flex-col items-center justify-center min-w-[80px] transform hover:scale-105 transition-transform cursor-default border border-indigo-400/30">
+              <span className="text-[10px] font-bold text-indigo-100 uppercase tracking-wider mb-0.5">YouPoints</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-2xl font-black leading-none">{puntos}</span>
+                <span className="text-lg">🪙</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Action Grid */}
@@ -43,9 +67,9 @@ export function UserDashboard() {
             <span className="text-sm font-semibold text-slate-700 group-hover:text-blue-700">Rastrear</span>
           </button>
 
-          {/* Pre Alertar (Próximamente) */}
+          {/* Pre Alertar */}
           <button
-            onClick={handeComingSoon}
+            onClick={() => setShowPreAlertModal(true)}
             className="bg-white rounded-2xl p-6 flex flex-col items-center justify-center gap-3 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-all active:scale-95 group"
           >
             <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -137,6 +161,12 @@ export function UserDashboard() {
           </div>
         </div>
       )}
+
+      {/* Pre-Alert Modal */}
+      <PreAlertModal
+        isOpen={showPreAlertModal}
+        onClose={() => setShowPreAlertModal(false)}
+      />
     </div>
   );
 }

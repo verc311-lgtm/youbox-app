@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase } from '../lib/supabase';
+import { YOUBOX_LOGO_BASE64 } from './logoBase64';
 
 interface FacturaDatos {
     id: string;
@@ -13,124 +14,280 @@ interface FacturaDatos {
     fecha_emision: string;
     cliente_manual_nombre?: string;
     cliente_manual_nit?: string;
-    clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string };
+    clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string; email?: string; telefono?: string };
 }
+
+// Convert image url to base64 for jsPDF
+const getBase64ImageFromUrl = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.setAttribute('crossOrigin', 'anonymous');
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            } else {
+                reject(new Error("No canvas context"));
+            }
+        };
+        img.onerror = error => reject(error);
+        img.src = url;
+    });
+};
 
 export const downloadInvoicePDF = async (factura: FacturaDatos) => {
     try {
-        // Fetch invoice concepts (line items)
-        const { data: conceptos, error } = await supabase
-            .from('conceptos_factura')
-            .select('*')
-            .eq('factura_id', factura.id)
-            .order('created_at', { ascending: true });
+        const [conceptosRes, configRes, pagosRes] = await Promise.all([
+            supabase.from('conceptos_factura').select('*').eq('factura_id', factura.id).order('created_at', { ascending: true }),
+            supabase.from('configuracion_empresa').select('*').limit(1).single(),
+            supabase.from('pagos').select('monto, estado').eq('factura_id', factura.id).eq('estado', 'verificado')
+        ]);
 
-        if (error) throw error;
+        if (conceptosRes.error) throw conceptosRes.error;
+        const conceptos = conceptosRes.data || [];
+        const config = configRes.data || {
+            nombre_empresa: 'YOUBOXGT',
+            direccion: '13 AVENIDA 4-60 ZONA 3 LOCAL 106 PLAZA MONTERREY\nQuetzaltenango, Quezaltenango, 09001',
+            telefono: '56466611',
+            email: 'info@youboxgt.com',
+            sitio_web: 'youboxgt.com',
+            logo_url: ''
+        };
 
-        // Initialize PDF document
+        const totalPagado = (pagosRes.data || []).reduce((acc, p) => acc + Number(p.monto), 0);
+        let montoTotalNeto = Number(factura.monto_total);
+        const saldoPendiente = Math.max(0, montoTotalNeto - totalPagado);
+
         const doc = new jsPDF();
         
-        // --- Header Section ---
-        // Logo Placeholder or Text
-        doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(37, 99, 235); // Blue-600
-        doc.text('YOUBOX GT', 14, 22);
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 116, 139); // Slate-500
-        doc.text('Logística y Casilleros Internacionales', 14, 28);
-        doc.text('PBX: +502 0000-0000', 14, 33);
-        doc.text('hola@youbox.gt', 14, 38);
-
-        // Invoice Info (Top Right)
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42); // Slate-900
-        doc.text('FACTURA', 150, 22);
-        
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`No. de Recibo: ${factura.numero}`, 150, 28);
-        doc.text(`Fecha: ${format(new Date(factura.fecha_emision), 'dd MMM yyyy', { locale: es })}`, 150, 33);
-        
-        const estadoPrint = factura.estado === 'verificado' ? 'PAGADA' : factura.estado.toUpperCase();
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(factura.estado === 'verificado' ? 22 : 217, factura.estado === 'verificado' ? 163 : 119, factura.estado === 'verificado' ? 74 : 6); 
-        doc.text(`Estado: ${estadoPrint}`, 150, 38);
-
-        // Horizontal Line
-        doc.setDrawColor(226, 232, 240); // Slate-200
-        doc.setLineWidth(0.5);
-        doc.line(14, 45, 196, 45);
-
-        // --- Client Info Section ---
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text('Facturar a:', 14, 55);
-
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(71, 85, 105); // Slate-600
-        
-        const clientName = factura.clientes ? `${factura.clientes.nombre} ${factura.clientes.apellido}` : (factura.cliente_manual_nombre || 'Consumidor Final');
-        const clientNit = factura.clientes ? (factura.clientes.nit || 'C/F') : (factura.cliente_manual_nit || 'C/F');
-        const clientLocker = factura.clientes ? (factura.clientes.locker_id || 'N/A') : 'N/A';
-
-        doc.text(`Cliente: ${clientName}`, 14, 62);
-        doc.text(`Casillero: ${clientLocker}`, 14, 67);
-        doc.text(`NIT: ${clientNit}`, 14, 72);
-        
-        if (factura.clientes?.direccion_entrega) {
-            doc.text(`Dirección: ${factura.clientes.direccion_entrega}`, 14, 77);
+        let logoData = null;
+        if (config.logo_url) {
+            try {
+                if (config.logo_url.includes('youboxgt.online/wp-content')) {
+                    logoData = YOUBOX_LOGO_BASE64;
+                } else {
+                    logoData = await getBase64ImageFromUrl(config.logo_url);
+                }
+            } catch (e) {
+                console.warn("Could not load logo as base64. Falling back to local Base64.", e);
+                logoData = YOUBOX_LOGO_BASE64;
+            }
+        } else {
+            logoData = YOUBOX_LOGO_BASE64;
         }
 
-        // --- Table Section ---
-        const tableData = (conceptos || []).map((c, index) => [
-            index + 1,
-            c.descripcion,
+        const W = doc.internal.pageSize.getWidth();
+        
+        // --- Document Constants & Colors ---
+        const colorPrimary: [number, number, number] = [30, 64, 175]; // Blue 800
+        const colorDark: [number, number, number] = [15, 23, 42]; // Slate 900
+        const colorText: [number, number, number] = [71, 85, 105]; // Slate 600
+        const colorLight: [number, number, number] = [241, 245, 249]; // Slate 100
+        const colorWarning: [number, number, number] = [234, 88, 12]; // Orange 600
+        const colorSuccess: [number, number, number] = [16, 185, 129]; // Emerald 500
+
+        let currentY = 15;
+
+        // --- BACKGROUND BAND HEADER ---
+        doc.setFillColor(colorLight[0], colorLight[1], colorLight[2]);
+        doc.rect(0, 0, W, 45, 'F');
+        
+        // --- LOGO ---
+        if (logoData) {
+            doc.addImage(logoData, 'PNG', 14, 8, 45, 30, '', 'FAST');
+        } else {
+            doc.setFontSize(26);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...colorPrimary);
+            doc.text(config.nombre_empresa, 14, 25);
+        }
+
+        // --- COMPANY INFO ---
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text(config.nombre_empresa.toUpperCase(), W - 14, 15, { align: 'right' });
+        
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colorText);
+        const dirLines = doc.splitTextToSize(config.direccion, 65);
+        doc.text(dirLines, W - 14, 20, { align: 'right' });
+        
+        let contactY = 20 + (dirLines.length * 3.5);
+        doc.text(`${config.email}`, W - 14, contactY, { align: 'right' });
+        doc.text(`${config.telefono}`, W - 14, contactY + 4, { align: 'right' });
+        doc.text(`${config.sitio_web}`, W - 14, contactY + 8, { align: 'right' });
+
+        currentY = 55;
+
+        // --- INVOICE TITLE BORDER & DETAILS ---
+        doc.setDrawColor(...colorPrimary);
+        doc.setLineWidth(1.5);
+        doc.line(14, currentY, 14, currentY + 12);
+        
+        doc.setFontSize(22);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text(`INVOICE`, 18, currentY + 8);
+
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colorText);
+        doc.text(`# ${factura.numero}`, 60, currentY + 8);
+
+        // --- INVOICE META BLOCK (RIGHT ALIGNED) ---
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(W - 74, currentY, 60, 16, 2, 2, 'F');
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(148, 163, 184);
+        doc.text('DATE', W - 70, currentY + 5);
+        doc.text('STATUS', W - 40, currentY + 5);
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text(format(new Date(factura.fecha_emision), 'MM/dd/yyyy', { locale: es }), W - 70, currentY + 11);
+        
+        const estadoPrint = factura.estado === 'verificado' ? 'PAGADA' : factura.estado.toUpperCase();
+        if (factura.estado === 'verificado' || factura.estado === 'pagada') {
+            doc.setTextColor(...colorSuccess);
+        } else {
+            doc.setTextColor(...colorWarning);
+        }
+        doc.text(estadoPrint, W - 40, currentY + 11);
+
+        currentY += 25;
+
+        // --- BILL TO SECTION ---
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorPrimary);
+        doc.text('FACTURADO A:', 14, currentY);
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        
+        const clientName = factura.clientes ? `${factura.clientes.nombre} ${factura.clientes.apellido}` : (factura.cliente_manual_nombre || 'Consumidor Final');
+        const clientEmail = factura.clientes?.email || '';
+        const clientPhone = factura.clientes?.telefono || '';
+        const clientNit = factura.clientes ? (factura.clientes.nit || 'C/F') : (factura.cliente_manual_nit || 'C/F');
+
+        doc.text(clientName, 14, currentY + 5);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...colorText);
+        let clientY = currentY + 10;
+        doc.text(`NIT: ${clientNit}`, 14, clientY);
+        if (clientEmail) { clientY += 4; doc.text(clientEmail, 14, clientY); }
+        if (clientPhone) { clientY += 4; doc.text(clientPhone, 14, clientY); }
+
+        currentY = clientY + 15;
+
+        // --- INVOICE ITEMS TABLE ---
+        // Clean up descriptions to insert spaces to allow autoTable to line-break properly
+        const formatDesc = (desc: string) => desc.replace(/([0-9A-Za-z]{15,})/g, '$1 ');
+
+        const tableData = (conceptos || []).map((c) => [
+            formatDesc(c.descripcion),
             c.cantidad,
-            `${factura.moneda} ${c.precio_unitario.toFixed(2)}`,
-            `${factura.moneda} ${c.subtotal.toFixed(2)}`
+            `Q${c.precio_unitario.toFixed(2)}`,
+            `Q${c.subtotal.toFixed(2)}`
         ]);
 
         autoTable(doc, {
-            startY: 85,
-            head: [['#', 'Descripción / Cargo', 'Cant.', 'Precio Unitario', 'Subtotal']],
+            startY: currentY,
+            head: [['Descripción / Servicio', 'Cant.', 'Tarifa', 'Subtotal']],
             body: tableData,
-            theme: 'striped',
-            headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-            styles: { fontSize: 9, cellPadding: 4 },
+            theme: 'grid',
+            styles: { 
+                fontSize: 9, 
+                cellPadding: 4, 
+                textColor: [30, 41, 59],
+                lineColor: [226, 232, 240], // slate-200
+                lineWidth: 0.1,
+                overflow: 'linebreak'
+            },
+            headStyles: { 
+                fillColor: [248, 250, 252], 
+                textColor: [15, 23, 42], 
+                fontStyle: 'bold', 
+                halign: 'center',
+                lineColor: [203, 213, 225]
+            }, 
             columnStyles: {
-                0: { cellWidth: 10, halign: 'center' }, // index
-                1: { cellWidth: 80 }, // desc
-                2: { cellWidth: 20, halign: 'center' }, // qty
-                3: { cellWidth: 35, halign: 'right' }, // price
-                4: { cellWidth: 35, halign: 'right' }, // total
-            }
+                0: { cellWidth: 'auto', halign: 'left' },
+                1: { cellWidth: 20, halign: 'center' },
+                2: { cellWidth: 30, halign: 'right' },
+                3: { cellWidth: 35, halign: 'right' },
+            },
         });
 
-        // --- Total Section ---
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        // --- TOTALS AREA ---
+        let finalY = (doc as any).lastAutoTable.finalY + 8;
         
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text('Total a Pagar:', 130, finalY);
-        
-        doc.setFontSize(14);
-        doc.text(`${factura.moneda} ${factura.monto_total.toFixed(2)}`, 160, finalY);
+        // Draw a neat summary box
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(W - 84, finalY, 70, 38, 3, 3, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.1);
+        doc.roundedRect(W - 84, finalY, 70, 38, 3, 3, 'S');
 
-        // --- Footer Section ---
+        let textY = finalY + 7;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(148, 163, 184); // Slate-400
-        doc.text('Gracias por su preferencia.', 105, 280, { align: 'center' });
-        doc.text('Este documento es un comprobante de servicio de envío internacional.', 105, 285, { align: 'center' });
+        doc.setTextColor(...colorText);
+        doc.text('Subtotal:', W - 45, textY, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text(`Q${montoTotalNeto.toFixed(2)}`, W - 18, textY, { align: 'right' });
+        
+        textY += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...colorText);
+        doc.text('Pagado:', W - 45, textY, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text(`Q${totalPagado.toFixed(2)}`, W - 18, textY, { align: 'right' });
 
-        // Generate and save
+        // Divider
+        textY += 4;
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.5);
+        doc.line(W - 80, textY, W - 18, textY);
+        
+        textY += 7;
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        if (saldoPendiente > 0) {
+            doc.setTextColor(...colorWarning);
+            doc.text('SALDO PENDIENTE:', W - 45, textY, { align: 'right' });
+            doc.text(`Q${saldoPendiente.toFixed(2)}`, W - 18, textY, { align: 'right' });
+        } else {
+            doc.setTextColor(...colorSuccess);
+            doc.text('SALDO PENDIENTE:', W - 45, textY, { align: 'right' });
+            doc.text(`Q0.00`, W - 18, textY, { align: 'right' });
+        }
+
+        // --- FOOTER SECTION ---
+        const pageHeight = doc.internal.pageSize.getHeight();
+        
+        doc.setFillColor(...colorPrimary);
+        doc.rect(0, pageHeight - 15, W, 15, 'F');
+        
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(255, 255, 255);
+        doc.text('Gracias por preferir a YOUBOX GT.', W / 2, pageHeight - 6, { align: 'center' });
+
+        // Generar el archivo
         doc.save(`${factura.numero}.pdf`);
 
     } catch (e: any) {

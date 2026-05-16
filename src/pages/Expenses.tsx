@@ -4,8 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import {
     Receipt, Plus, Loader2, Upload, Calendar,
     DollarSign, CheckCircle2, Image as ImageIcon,
-    Tag, Building, BarChart2, ChevronDown, ChevronUp, AlertCircle, FileDown
+    Tag, Building, BarChart2, ChevronDown, ChevronUp, AlertCircle, FileDown, XCircle
 } from 'lucide-react';
+import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface Gasto {
     id: string;
@@ -22,7 +24,9 @@ interface Gasto {
 }
 
 const CategoriasGastos = [
-    'Salario', 'Luz', 'Agua', 'Renta', 'Internet', 'Proveedores', 'Otros'
+    'Internet', 'Luz', 'Renta', 'Impuestos', 'Salarios',
+    'Gastos Laredo', 'Gastos Tapachula', 'Gastos Greensboro',
+    'Cargo Express', 'Gastos Oficina', 'Compras Online', 'Otros'
 ];
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -30,6 +34,7 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
 
 export function Expenses() {
     const { user } = useAuth();
+    const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
     const [gastos, setGastos] = useState<Gasto[]>([]);
     const [sucursales, setSucursales] = useState<{ id: string, nombre: string }[]>([]);
     const [selectedFilterBranch, setSelectedFilterBranch] = useState<string>('all');
@@ -40,6 +45,7 @@ export function Expenses() {
     const [activeTab, setActiveTab] = useState<'gastos' | 'reporte'>('gastos');
     const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
     const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+    const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
 
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -65,7 +71,7 @@ export function Expenses() {
     }, [selectedFilterBranch, user?.sucursal_id]);
 
     async function fetchSucursales() {
-        if (user?.role === 'admin') {
+        if (isSuperAdmin) {
             const { data } = await supabase.from('sucursales').select('id, nombre').eq('activa', true).order('nombre');
             if (data) {
                 setSucursales(data);
@@ -86,9 +92,9 @@ export function Expenses() {
                 .select('*, sucursales(nombre)')
                 .order('fecha_pago', { ascending: false });
 
-            if (user?.role !== 'admin' && user?.sucursal_id) {
+            if (!isSuperAdmin && user?.sucursal_id) {
                 query = query.eq('sucursal_id', user.sucursal_id);
-            } else if (user?.role === 'admin' && selectedFilterBranch !== 'all') {
+            } else if (isSuperAdmin && selectedFilterBranch !== 'all') {
                 query = query.eq('sucursal_id', selectedFilterBranch);
             }
 
@@ -131,7 +137,7 @@ export function Expenses() {
         setUploadError(null);
 
         if (!formData.monto_q || !formData.concepto) {
-            alert('Debes indicar al menos un Concepto y Monto.');
+            toast.error('Debes indicar al menos un Concepto y Monto.');
             return;
         }
 
@@ -183,7 +189,7 @@ export function Expenses() {
             const { error } = await supabase.from('gastos_financieros').insert([newGasto]);
             if (error) throw error;
 
-            alert('Gasto registrado exitosamente!');
+            toast.success('Gasto registrado exitosamente!');
 
             setFormData({
                 categoria: 'Renta',
@@ -202,7 +208,7 @@ export function Expenses() {
 
         } catch (e: any) {
             console.error(e);
-            alert('Error guardando el gasto: ' + e.message);
+            toast.error('Error guardando el gasto: ' + e.message);
             setUploadingImage(false);
         } finally {
             setSaving(false);
@@ -445,7 +451,7 @@ export function Expenses() {
                         </button>
                     </div>
 
-                    {user?.role === 'admin' && (
+                    {isSuperAdmin && (
                         <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md">
                             <Building className="h-4 w-4 text-blue-500" />
                             <select
@@ -458,6 +464,23 @@ export function Expenses() {
                                     <option key={s.id} value={s.id}>{s.nombre}</option>
                                 ))}
                             </select>
+                        </div>
+                    )}
+
+                    {activeTab === 'gastos' && (
+                        <div className="flex items-center gap-2 glass px-4 py-2.5 rounded-xl border border-slate-200/50 shadow-sm transition-all hover:shadow-md">
+                            <Calendar className="h-4 w-4 text-blue-500" />
+                            <input
+                                type="month"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="bg-transparent border-none text-sm font-bold text-slate-700 outline-none focus:ring-0 cursor-pointer p-0 w-32"
+                            />
+                            {selectedMonth && (
+                                <button onClick={() => setSelectedMonth('')} className="text-slate-400 hover:text-slate-600 p-0.5 bg-white rounded-md transition-colors shadow-sm ml-1" title="Limpiar mes">
+                                    <XCircle className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -675,53 +698,55 @@ export function Expenses() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white/40">
-                                        {gastos.map((gasto, idx) => (
-                                            <tr key={gasto.id} className="hover:bg-blue-50/40 transition-colors animate-fade-in" style={{ animationDelay: `${idx * 50}ms` }}>
-                                                <td className="px-6 py-4 text-slate-600 font-medium">
-                                                    {new Date(gasto.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="font-bold text-slate-900 truncate max-w-[200px]" title={gasto.concepto}>
-                                                        {gasto.concepto}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-inset ring-indigo-600/20 shadow-sm">
-                                                            {gasto.categoria}
-                                                        </span>
-                                                        {gasto.sucursales?.nombre && (
-                                                            <span className="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 shadow-sm hidden sm:inline-flex truncate max-w-[100px]" title={gasto.sucursales.nombre}>
-                                                                {gasto.sucursales.nombre}
+                                        {gastos
+                                            .filter(g => selectedMonth ? g.fecha_pago.startsWith(selectedMonth) : true)
+                                            .map((gasto, idx) => (
+                                                <tr key={gasto.id} className="hover:bg-blue-50/40 transition-colors animate-fade-in" style={{ animationDelay: `${idx * 50}ms` }}>
+                                                    <td className="px-6 py-4 text-slate-600 font-medium">
+                                                        {new Date(gasto.fecha_pago).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-900 truncate max-w-[200px]" title={gasto.concepto}>
+                                                            {gasto.concepto}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center rounded-lg bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700 ring-1 ring-inset ring-indigo-600/20 shadow-sm">
+                                                                {gasto.categoria}
                                                             </span>
+                                                            {gasto.sucursales?.nombre && (
+                                                                <span className="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 shadow-sm hidden sm:inline-flex truncate max-w-[100px]" title={gasto.sucursales.nombre}>
+                                                                    {gasto.sucursales.nombre}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="font-mono font-bold text-slate-800 text-sm">
+                                                            {formatQ(gasto.monto_q)}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-slate-500 font-mono text-xs font-medium">
+                                                        {gasto.numero_cuenta || <span className="text-slate-300">------</span>}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        {gasto.recibo_url ? (
+                                                            <a
+                                                                href={gasto.recibo_url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:text-white hover:bg-blue-600 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
+                                                                title="Ver Recibo"
+                                                            >
+                                                                <ImageIcon className="h-4 w-4" />
+                                                            </a>
+                                                        ) : (
+                                                            <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-50 text-slate-300">-</span>
                                                         )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="font-mono font-bold text-slate-800 text-sm">
-                                                        {formatQ(gasto.monto_q)}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-slate-500 font-mono text-xs font-medium">
-                                                    {gasto.numero_cuenta || <span className="text-slate-300">------</span>}
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    {gasto.recibo_url ? (
-                                                        <a
-                                                            href={gasto.recibo_url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-blue-50 text-blue-600 hover:text-white hover:bg-blue-600 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5"
-                                                            title="Ver Recibo"
-                                                        >
-                                                            <ImageIcon className="h-4 w-4" />
-                                                        </a>
-                                                    ) : (
-                                                        <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-50 text-slate-300">-</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
                             )}
@@ -758,20 +783,23 @@ export function Expenses() {
                     {Object.keys(reportData.byCategoria).length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                             {Object.entries(reportData.byCategoria)
-                                .sort((a, b) => b[1] - a[1])
-                                .map(([cat, total]) => (
-                                    <div key={cat} className="glass border border-slate-200/60 rounded-xl p-4">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{cat}</p>
-                                        <p className="text-lg font-black text-slate-900 mt-1">{formatQ(total)}</p>
-                                        <div className="mt-2 h-1 rounded-full bg-slate-100">
-                                            <div
-                                                className="h-1 rounded-full bg-blue-500"
-                                                style={{ width: `${Math.min(100, (total / reportData.grandTotal) * 100)}%` }}
-                                            />
+                                .sort((a, b) => (b[1] as number) - (a[1] as number))
+                                .map(([cat, total]) => {
+                                    const totalNum = total as number;
+                                    return (
+                                        <div key={cat} className="glass border border-slate-200/60 rounded-xl p-4">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{cat}</p>
+                                            <p className="text-lg font-black text-slate-900 mt-1">{formatQ(totalNum)}</p>
+                                            <div className="mt-2 h-1 rounded-full bg-slate-100">
+                                                <div
+                                                    className="h-1 rounded-full bg-blue-500"
+                                                    style={{ width: `${Math.min(100, (totalNum / reportData.grandTotal) * 100)}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-slate-400 mt-1">{((totalNum / reportData.grandTotal) * 100).toFixed(1)}%</p>
                                         </div>
-                                        <p className="text-xs text-slate-400 mt-1">{((total / reportData.grandTotal) * 100).toFixed(1)}%</p>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                         </div>
                     )}
 
@@ -822,7 +850,7 @@ export function Expenses() {
                                                     {Object.entries(mesData.byCategoria).map(([cat, total]) => (
                                                         <div key={cat} className="bg-white rounded-lg px-3 py-2 border border-slate-100 flex justify-between items-center">
                                                             <span className="text-xs font-bold text-slate-600">{cat}</span>
-                                                            <span className="text-xs font-black text-slate-900 font-mono">{formatQ(total)}</span>
+                                                            <span className="text-xs font-black text-slate-900 font-mono">{formatQ(total as number)}</span>
                                                         </div>
                                                     ))}
                                                 </div>
