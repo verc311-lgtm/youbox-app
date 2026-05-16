@@ -89,12 +89,24 @@ export function Reports() {
                 queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
             }
 
-            const { data: pagos, error: pagosErr } = await queryPagos;
-            if (pagosErr) throw pagosErr;
+            // Helper function to fetch all records bypassing the 1000 limit
+            const fetchAllRecords = async (queryBuilder: any) => {
+                let allData: any[] = [];
+                let from = 0;
+                const limit = 1000;
+                while (true) {
+                    const { data, error } = await queryBuilder.range(from, from + limit - 1);
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+                    allData = allData.concat(data);
+                    from += data.length;
+                    if (data.length < limit) break;
+                }
+                return allData;
+            };
 
-            const { data: gastos, error: gastosErr } = await queryGastos;
-            if (gastosErr) throw gastosErr;
-
+            const pagos = await fetchAllRecords(queryPagos);
+            const gastos = await fetchAllRecords(queryGastos);
             // Generate month brackets
             const monthsInterval = eachMonthOfInterval({ start: hace6Meses, end: hoy });
             const monthMap = new Map<string, Mensual>();

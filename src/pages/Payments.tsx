@@ -94,7 +94,7 @@ export function Payments() {
             }
             fetchPayments();
         }
-    }, [user, selectedFilterBranch]);
+    }, [user, selectedFilterBranch, monthFilter]);
 
     async function fetchSucursales() {
         if (!isSuperAdmin) return;
@@ -123,6 +123,12 @@ export function Payments() {
 
             if (filterByBranch) {
                 query = query.eq('facturas.clientes.sucursales.id', activeBranch);
+            }
+
+            if (monthFilter) {
+                const startDate = new Date(`${monthFilter}-01T00:00:00`);
+                const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 1);
+                query = query.gte('created_at', startDate.toISOString()).lt('created_at', endDate.toISOString());
             }
 
             const { data, error } = await query;
@@ -194,15 +200,9 @@ export function Payments() {
             // 2. Method
             if (methodFilter !== 'all' && p.metodo !== methodFilter) return false;
 
-            // 3. Month
-            if (monthFilter) {
-                const pMonth = p.created_at.slice(0, 7);
-                if (pMonth !== monthFilter) return false;
-            }
-
             return true;
         });
-    }, [payments, searchFilter, methodFilter, monthFilter]);
+    }, [payments, searchFilter, methodFilter]);
 
     const hasActiveFilters = searchFilter !== '' || methodFilter !== 'all';
 
