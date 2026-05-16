@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -44,6 +44,12 @@ export function PreAlertsAdmin() {
     const [editConSeguro, setEditConSeguro] = useState(false);
     const [editSaving, setEditSaving] = useState(false);
 
+    // --- EXPORT modal state ---
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportStartDate, setExportStartDate] = useState('');
+    const [exportEndDate, setExportEndDate] = useState('');
+    const [exporting, setExporting] = useState(false);
+
     const openEdit = (p: any) => {
         setEditPrealerta(p);
         setEditTracking(p.tracking || '');
@@ -73,6 +79,86 @@ export function PreAlertsAdmin() {
             alert('Error al guardar: ' + err.message);
         } finally {
             setEditSaving(false);
+        }
+    };
+
+    const handleExportExcel = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!exportStartDate || !exportEndDate) {
+            alert('Por favor selecciona ambas fechas.');
+            return;
+        }
+        setExporting(true);
+        try {
+            const start = new Date(exportStartDate);
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(exportEndDate);
+            end.setHours(23, 59, 59, 999);
+
+            const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
+            let query = supabase
+                .from('prealertas')
+                .select(`
+                    *,
+                    clientes!inner (
+                        nombre,
+                        apellido,
+                        locker_id,
+                        sucursal_id
+                    ),
+                    bodegas (
+                        nombre
+                    )
+                `)
+                .gte('created_at', start.toISOString())
+                .lte('created_at', end.toISOString())
+                .order('created_at', { ascending: false });
+
+            if (!isSuperAdmin && user?.sucursal_id) {
+                query = query.eq('clientes.sucursal_id', user.sucursal_id);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            if (!data || data.length === 0) {
+                alert('No hay pre-alertas en este rango de fechas.');
+                setExporting(false);
+                return;
+            }
+
+            const BOM = '\uFEFF';
+            let csv = BOM + 'Fecha;Casillero;Cliente;Tracking;Bodega;Valor;Seguro;Monto Seguro;Estado\n';
+            
+            data.forEach(p => {
+                const fecha = format(new Date(p.created_at), "dd/MM/yyyy HH:mm");
+                const casillero = p.clientes?.locker_id || '';
+                const cliente = `"${(p.clientes?.nombre || '')} ${(p.clientes?.apellido || '')}"`;
+                const tracking = `"${p.tracking}"`;
+                const bodega = `"${p.bodegas?.nombre || 'N/A'}"`;
+                const valor = p.valor_factura || 0;
+                const seguro = p.con_seguro ? 'Sí' : 'No';
+                const montoSeguro = p.monto_seguro || 0;
+                const estado = p.estado;
+                
+                csv += `${fecha};${casillero};${cliente};${tracking};${bodega};${valor};${seguro};${montoSeguro};${estado}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `PreAlertas_${exportStartDate}_al_${exportEndDate}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setShowExportModal(false);
+        } catch (err: any) {
+            alert('Error exportando: ' + err.message);
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -402,14 +488,23 @@ export function PreAlertsAdmin() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-800">Control de Pre-Alertas</h1>
                     <p className="text-sm text-slate-500 mt-1">Valida prealertas y administra el Fondo Fijo de Seguros.</p>
                 </div>
-                {/* CTA button */}
-                <button
-                    onClick={() => setShowNewModal(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all"
-                >
-                    <PlusCircle className="w-4 h-4" />
-                    Nueva Pre-Alerta
-                </button>
+                {/* CTA buttons */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 hover:-translate-y-0.5 transition-all"
+                    >
+                        <Download className="w-4 h-4 text-emerald-600" />
+                        Exportar a Excel
+                    </button>
+                    <button
+                        onClick={() => setShowNewModal(true)}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-md hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                    >
+                        <PlusCircle className="w-4 h-4" />
+                        Nueva Pre-Alerta
+                    </button>
+                </div>
             </div>
 
             {/* Metrics */}
@@ -897,6 +992,72 @@ export function PreAlertsAdmin() {
                                 >
                                     {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
                                     Guardar Cambios
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── EXPORT MODAL ── */}
+            {showExportModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowExportModal(false)} />
+                    <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-50">
+                            <div className="flex items-center gap-3">
+                                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                                    <Download className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Exportar Pre-Alertas</h3>
+                                    <p className="text-xs text-slate-500">Selecciona el rango de fechas</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-slate-600">
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleExportExcel} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400" /> Fecha Inicio
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={exportStartDate}
+                                    onChange={e => setExportStartDate(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 bg-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400" /> Fecha Fin
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={exportEndDate}
+                                    onChange={e => setExportEndDate(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 bg-white"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExportModal(false)}
+                                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={exporting}
+                                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                                >
+                                    {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                    Descargar Excel
                                 </button>
                             </div>
                         </form>
