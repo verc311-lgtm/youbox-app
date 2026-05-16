@@ -11,6 +11,7 @@ interface Payment {
     monto: number;
     metodo: string;
     referencia: string;
+    estado: string;
     created_at: string;
     facturas: {
         numero: string;
@@ -32,6 +33,7 @@ interface SupabasePaymentResponse {
     monto: number;
     metodo: string;
     referencia: string;
+    estado: string;
     created_at: string;
     facturas: {
         numero: string;
@@ -112,7 +114,7 @@ export function Payments() {
             let query = supabase
                 .from('pagos')
                 .select(`
-          id, monto, metodo, referencia, created_at,
+          id, monto, metodo, referencia, estado, created_at,
           facturas${filterByBranch ? '!inner' : ''} (
             numero, estado, cliente_manual_nombre, cliente_manual_nit,
             clientes${filterByBranch ? '!inner' : ''} (nombre, apellido, locker_id, sucursal_id, sucursales(nombre))
@@ -134,15 +136,10 @@ export function Payments() {
             const { data, error } = await query;
             if (error) throw error;
 
-            // Filter only verified payments (youbox logic assumes payments linked to facturas verificado or pagado status)
+            // Filter only verified payments
             const verifiedPayments: Payment[] = (data || [])
                 .filter(p => {
-                    const f = (p as any).facturas;
-                    if (!f) return false;
-                    // Handle array wrappers from Supabase joins if they occur
-                    const fact = Array.isArray(f) ? f[0] : f;
-                    if (!fact) return false;
-                    return ['verificado', 'pagado'].includes((fact.estado || '').toLowerCase());
+                    return ['verificado', 'pagado', 'aprobado'].includes((p.estado || '').toLowerCase());
                 })
                 .map(p => {
                     // Flatten the array response from Supabase inner joins if needed
@@ -158,6 +155,7 @@ export function Payments() {
                         monto: p.monto,
                         metodo: p.metodo,
                         referencia: p.referencia,
+                        estado: p.estado,
                         created_at: p.created_at,
                         facturas: fact ? {
                             numero: fact.numero,

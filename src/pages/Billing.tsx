@@ -22,7 +22,7 @@ interface Factura {
   cliente_manual_nombre?: string;
   cliente_manual_nit?: string;
   clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string };
-  pagos?: { metodo: string; monto: number }[];
+  pagos?: { metodo: string; monto: number; estado: string }[];
 }
 
 const ESTADOS: Record<string, { label: string, color: string }> = {
@@ -94,7 +94,7 @@ export function Billing() {
         .select(`
           id, numero, monto_total, moneda, estado, fecha_emision, cliente_manual_nombre, cliente_manual_nit,
           clientes${useInnerJoin ? '!inner' : ''} (nombre, apellido, locker_id, nit, direccion_entrega),
-          pagos (metodo, monto)
+          pagos (metodo, monto, estado)
         `)
         .order('fecha_emision', { ascending: false });
 
@@ -218,13 +218,12 @@ export function Billing() {
       montoTotal += Number(f.monto_total) || 0;
 
       // Sum partial payments to find out what was actually collected
-      const abonos = f.pagos?.reduce((sum, pago) => sum + (Number(pago.monto) || 0), 0) || 0;
+      // Only sum payments that are explicitly verified
+      const abonos = f.pagos?.filter(p => ['verificado', 'pagado', 'aprobado'].includes((p.estado || '').toLowerCase()))
+        .reduce((sum, pago) => sum + (Number(pago.monto) || 0), 0) || 0;
 
-      // Only count as 'Cobrado' if the invoice is fully completed ('verificado' or 'pagado')
-      // This strictly aligns with the "Registro de Pagos" screen logic.
-      if (['verificado', 'pagado'].includes(f.estado)) {
-        cobrado += abonos;
-      }
+      // Always count verified payments towards 'cobrado', even if the invoice is still 'pendiente'
+      cobrado += abonos;
     });
 
     const porCobrar = montoTotal - cobrado;
@@ -462,7 +461,8 @@ export function Billing() {
                           <span className="text-slate-500 mr-1">{f.moneda}</span>{f.monto_total.toFixed(2)}
                         </span>
                         {f.estado === 'pendiente' && (() => {
-                          const totalPagado = f.pagos?.reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0;
+                          const totalPagado = f.pagos?.filter(p => ['verificado', 'pagado', 'aprobado'].includes((p.estado || '').toLowerCase()))
+                            .reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0;
                           const saldo = f.monto_total - totalPagado;
                           if (totalPagado > 0) {
                             return (
@@ -529,7 +529,8 @@ export function Billing() {
           onSuccess={fetchFacturas}
           facturaId={selectedFactura.id}
           facturaTotal={selectedFactura.monto_total}
-          totalPagado={selectedFactura.pagos?.reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0}
+          totalPagado={selectedFactura.pagos?.filter(p => ['verificado', 'pagado', 'aprobado'].includes((p.estado || '').toLowerCase()))
+            .reduce((sum, p) => sum + (Number(p.monto) || 0), 0) || 0}
           facturaNumero={selectedFactura.numero}
         />
       )}
