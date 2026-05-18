@@ -41,17 +41,24 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                     setClienteId(data.cliente_id);
                     setPuntosDisponibles((data.clientes as any)?.puntos || 0);
 
-                    // Consultar saldo de socio
-                    const { data: partnerData } = await supabase
-                        .from('partners')
-                        .select('wallet_balance')
-                        .eq('id', data.cliente_id)
-                        .maybeSingle();
-
-                    if (partnerData) {
-                        setIsPartner(true);
-                        setPartnerSaldo(partnerData.wallet_balance || 0);
-                    } else {
+                    // Consultar saldo de socio a través de nuestro endpoint seguro (evita bloqueos de RLS)
+                    try {
+                        const res = await fetch(`/api/partners/${data.cliente_id}/balance`);
+                        if (res.ok) {
+                            const resData = await res.json();
+                            if (resData.isPartner) {
+                                setIsPartner(true);
+                                setPartnerSaldo(resData.wallet_balance || 0);
+                            } else {
+                                setIsPartner(false);
+                                setPartnerSaldo(null);
+                            }
+                        } else {
+                            setIsPartner(false);
+                            setPartnerSaldo(null);
+                        }
+                    } catch (e) {
+                        console.error("Error al consultar saldo de socio:", e);
                         setIsPartner(false);
                         setPartnerSaldo(null);
                     }
@@ -156,27 +163,22 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 notaFinal = notaFinal ? `${notaFinal}\n${extraText}` : extraText;
             }
 
-            // 0. Descontar Saldo de Socio si aplica e insertar transacción
+            // 0. Descontar Saldo de Socio si aplica e insertar transacción mediante API segura
             if (metodo === 'youbox_partner' && clienteId && partnerSaldo !== null) {
-                const nuevoSaldo = partnerSaldo - montoFinal;
-                const { error: balanceError } = await supabase
-                    .from('partners')
-                    .update({ wallet_balance: nuevoSaldo })
-                    .eq('id', clienteId);
+                const res = await fetch('/api/partners/pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clienteId,
+                        monto: montoFinal,
+                        facturaNumero
+                    })
+                });
 
-                if (balanceError) throw balanceError;
-
-                const { error: txError } = await supabase
-                    .from('partner_transactions')
-                    .insert([{
-                        partner_id: clienteId,
-                        tipo: 'payment',
-                        amount: -montoFinal,
-                        reference: facturaNumero,
-                        description: `Pago completo de factura ${facturaNumero}`
-                    }]);
-
-                if (txError) throw txError;
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Error al procesar el pago con saldo de socio');
+                }
             }
 
             // 1. Insertar el Pago

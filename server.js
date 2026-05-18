@@ -5,8 +5,13 @@ import { fileURLToPath } from "url";
 import archiver from "archiver";
 import fs from "fs";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
+
+const SUPABASE_URL = "https://pznponymhusxgrwbahid.supabase.co";
+const SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bnBvbnltaHVzeGdyd2JhaGlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjIwNDM0OCwiZXhwIjoyMDg3NzgwMzQ4fQ.-9s441c5MmmwzxbWo464mJ__cVvW3VLBL_rmMtsajug";
+const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -178,6 +183,74 @@ Return ONLY valid JSON: {"title": string, "priceUsd": number, "estimatedWeightLb
     } catch (error) {
       console.error("Extraction error:", error);
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // API Secure Routes for YouBox Partners (to bypass Row Level Security constraints securely)
+  app.get("/api/partners/:id/balance", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data, error } = await supabaseAdmin
+        .from("partners")
+        .select("wallet_balance")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) return res.status(400).json({ error: error.message });
+      if (!data) return res.json({ isPartner: false, wallet_balance: null });
+      return res.json({ isPartner: true, wallet_balance: Number(data.wallet_balance) });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/partners/pay", async (req, res) => {
+    try {
+      const { clienteId, monto, facturaNumero } = req.body;
+      if (!clienteId || !monto || !facturaNumero) {
+        return res.status(400).json({ error: "Faltan parámetros requeridos" });
+      }
+
+      // 1. Obtener saldo actual del socio
+      const { data: partner, error: getErr } = await supabaseAdmin
+        .from("partners")
+        .select("wallet_balance")
+        .eq("id", clienteId)
+        .maybeSingle();
+
+      if (getErr) return res.status(400).json({ error: getErr.message });
+      if (!partner) return res.status(404).json({ error: "Socio no encontrado" });
+
+      const currentBalance = Number(partner.wallet_balance || 0);
+      if (currentBalance < monto) {
+        return res.status(400).json({ error: `Saldo de socio insuficiente. Disponible: Q${currentBalance.toFixed(2)}` });
+      }
+
+      // 2. Descontar saldo del monedero del socio
+      const newBalance = currentBalance - monto;
+      const { error: updateErr } = await supabaseAdmin
+        .from("partners")
+        .update({ wallet_balance: newBalance })
+        .eq("id", clienteId);
+
+      if (updateErr) return res.status(400).json({ error: updateErr.message });
+
+      // 3. Registrar la transacción en el historial de transacciones de socio
+      const { error: txErr } = await supabaseAdmin
+        .from("partner_transactions")
+        .insert([{
+          partner_id: clienteId,
+          tipo: "payment",
+          amount: -monto,
+          reference: facturaNumero,
+          description: `Pago completo de factura ${facturaNumero}`
+        }]);
+
+      if (txErr) return res.status(400).json({ error: txErr.message });
+
+      return res.json({ success: true, newBalance });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
   });
 
