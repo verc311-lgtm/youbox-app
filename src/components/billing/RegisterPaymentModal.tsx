@@ -19,6 +19,8 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     const [loading, setLoading] = useState(false);
     const [clienteId, setClienteId] = useState<string | null>(null);
     const [puntosDisponibles, setPuntosDisponibles] = useState<number>(0);
+    const [isPartner, setIsPartner] = useState<boolean>(false);
+    const [partnerSaldo, setPartnerSaldo] = useState<number | null>(null);
 
     const saldoActual = facturaTotal - totalPagado;
     const [monto, setMonto] = useState(saldoActual.toString());
@@ -38,9 +40,26 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 if (data?.cliente_id) {
                     setClienteId(data.cliente_id);
                     setPuntosDisponibles((data.clientes as any)?.puntos || 0);
+
+                    // Consultar saldo de socio
+                    const { data: partnerData } = await supabase
+                        .from('partners')
+                        .select('wallet_balance')
+                        .eq('id', data.cliente_id)
+                        .maybeSingle();
+
+                    if (partnerData) {
+                        setIsPartner(true);
+                        setPartnerSaldo(partnerData.wallet_balance || 0);
+                    } else {
+                        setIsPartner(false);
+                        setPartnerSaldo(null);
+                    }
                 } else {
                     setClienteId(null);
                     setPuntosDisponibles(0);
+                    setIsPartner(false);
+                    setPartnerSaldo(null);
                 }
             };
             fetchDatos();
@@ -89,6 +108,22 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             return;
         }
 
+        if (metodo === 'youbox_partner') {
+            if (!isPartner || partnerSaldo === null) {
+                toast.error("El cliente no está registrado como socio de YouBox.");
+                return;
+            }
+            const montoFinal = parseFloat(monto);
+            if (montoFinal < saldoActual - 0.01) {
+                toast.error(`Solo se permiten pagos completos para este método. Debe pagar el saldo total de Q${saldoActual.toFixed(2)}.`);
+                return;
+            }
+            if (montoFinal > partnerSaldo) {
+                toast.error(`Saldo de socio insuficiente. Dispone de Q${partnerSaldo.toFixed(2)}.`);
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             const montoFinal = parseFloat(monto);
@@ -119,6 +154,29 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             if (extraVal > 0) {
                 const extraText = `[Cargo Extra: Q${extraVal.toFixed(2)}${cargoExtraRef ? ` | Ref: ${cargoExtraRef}` : ''}]`;
                 notaFinal = notaFinal ? `${notaFinal}\n${extraText}` : extraText;
+            }
+
+            // 0. Descontar Saldo de Socio si aplica e insertar transacción
+            if (metodo === 'youbox_partner' && clienteId && partnerSaldo !== null) {
+                const nuevoSaldo = partnerSaldo - montoFinal;
+                const { error: balanceError } = await supabase
+                    .from('partners')
+                    .update({ wallet_balance: nuevoSaldo })
+                    .eq('id', clienteId);
+
+                if (balanceError) throw balanceError;
+
+                const { error: txError } = await supabase
+                    .from('partner_transactions')
+                    .insert([{
+                        partner_id: clienteId,
+                        tipo: 'payment',
+                        amount: -montoFinal,
+                        reference: facturaNumero,
+                        description: `Pago completo de factura ${facturaNumero}`
+                    }]);
+
+                if (txError) throw txError;
             }
 
             // 1. Insertar el Pago
@@ -332,6 +390,11 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                             {puntosDisponibles > 0 && (
                                 <option value="youpoints" className="font-bold text-indigo-600">
                                     🪙 YouPoints (Disp: {puntosDisponibles} pts = Q{puntosDisponibles.toFixed(2)})
+                                </option>
+                            )}
+                            {isPartner && partnerSaldo !== null && (
+                                <option value="youbox_partner" className="font-bold text-orange-600">
+                                    💼 Saldo Socio YouBox (Disp: Q{partnerSaldo.toFixed(2)})
                                 </option>
                             )}
                         </select>
