@@ -71,7 +71,7 @@ export function Reports() {
 
             let queryPagos = supabase
                 .from('pagos')
-                .select('monto, created_at, facturas!inner(estado, clientes!inner(sucursal_id))')
+                .select('monto, created_at, estado, facturas!inner(estado, clientes!inner(sucursal_id))')
                 .gte('created_at', hace6Meses.toISOString());
 
             let queryGastos = supabase
@@ -89,12 +89,24 @@ export function Reports() {
                 queryGastos = queryGastos.eq('sucursal_id', selectedFilterBranch);
             }
 
-            const { data: pagos, error: pagosErr } = await queryPagos;
-            if (pagosErr) throw pagosErr;
+            // Helper function to fetch all records bypassing the 1000 limit
+            const fetchAllRecords = async (queryBuilder: any) => {
+                let allData: any[] = [];
+                let from = 0;
+                const limit = 1000;
+                while (true) {
+                    const { data, error } = await queryBuilder.range(from, from + limit - 1);
+                    if (error) throw error;
+                    if (!data || data.length === 0) break;
+                    allData = allData.concat(data);
+                    from += data.length;
+                    if (data.length < limit) break;
+                }
+                return allData;
+            };
 
-            const { data: gastos, error: gastosErr } = await queryGastos;
-            if (gastosErr) throw gastosErr;
-
+            const pagos = await fetchAllRecords(queryPagos);
+            const gastos = await fetchAllRecords(queryGastos);
             // Generate month brackets
             const monthsInterval = eachMonthOfInterval({ start: hace6Meses, end: hoy });
             const monthMap = new Map<string, Mensual>();
@@ -120,8 +132,8 @@ export function Reports() {
             // Populate Incomes
             pagos?.forEach(p => {
                 const fact = Array.isArray(p.facturas) ? p.facturas[0] : p.facturas;
-                // Strict check: only count payments belonging to finalized invoices (like Billing and Payments pages)
-                if (!fact || !['verificado', 'pagado'].includes((fact.estado || '').toLowerCase())) return;
+                // Count any verified payment, even if the invoice is partial/pending
+                if (!['verificado', 'pagado', 'aprobado'].includes((p.estado || '').toLowerCase())) return;
 
                 const key = (p.created_at as string).substring(0, 7); // yyyy-MM
                 const sucursalId = (p as any).facturas?.clientes?.sucursal_id;

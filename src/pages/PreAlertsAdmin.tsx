@@ -5,6 +5,7 @@ import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, Han
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 
 export function PreAlertsAdmin() {
     const { user } = useAuth();
@@ -127,32 +128,22 @@ export function PreAlertsAdmin() {
                 return;
             }
 
-            const BOM = '\uFEFF';
-            let csv = BOM + 'Fecha;Casillero;Cliente;Tracking;Bodega;Valor;Seguro;Monto Seguro;Estado\n';
-            
-            data.forEach(p => {
-                const fecha = format(new Date(p.created_at), "dd/MM/yyyy HH:mm");
-                const casillero = p.clientes?.locker_id || '';
-                const cliente = `"${(p.clientes?.nombre || '')} ${(p.clientes?.apellido || '')}"`;
-                const tracking = `"${p.tracking}"`;
-                const bodega = `"${p.bodegas?.nombre || 'N/A'}"`;
-                const valor = p.valor_factura || 0;
-                const seguro = p.con_seguro ? 'Sí' : 'No';
-                const montoSeguro = p.monto_seguro || 0;
-                const estado = p.estado;
-                
-                csv += `${fecha};${casillero};${cliente};${tracking};${bodega};${valor};${seguro};${montoSeguro};${estado}\n`;
-            });
+            const dataToExport = data.map(p => ({
+                Fecha: format(new Date(p.created_at), "dd/MM/yyyy HH:mm"),
+                Casillero: p.clientes?.locker_id || '',
+                Cliente: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`,
+                Tracking: p.tracking,
+                Bodega: p.bodegas?.nombre || 'N/A',
+                Valor: p.valor_factura || 0,
+                Seguro: p.con_seguro ? 'Sí' : 'No',
+                'Monto Seguro': p.monto_seguro || 0,
+                Estado: p.estado
+            }));
 
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `PreAlertas_${exportStartDate}_al_${exportEndDate}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Pre-Alertas');
+            XLSX.writeFile(workbook, `PreAlertas_${exportStartDate}_al_${exportEndDate}.xlsx`);
             
             setShowExportModal(false);
         } catch (err: any) {

@@ -61,9 +61,11 @@ export function Register() {
         const fetchSucursales = async () => {
             const { data } = await supabase.from('sucursales').select('*').eq('activa', true).order('nombre');
             if (data) {
-                setSucursales(data);
-                if (data.length > 0) {
-                    setForm(prev => ({ ...prev, sucursal_id: data[0].id }));
+                // Ocultar la sucursal 'You Box Partners' en el registro de la cuenta principal
+                const filtered = data.filter(s => s.nombre !== 'You Box Partners');
+                setSucursales(filtered);
+                if (filtered.length > 0) {
+                    setForm(prev => ({ ...prev, sucursal_id: filtered[0].id }));
                 }
             }
         };

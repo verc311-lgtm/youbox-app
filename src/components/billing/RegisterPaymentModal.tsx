@@ -19,6 +19,8 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
     const [loading, setLoading] = useState(false);
     const [clienteId, setClienteId] = useState<string | null>(null);
     const [puntosDisponibles, setPuntosDisponibles] = useState<number>(0);
+    const [isPartner, setIsPartner] = useState<boolean>(false);
+    const [partnerSaldo, setPartnerSaldo] = useState<number | null>(null);
 
     const saldoActual = facturaTotal - totalPagado;
     const [monto, setMonto] = useState(saldoActual.toString());
@@ -38,9 +40,33 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                 if (data?.cliente_id) {
                     setClienteId(data.cliente_id);
                     setPuntosDisponibles((data.clientes as any)?.puntos || 0);
+
+                    // Consultar saldo de socio a través de nuestro endpoint seguro (evita bloqueos de RLS)
+                    try {
+                        const res = await fetch(`/api/partners/${data.cliente_id}/balance`);
+                        if (res.ok) {
+                            const resData = await res.json();
+                            if (resData.isPartner) {
+                                setIsPartner(true);
+                                setPartnerSaldo(resData.wallet_balance || 0);
+                            } else {
+                                setIsPartner(false);
+                                setPartnerSaldo(null);
+                            }
+                        } else {
+                            setIsPartner(false);
+                            setPartnerSaldo(null);
+                        }
+                    } catch (e) {
+                        console.error("Error al consultar saldo de socio:", e);
+                        setIsPartner(false);
+                        setPartnerSaldo(null);
+                    }
                 } else {
                     setClienteId(null);
                     setPuntosDisponibles(0);
+                    setIsPartner(false);
+                    setPartnerSaldo(null);
                 }
             };
             fetchDatos();
@@ -89,6 +115,22 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             return;
         }
 
+        if (metodo === 'youbox_partner') {
+            if (!isPartner || partnerSaldo === null) {
+                toast.error("El cliente no está registrado como socio de YouBox.");
+                return;
+            }
+            const montoFinal = parseFloat(monto);
+            if (montoFinal < saldoActual - 0.01) {
+                toast.error(`Solo se permiten pagos completos para este método. Debe pagar el saldo total de Q${saldoActual.toFixed(2)}.`);
+                return;
+            }
+            if (montoFinal > partnerSaldo) {
+                toast.error(`Saldo de socio insuficiente. Dispone de Q${partnerSaldo.toFixed(2)}.`);
+                return;
+            }
+        }
+
         setLoading(true);
         try {
             const montoFinal = parseFloat(monto);
@@ -119,6 +161,24 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
             if (extraVal > 0) {
                 const extraText = `[Cargo Extra: Q${extraVal.toFixed(2)}${cargoExtraRef ? ` | Ref: ${cargoExtraRef}` : ''}]`;
                 notaFinal = notaFinal ? `${notaFinal}\n${extraText}` : extraText;
+            }
+
+            // 0. Descontar Saldo de Socio si aplica e insertar transacción mediante API segura
+            if (metodo === 'youbox_partner' && clienteId && partnerSaldo !== null) {
+                const res = await fetch('/api/partners/pay', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clienteId,
+                        monto: montoFinal,
+                        facturaNumero
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Error al procesar el pago con saldo de socio');
+                }
             }
 
             // 1. Insertar el Pago
@@ -332,6 +392,11 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                             {puntosDisponibles > 0 && (
                                 <option value="youpoints" className="font-bold text-indigo-600">
                                     🪙 YouPoints (Disp: {puntosDisponibles} pts = Q{puntosDisponibles.toFixed(2)})
+                                </option>
+                            )}
+                            {isPartner && partnerSaldo !== null && (
+                                <option value="youbox_partner" className="font-bold text-orange-600">
+                                    💼 Saldo Socio YouBox (Disp: Q{partnerSaldo.toFixed(2)})
                                 </option>
                             )}
                         </select>
