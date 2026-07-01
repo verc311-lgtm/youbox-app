@@ -175,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const identifier = emailOrLocker.trim().toLowerCase();
 
         // Admin hardcoded (fallback maestro)
-        if (identifier === 'admin' && password === '1234') {
+        if ((identifier === 'admin' || identifier === 'admin@youbox.gt') && (password === '1234' || password === '12345')) {
             const adminUser: AuthUser = {
                 id: 'admin-001',
                 nombre: 'Administrador',
