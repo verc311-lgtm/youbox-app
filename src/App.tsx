@@ -90,67 +90,12 @@ function AdminOnlyRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { user } = useAuth();
-  const isClient = user && (user.role === 'cliente');
-
   return (
-    <>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: { background: '#fff', color: '#334155', fontWeight: 'bold', padding: '16px', borderRadius: '12px' },
-          success: { iconTheme: { primary: '#10B981', secondary: '#fff' } },
-          error: { iconTheme: { primary: '#EF4444', secondary: '#fff' } },
-        }}
-      />
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
-          <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
-          <Route path="/tracking" element={<PublicTracking />} />
-          <Route path="/cotizador" element={<PublicEstimator />} />
-
-          {/* Protected routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route
-              index
-              element={isClient ? <UserDashboard /> : <Dashboard />}
-            />
-            <Route path="entry" element={<OperadorRoute><QuickEntry /></OperadorRoute>} />
-            <Route path="client-entry" element={<OperadorRoute><ClientEntry /></OperadorRoute>} />
-            <Route path="pre-alerts" element={<OperadorRoute><PreAlertsAdmin /></OperadorRoute>} />
-            <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
-            <Route path="inventory" element={<Inventory />} />
-            <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
-            <Route path="billing" element={<Billing />} />
-            <Route path="settings" element={<AdminOnlyRoute><Settings /></AdminOnlyRoute>} />
-            <Route path="tariffs" element={<AdminOnlyRoute><Tariffs /></AdminOnlyRoute>} />
-            <Route path="users" element={<AdminOnlyRoute><Users /></AdminOnlyRoute>} />
-            <Route path="branches" element={<AdminOnlyRoute><Branches /></AdminOnlyRoute>} />
-            <Route path="expenses" element={<FacturadorRoute><Expenses /></FacturadorRoute>} />
-            <Route path="reports" element={<FacturadorRoute><Reports /></FacturadorRoute>} />
-
-            {/* Pages under development or placeholders */}
-            <Route path="profile" element={<Profile />} />
-            <Route path="payments" element={<FacturadorRoute><Payments /></FacturadorRoute>} />
-            <Route path="client-pre-alerts" element={<ClientPreAlerts />} />
-            <Route path="geography" element={<AdminOnlyRoute><Navigate to="/settings" replace /></AdminOnlyRoute>} />
-          </Route>
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="*" element={<Login />} />
+      </Routes>
+    </Suspense>
   );
 }
 
