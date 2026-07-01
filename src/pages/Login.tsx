@@ -193,6 +193,7 @@ export function Login() {
 
                             <button
                                 type="submit"
+                                onClick={handleSubmit}
                                 disabled={loading}
                                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-500 hover:bg-blue-400 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 transition-all shadow-lg shadow-blue-500/20 text-sm mt-4"
                             >
