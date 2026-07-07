@@ -243,7 +243,7 @@ export function BulkInvoiceModal({ isOpen, onClose, onSuccess, consolidacionId, 
                 const trackingsStr = grupo.paquetes.map(p => p.tracking).filter(Boolean).join(', ');
                 // Build per-package breakdown for the concepto description
                 const detalle = grupo.paquetesCosto.map(({ paq, tarifa, costo }) =>
-                    `${paq.tracking} → ${tarifa?.nombre_servicio || 'Genérico'} Q${costo.toFixed(2)}`
+                    `${paq.tracking} -> ${tarifa?.nombre_servicio || 'Genérico'} Q${costo.toFixed(2)}`
                 ).join(' | ');
                 const resConcepto = await supabase.from('conceptos_factura').insert([{
                     factura_id: facturaNueva.id,

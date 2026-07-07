@@ -193,6 +193,8 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         const formatDesc = (desc: string) => {
             let res = desc.replace(' — ', '\n');
             res = res.replace('Detalle: ', '\nDetalle: ');
+            // Replace right arrow and other non-ASCII chars that break jsPDF kerning
+            res = res.replace(/→/g, '->');
             return res;
         };
 
