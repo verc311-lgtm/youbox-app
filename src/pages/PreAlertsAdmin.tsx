@@ -51,6 +51,12 @@ export function PreAlertsAdmin() {
     const [exportEndDate, setExportEndDate] = useState('');
     const [exporting, setExporting] = useState(false);
 
+    // --- DEBIT modal state ---
+    const [showDebitModal, setShowDebitModal] = useState(false);
+    const [debitMonto, setDebitMonto] = useState('');
+    const [debitDescripcion, setDebitDescripcion] = useState('');
+    const [debitSaving, setDebitSaving] = useState(false);
+
     const openEdit = (p: any) => {
         setEditPrealerta(p);
         setEditTracking(p.tracking || '');
@@ -526,9 +532,13 @@ export function PreAlertsAdmin() {
                                 $&nbsp;{fondoTotal.toFixed(2)}
                             </h3>
                         </div>
-                        <div className="h-12 w-12 rounded-xl bg-white/10 flex items-center justify-center text-white backdrop-blur-sm">
+                        <button 
+                            onClick={() => setShowDebitModal(true)}
+                            className="h-12 w-12 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white backdrop-blur-sm cursor-pointer"
+                            title="Debitar fondo por paquete extraviado"
+                        >
                             <HandCoins className="w-6 h-6" />
-                        </div>
+                        </button>
                     </div>
                     <p className="text-xs text-blue-200 mt-2 relative z-10 opacity-80">
                         Monto de protección recaudado (5% de cada paquete asegurado validado).
@@ -876,6 +886,105 @@ export function PreAlertsAdmin() {
                                     >
                                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusCircle className="w-4 h-4" />}
                                         Crear Pre-Alerta
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* ── DEBIT MODAL ── */}
+            {
+                showDebitModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowDebitModal(false)} />
+                        <div className="relative bg-white w-full max-w-sm rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                                        <DollarSign className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">Debitar Fondo</h3>
+                                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Reponer paquete extraviado</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowDebitModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <XCircle className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const numMonto = parseFloat(debitMonto);
+                                if (isNaN(numMonto) || numMonto <= 0) {
+                                    alert('Ingrese un monto válido a descontar.');
+                                    return;
+                                }
+                                if (!debitDescripcion.trim()) {
+                                    alert('Ingrese una descripción válida.');
+                                    return;
+                                }
+
+                                setDebitSaving(true);
+                                try {
+                                    const { error: insError } = await supabase
+                                        .from('fondo_seguros')
+                                        .insert({
+                                            prealerta_id: null,
+                                            monto_ingreso: -numMonto,
+                                            metodo_pago: 'efectivo',
+                                            referencia: debitDescripcion.trim(),
+                                            verificado_por: user?.id === 'admin-001' ? null : user?.id
+                                        });
+                                    if (insError) throw insError;
+                                    
+                                    setShowDebitModal(false);
+                                    setDebitMonto('');
+                                    setDebitDescripcion('');
+                                    fetchData();
+                                } catch (err: any) {
+                                    console.error('Error al debitar fondo:', err);
+                                    alert('Error al debitar: ' + err.message);
+                                } finally {
+                                    setDebitSaving(false);
+                                }
+                            }} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Monto a Debitar (USD) *</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
+                                        <input
+                                            type="number"
+                                            required
+                                            step="0.01"
+                                            min="0"
+                                            value={debitMonto}
+                                            onChange={e => setDebitMonto(e.target.value)}
+                                            placeholder="0.00"
+                                            className="block w-full rounded-xl border border-slate-200 pl-8 pr-3 py-2.5 text-sm font-bold text-slate-800 outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Descripción / Motivo *</label>
+                                    <textarea
+                                        required
+                                        rows={3}
+                                        value={debitDescripcion}
+                                        onChange={e => setDebitDescripcion(e.target.value)}
+                                        placeholder="Ej: Pago de paquete a Cliente Juan Perez por perdida en aduana..."
+                                        className="block w-full rounded-xl border border-slate-200 p-3 text-sm font-medium outline-none focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 resize-none"
+                                    />
+                                </div>
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={debitSaving}
+                                        className="w-full h-11 inline-flex items-center justify-center gap-2 rounded-xl text-white bg-rose-600 hover:bg-rose-700 font-bold disabled:opacity-50 transition-colors"
+                                    >
+                                        {debitSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <DollarSign className="w-5 h-5" />}
+                                        {debitSaving ? 'Debitando...' : 'Confirmar Débito'}
                                     </button>
                                 </div>
                             </form>
