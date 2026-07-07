@@ -62,7 +62,7 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         let montoTotalNeto = Number(factura.monto_total);
         const saldoPendiente = Math.max(0, montoTotalNeto - totalPagado);
 
-        const doc = new jsPDF();
+        const doc = new jsPDF({ format: 'a4', unit: 'mm' });
         
         let logoData = null;
         if (config.logo_url) {
@@ -73,7 +73,6 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
                     logoData = await getBase64ImageFromUrl(config.logo_url);
                 }
             } catch (e) {
-                console.warn("Could not load logo as base64. Falling back to local Base64.", e);
                 logoData = YOUBOX_LOGO_BASE64;
             }
         } else {
@@ -81,24 +80,27 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         }
 
         const W = doc.internal.pageSize.getWidth();
+        const H = doc.internal.pageSize.getHeight();
         
         // --- Document Constants & Colors ---
-        const colorPrimary: [number, number, number] = [30, 64, 175]; // Blue 800
+        const colorPrimary: [number, number, number] = [37, 99, 235]; // Blue 600
         const colorDark: [number, number, number] = [15, 23, 42]; // Slate 900
         const colorText: [number, number, number] = [71, 85, 105]; // Slate 600
-        const colorLight: [number, number, number] = [241, 245, 249]; // Slate 100
+        const colorLight: [number, number, number] = [248, 250, 252]; // Slate 50
         const colorWarning: [number, number, number] = [234, 88, 12]; // Orange 600
         const colorSuccess: [number, number, number] = [16, 185, 129]; // Emerald 500
 
-        let currentY = 15;
+        // Background Accent
+        doc.setFillColor(...colorLight);
+        doc.rect(0, 0, W, 50, 'F');
+        doc.setFillColor(...colorPrimary);
+        doc.rect(0, 0, W, 4, 'F');
 
-        // --- BACKGROUND BAND HEADER ---
-        doc.setFillColor(colorLight[0], colorLight[1], colorLight[2]);
-        doc.rect(0, 0, W, 45, 'F');
+        let currentY = 15;
         
         // --- LOGO ---
         if (logoData) {
-            doc.addImage(logoData, 'PNG', 14, 8, 45, 30, '', 'FAST');
+            doc.addImage(logoData, 'PNG', 14, 10, 45, 30, '', 'FAST');
         } else {
             doc.setFontSize(26);
             doc.setFont('helvetica', 'bold');
@@ -107,70 +109,63 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         }
 
         // --- COMPANY INFO ---
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colorDark);
-        doc.text(config.nombre_empresa.toUpperCase(), W - 14, 15, { align: 'right' });
+        doc.text(config.nombre_empresa.toUpperCase(), W - 14, 18, { align: 'right' });
         
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...colorText);
         const dirLines = doc.splitTextToSize(config.direccion, 65);
-        doc.text(dirLines, W - 14, 20, { align: 'right' });
+        doc.text(dirLines, W - 14, 23, { align: 'right' });
         
-        let contactY = 20 + (dirLines.length * 3.5);
-        doc.text(`${config.email}`, W - 14, contactY, { align: 'right' });
-        doc.text(`${config.telefono}`, W - 14, contactY + 4, { align: 'right' });
-        doc.text(`${config.sitio_web}`, W - 14, contactY + 8, { align: 'right' });
+        let contactY = 23 + (dirLines.length * 4);
+        doc.text(`Email: ${config.email}`, W - 14, contactY, { align: 'right' });
+        doc.text(`Tel: ${config.telefono}`, W - 14, contactY + 4, { align: 'right' });
+        doc.text(`Web: ${config.sitio_web}`, W - 14, contactY + 8, { align: 'right' });
 
-        currentY = 55;
+        currentY = 65;
 
-        // --- INVOICE TITLE BORDER & DETAILS ---
-        doc.setDrawColor(...colorPrimary);
-        doc.setLineWidth(1.5);
-        doc.line(14, currentY, 14, currentY + 12);
-        
-        doc.setFontSize(22);
+        // --- INVOICE TITLE & STATUS ---
+        doc.setFontSize(28);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colorDark);
-        doc.text(`INVOICE`, 18, currentY + 8);
+        doc.text(`FACTURA`, 14, currentY);
 
-        doc.setFontSize(14);
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...colorText);
-        doc.text(`# ${factura.numero}`, 60, currentY + 8);
+        doc.text(`Nº ${factura.numero}`, 15, currentY + 7);
 
-        // --- INVOICE META BLOCK (RIGHT ALIGNED) ---
-        doc.setFillColor(248, 250, 252);
-        doc.roundedRect(W - 74, currentY, 60, 16, 2, 2, 'F');
-        doc.setFontSize(7);
+        // Status Badge
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(148, 163, 184);
-        doc.text('DATE', W - 70, currentY + 5);
-        doc.text('STATUS', W - 40, currentY + 5);
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text(format(new Date(factura.fecha_emision), 'MM/dd/yyyy', { locale: es }), W - 70, currentY + 11);
-        
-        const estadoPrint = factura.estado === 'verificado' ? 'PAGADA' : factura.estado.toUpperCase();
+        const estadoPrint = factura.estado === 'verificado' || factura.estado === 'pagada' ? 'PAGADA' : factura.estado.toUpperCase();
         if (factura.estado === 'verificado' || factura.estado === 'pagada') {
+            doc.setFillColor(209, 250, 229); // green-100
             doc.setTextColor(...colorSuccess);
         } else {
+            doc.setFillColor(255, 237, 213); // orange-100
             doc.setTextColor(...colorWarning);
         }
-        doc.text(estadoPrint, W - 40, currentY + 11);
+        doc.roundedRect(W - 40, currentY - 8, 26, 8, 1, 1, 'F');
+        doc.text(estadoPrint, W - 27, currentY - 2.5, { align: 'center' });
 
-        currentY += 25;
+        currentY += 20;
 
-        // --- BILL TO SECTION ---
+        // --- BILL TO / DATE SECTION ---
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.5);
+        doc.line(14, currentY - 5, W - 14, currentY - 5);
+
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorPrimary);
-        doc.text('FACTURADO A:', 14, currentY);
+        doc.setTextColor(...colorText);
+        doc.text('FACTURAR A:', 14, currentY);
+        doc.text('FECHA DE EMISIÓN:', W - 14, currentY, { align: 'right' });
 
-        doc.setFontSize(10);
+        doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colorDark);
         
@@ -179,116 +174,123 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         const clientPhone = factura.clientes?.telefono || '';
         const clientNit = factura.clientes ? (factura.clientes.nit || 'C/F') : (factura.cliente_manual_nit || 'C/F');
 
-        doc.text(clientName, 14, currentY + 5);
+        doc.text(clientName, 14, currentY + 6);
+        doc.text(format(new Date(factura.fecha_emision), 'dd MMMM, yyyy', { locale: es }), W - 14, currentY + 6, { align: 'right' });
         
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
         doc.setTextColor(...colorText);
-        let clientY = currentY + 10;
+        let clientY = currentY + 11;
         doc.text(`NIT: ${clientNit}`, 14, clientY);
-        if (clientEmail) { clientY += 4; doc.text(clientEmail, 14, clientY); }
-        if (clientPhone) { clientY += 4; doc.text(clientPhone, 14, clientY); }
+        if (clientEmail) { clientY += 5; doc.text(clientEmail, 14, clientY); }
+        if (clientPhone) { clientY += 5; doc.text(clientPhone, 14, clientY); }
 
         currentY = clientY + 15;
 
         // --- INVOICE ITEMS TABLE ---
-        // Clean up descriptions to insert spaces to allow autoTable to line-break properly
-        const formatDesc = (desc: string) => desc.replace(/([0-9A-Za-z]{15,})/g, '$1 ');
+        // Clean up tracking string to allow wrapping in jsPDF without character spacing bugs
+        // Replacing ' — ' with a newline makes it look much cleaner too.
+        const formatDesc = (desc: string) => {
+            let res = desc.replace(' — ', '\n');
+            res = res.replace('Detalle: ', '\nDetalle: ');
+            return res;
+        };
 
         const tableData = (conceptos || []).map((c) => [
             formatDesc(c.descripcion),
             c.cantidad,
-            `Q${c.precio_unitario.toFixed(2)}`,
-            `Q${c.subtotal.toFixed(2)}`
+            `Q ${c.precio_unitario.toFixed(2)}`,
+            `Q ${c.subtotal.toFixed(2)}`
         ]);
 
         autoTable(doc, {
             startY: currentY,
-            head: [['Descripción / Servicio', 'Cant.', 'Tarifa', 'Subtotal']],
+            head: [['Descripción / Servicio', 'Cant.', 'Precio Unit.', 'Subtotal']],
             body: tableData,
-            theme: 'grid',
+            theme: 'plain',
             styles: { 
                 fontSize: 9, 
-                cellPadding: 4, 
-                textColor: [30, 41, 59],
-                lineColor: [226, 232, 240], // slate-200
-                lineWidth: 0.1,
+                cellPadding: 5, 
+                textColor: [71, 85, 105],
                 overflow: 'linebreak'
             },
             headStyles: { 
                 fillColor: [248, 250, 252], 
                 textColor: [15, 23, 42], 
-                fontStyle: 'bold', 
-                halign: 'center',
-                lineColor: [203, 213, 225]
+                fontStyle: 'bold',
+                lineWidth: { bottom: 0.5 },
+                lineColor: [226, 232, 240]
             }, 
+            bodyStyles: {
+                lineWidth: { bottom: 0.1 },
+                lineColor: [241, 245, 249]
+            },
             columnStyles: {
                 0: { cellWidth: 'auto', halign: 'left' },
                 1: { cellWidth: 20, halign: 'center' },
-                2: { cellWidth: 30, halign: 'right' },
-                3: { cellWidth: 35, halign: 'right' },
+                2: { cellWidth: 35, halign: 'right' },
+                3: { cellWidth: 35, halign: 'right', fontStyle: 'bold', textColor: [15, 23, 42] },
             },
         });
 
         // --- TOTALS AREA ---
-        let finalY = (doc as any).lastAutoTable.finalY + 8;
+        let finalY = (doc as any).lastAutoTable.finalY + 10;
         
-        // Draw a neat summary box
         doc.setFillColor(248, 250, 252);
-        doc.roundedRect(W - 84, finalY, 70, 38, 3, 3, 'F');
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.1);
-        doc.roundedRect(W - 84, finalY, 70, 38, 3, 3, 'S');
+        doc.roundedRect(W - 85, finalY, 71, 42, 2, 2, 'F');
 
-        let textY = finalY + 7;
+        let textY = finalY + 8;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...colorText);
-        doc.text('Subtotal:', W - 45, textY, { align: 'right' });
+        doc.text('Subtotal', W - 45, textY, { align: 'right' });
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colorDark);
-        doc.text(`Q${montoTotalNeto.toFixed(2)}`, W - 18, textY, { align: 'right' });
+        doc.text(`Q ${montoTotalNeto.toFixed(2)}`, W - 18, textY, { align: 'right' });
         
-        textY += 6;
+        textY += 8;
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(...colorText);
-        doc.text('Pagado:', W - 45, textY, { align: 'right' });
+        doc.text('Pagado', W - 45, textY, { align: 'right' });
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text(`Q${totalPagado.toFixed(2)}`, W - 18, textY, { align: 'right' });
+        doc.setTextColor(...colorSuccess);
+        doc.text(`Q ${totalPagado.toFixed(2)}`, W - 18, textY, { align: 'right' });
 
         // Divider
-        textY += 4;
-        doc.setDrawColor(203, 213, 225);
+        textY += 6;
+        doc.setDrawColor(226, 232, 240);
         doc.setLineWidth(0.5);
         doc.line(W - 80, textY, W - 18, textY);
         
-        textY += 7;
-        doc.setFontSize(11);
+        textY += 9;
+        doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colorDark);
+        doc.text('Total a Pagar', W - 45, textY, { align: 'right' });
+        
         if (saldoPendiente > 0) {
             doc.setTextColor(...colorWarning);
-            doc.text('SALDO PENDIENTE:', W - 45, textY, { align: 'right' });
-            doc.text(`Q${saldoPendiente.toFixed(2)}`, W - 18, textY, { align: 'right' });
+            doc.text(`Q ${saldoPendiente.toFixed(2)}`, W - 18, textY, { align: 'right' });
         } else {
             doc.setTextColor(...colorSuccess);
-            doc.text('SALDO PENDIENTE:', W - 45, textY, { align: 'right' });
-            doc.text(`Q0.00`, W - 18, textY, { align: 'right' });
+            doc.text(`Q 0.00`, W - 18, textY, { align: 'right' });
         }
 
         // --- FOOTER SECTION ---
-        const pageHeight = doc.internal.pageSize.getHeight();
-        
         doc.setFillColor(...colorPrimary);
-        doc.rect(0, pageHeight - 15, W, 15, 'F');
+        doc.rect(0, H - 20, W, 20, 'F');
         
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(255, 255, 255);
-        doc.text('Gracias por preferir a YOUBOX GT.', W / 2, pageHeight - 6, { align: 'center' });
+        doc.text('Gracias por preferir a YOUBOX GT.', W / 2, H - 11, { align: 'center' });
+        
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Generado electrónicamente por el sistema YOUBOX GT', W / 2, H - 6, { align: 'center' });
 
         // Generar el archivo
-        doc.save(`${factura.numero}.pdf`);
+        doc.save(`Factura_${factura.numero}.pdf`);
 
     } catch (e: any) {
         console.error("Error generating PDF:", e);
