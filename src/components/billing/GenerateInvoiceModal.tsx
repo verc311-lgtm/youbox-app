@@ -167,7 +167,7 @@ export function GenerateInvoiceModal({ isOpen, onClose, onSuccess }: GenerateInv
                     monto_total: total,
                     moneda: 'GTQ',
                     estado: 'pendiente',
-                    creado_por: user?.id
+                    creado_por: user?.id === 'admin-001' ? null : user?.id
                 }])
                 .select()
                 .single();

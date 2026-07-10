@@ -190,7 +190,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                     metodo: metodo,
                     referencia: referencia,
                     estado: 'verificado', // Se da por sentado que el operador verificó antes de ingresarlo
-                    verificado_por: user?.id,
+                    verificado_por: user?.id === 'admin-001' ? null : user?.id,
                     notas: notaFinal
                 }]);
 
@@ -211,7 +211,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                         tipo: 'canjeado',
                         puntos: ptsToDeduct,
                         descripcion: `Canje por pago parcial/total de factura ${facturaNumero} (Q${montoFinal.toFixed(2)})`,
-                        created_by: user?.id
+                        created_by: user?.id === 'admin-001' ? null : user?.id
                     }]);
                 } else {
                     // Ganar puntos (1 pt por cada Q200 pagados)
@@ -227,7 +227,7 @@ export function RegisterPaymentModal({ isOpen, onClose, onSuccess, facturaId, fa
                             tipo: 'ganado',
                             puntos: ptsEarned,
                             descripcion: `Puntos ganados por pago de factura ${facturaNumero} (Q${montoFinal.toFixed(2)})`,
-                            created_by: user?.id
+                            created_by: user?.id === 'admin-001' ? null : user?.id
                         }]);
                     }
                 }

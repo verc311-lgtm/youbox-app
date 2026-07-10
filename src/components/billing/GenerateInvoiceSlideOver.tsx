@@ -216,7 +216,7 @@ export function GenerateInvoiceSlideOver({ isOpen, onClose, onSuccess }: Generat
                     monto_total: total,
                     moneda: 'GTQ',
                     estado: 'pendiente',
-                    creado_por: user?.id
+                    creado_por: user?.id === 'admin-001' ? null : user?.id
                 }])
                 .select()
                 .single();

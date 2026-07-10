@@ -89,7 +89,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                 comentario: comentario || null,
                 notificar_wa: notifyWA,
                 notificar_email: notifyEmail,
-                creado_por: user?.id,
+                creado_por: user?.id === 'admin-001' ? null : user?.id,
                 fecha_evento: new Date(fechaEvento).toISOString()
             }]);
 
@@ -136,7 +136,7 @@ export function TrackingDialog({ consolidacionId, codigoMaster, onClose, onUpdat
                     paquete_id: pid,
                     estado_anterior: 'Actualización Automática',
                     estado_nuevo: paqueteEstadoDestino || 'en_transito',
-                    usuario_id: user?.id,
+                    usuario_id: user?.id === 'admin-001' ? null : user?.id,
                     notas: `[Actualización de Contenedor Master ${codigoMaster}] - ${nuevoEstado}${ciudad ? ` en ${ciudad}` : ''}. ${comentario ? comentario : ''}`.trim()
                 }));
 
