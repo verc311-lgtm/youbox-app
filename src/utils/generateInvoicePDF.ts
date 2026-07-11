@@ -17,7 +17,6 @@ interface FacturaDatos {
     clientes?: { nombre: string; apellido: string; locker_id?: string; nit?: string; direccion_entrega?: string; email?: string; telefono?: string };
 }
 
-// Convert image url to base64 for jsPDF
 const getBase64ImageFromUrl = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -51,7 +50,7 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
         const conceptos = conceptosRes.data || [];
         const config = configRes.data || {
             nombre_empresa: 'YOUBOXGT',
-            direccion: '13 AVENIDA 4-60 ZONA 3 LOCAL 106 PLAZA MONTERREY\nQuetzaltenango, Quezaltenango, 09001',
+            direccion: '13 AVENIDA 4-60 ZONA 3 LOCAL 106 PLAZA MONTERREY\nQuetzaltenango, Quetzaltenango, 09001',
             telefono: '56466611',
             email: 'info@youboxgt.com',
             sitio_web: 'youboxgt.com',
@@ -64,137 +63,127 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
 
         const doc = new jsPDF({ format: 'a4', unit: 'mm' });
         
-        let logoData = null;
-        if (config.logo_url) {
+        let logoData = YOUBOX_LOGO_BASE64;
+        if (config.logo_url && !config.logo_url.includes('youboxgt.online/wp-content')) {
             try {
-                if (config.logo_url.includes('youboxgt.online/wp-content')) {
-                    logoData = YOUBOX_LOGO_BASE64;
-                } else {
-                    logoData = await getBase64ImageFromUrl(config.logo_url);
-                }
+                logoData = await getBase64ImageFromUrl(config.logo_url);
             } catch (e) {
                 logoData = YOUBOX_LOGO_BASE64;
             }
-        } else {
-            logoData = YOUBOX_LOGO_BASE64;
         }
 
         const W = doc.internal.pageSize.getWidth();
         const H = doc.internal.pageSize.getHeight();
         
-        // --- Document Constants & Colors ---
-        const colorPrimary: [number, number, number] = [37, 99, 235]; // Blue 600
-        const colorDark: [number, number, number] = [15, 23, 42]; // Slate 900
-        const colorText: [number, number, number] = [71, 85, 105]; // Slate 600
-        const colorLight: [number, number, number] = [248, 250, 252]; // Slate 50
-        const colorWarning: [number, number, number] = [234, 88, 12]; // Orange 600
-        const colorSuccess: [number, number, number] = [16, 185, 129]; // Emerald 500
-
-        // Background Accent
-        doc.setFillColor(...colorLight);
-        doc.rect(0, 0, W, 50, 'F');
-        doc.setFillColor(...colorPrimary);
+        // --- Colors from SVG ---
+        const colorNavy: [number, number, number] = [11, 79, 179]; // #0b4fb3 (Base of gradient)
+        const colorDarkNavy: [number, number, number] = [8, 43, 102]; // #082b66
+        const colorOrange: [number, number, number] = [255, 90, 31]; // #ff5a1f
+        const colorTextDark: [number, number, number] = [16, 32, 58]; // #10203a
+        const colorLabel: [number, number, number] = [22, 79, 165]; // #164fa5
+        const colorMuted: [number, number, number] = [98, 112, 138]; // #62708a
+        const colorGreen: [number, number, number] = [10, 164, 94]; // #0aa45e
+        const colorBorder: [number, number, number] = [219, 227, 238]; // #dbe3ee
+        
+        // --- Top Decorations ---
+        // Top navy band
+        doc.setFillColor(...colorNavy);
         doc.rect(0, 0, W, 4, 'F');
+        // Top right orange corner (approximate curve with triangle)
+        doc.setFillColor(...colorOrange);
+        doc.triangle(W, 0, W, 40, W - 45, 0, 'F');
 
-        let currentY = 15;
-        
-        // --- LOGO ---
+        // --- Header ---
+        // Logo
         if (logoData) {
-            doc.addImage(logoData, 'PNG', 14, 10, 45, 30, '', 'FAST');
-        } else {
-            doc.setFontSize(26);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...colorPrimary);
-            doc.text(config.nombre_empresa, 14, 25);
+            doc.addImage(logoData, 'PNG', 12, 8, 42, 32, '', 'FAST');
         }
+        
+        // Vertical divider
+        doc.setDrawColor(...colorBorder);
+        doc.setLineWidth(0.5);
+        doc.line(58, 10, 58, 40);
 
-        // --- COMPANY INFO ---
+        // Company Details
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(...colorTextDark);
+        doc.text('YOUBOXGT', 63, 16);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.text('13 AVENIDA 4-60 ZONA 3 LOCAL 106 PLAZA MONTERREY', 63, 21);
+        doc.text('Quetzaltenango, Quetzaltenango, 09001', 63, 25);
+        doc.text('✉  info@youboxgt.com', 63, 31);
+        doc.text('☎  56466611   •   youboxgt.com', 63, 35);
+
+        // Factura Box
+        doc.setFillColor(...colorNavy);
+        doc.roundedRect(W - 65, 12, 53, 28, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text(config.nombre_empresa.toUpperCase(), W - 14, 18, { align: 'right' });
-        
-        doc.setFontSize(8);
+        doc.setTextColor(255, 255, 255);
+        doc.text('FACTURA', W - 38.5, 22, { align: 'center' });
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...colorText);
-        const dirLines = doc.splitTextToSize(config.direccion, 65);
-        doc.text(dirLines, W - 14, 23, { align: 'right' });
-        
-        let contactY = 23 + (dirLines.length * 4);
-        doc.text(`Email: ${config.email}`, W - 14, contactY, { align: 'right' });
-        doc.text(`Tel: ${config.telefono}`, W - 14, contactY + 4, { align: 'right' });
-        doc.text(`Web: ${config.sitio_web}`, W - 14, contactY + 8, { align: 'right' });
-
-        currentY = 65;
-
-        // --- INVOICE TITLE & STATUS ---
-        doc.setFontSize(28);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text(`FACTURA`, 14, currentY);
-
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...colorText);
-        doc.text(`Nº ${factura.numero}`, 15, currentY + 7);
+        doc.setFontSize(10);
+        doc.text(`N° ${factura.numero}`, W - 38.5, 28, { align: 'center' });
 
         // Status Badge
+        const esPagada = factura.estado === 'verificado' || factura.estado === 'pagada';
+        const estadoPrint = esPagada ? '✓ PAGADA' : factura.estado.toUpperCase();
+        doc.setFillColor(esPagada ? 217 : 255, esPagada ? 248 : 237, esPagada ? 232 : 213); 
+        doc.roundedRect(W - 52, 33, 27, 7, 2, 2, 'F');
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(esPagada ? colorGreen[0] : 234, esPagada ? colorGreen[1] : 88, esPagada ? colorGreen[2] : 12);
+        doc.text(estadoPrint, W - 38.5, 37.8, { align: 'center' });
+
+        // --- Client Info Box ---
+        const clientY = 48;
+        doc.setDrawColor(...colorBorder);
+        doc.setFillColor(251, 252, 254); // #fbfcfe
+        doc.roundedRect(12, clientY, W - 24, 25, 3, 3, 'FD');
+
+        // Blue dot
+        doc.setFillColor(237, 243, 255); // #edf3ff
+        doc.circle(20, clientY + 12.5, 5, 'F');
+        doc.setTextColor(...colorLabel);
         doc.setFontSize(10);
+        doc.text('●', 20, clientY + 13.5, { align: 'center' });
+
+        // Bill to details
+        doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
-        const estadoPrint = factura.estado === 'verificado' || factura.estado === 'pagada' ? 'PAGADA' : factura.estado.toUpperCase();
-        if (factura.estado === 'verificado' || factura.estado === 'pagada') {
-            doc.setFillColor(209, 250, 229); // green-100
-            doc.setTextColor(...colorSuccess);
-        } else {
-            doc.setFillColor(255, 237, 213); // orange-100
-            doc.setTextColor(...colorWarning);
-        }
-        doc.roundedRect(W - 40, currentY - 8, 26, 8, 1, 1, 'F');
-        doc.text(estadoPrint, W - 27, currentY - 2.5, { align: 'center' });
+        doc.text('FACTURAR A:', 28, clientY + 8);
 
-        currentY += 20;
-
-        // --- BILL TO / DATE SECTION ---
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.5);
-        doc.line(14, currentY - 5, W - 14, currentY - 5);
-
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorText);
-        doc.text('FACTURAR A:', 14, currentY);
-        doc.text('FECHA DE EMISIÓN:', W - 14, currentY, { align: 'right' });
-
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        
         const clientName = factura.clientes ? `${factura.clientes.nombre} ${factura.clientes.apellido}` : (factura.cliente_manual_nombre || 'Consumidor Final');
-        const clientEmail = factura.clientes?.email || '';
-        const clientPhone = factura.clientes?.telefono || '';
         const clientNit = factura.clientes ? (factura.clientes.nit || 'C/F') : (factura.cliente_manual_nit || 'C/F');
 
-        doc.text(clientName, 14, currentY + 6);
-        doc.text(format(new Date(factura.fecha_emision), 'dd MMMM, yyyy', { locale: es }), W - 14, currentY + 6, { align: 'right' });
-        
+        doc.setFontSize(11);
+        doc.setTextColor(...colorTextDark);
+        doc.text(clientName, 28, clientY + 14.5);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(...colorText);
-        let clientY = currentY + 11;
-        doc.text(`NIT: ${clientNit}`, 14, clientY);
-        if (clientEmail) { clientY += 5; doc.text(clientEmail, 14, clientY); }
-        if (clientPhone) { clientY += 5; doc.text(clientPhone, 14, clientY); }
+        doc.setFontSize(8);
+        doc.text(`NIT: ${clientNit}`, 28, clientY + 20);
 
-        currentY = clientY + 15;
+        // Divider
+        doc.setLineWidth(0.5);
+        doc.line(110, clientY + 4, 110, clientY + 21);
 
-        // --- INVOICE ITEMS TABLE ---
-        // Clean up tracking string to allow wrapping in jsPDF without character spacing bugs
-        // Replacing ' — ' with a newline makes it look much cleaner too.
+        // Date
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...colorLabel);
+        doc.text('FECHA DE EMISIÓN:', 116, clientY + 8);
+        doc.setFontSize(11);
+        doc.setTextColor(...colorTextDark);
+        doc.text(format(new Date(factura.fecha_emision), 'dd MMMM, yyyy', { locale: es }), 116, clientY + 15);
+
+        // --- Table ---
         const formatDesc = (desc: string) => {
             let res = desc.replace(' — ', '\n');
             res = res.replace('Detalle: ', '\nDetalle: ');
-            // Replace right arrow and other non-ASCII chars that break jsPDF kerning
-            res = res.replace(/→/g, '->');
+            res = res.replace(/→/g, '->'); // Fix font bug
             return res;
         };
 
@@ -205,93 +194,163 @@ export const downloadInvoicePDF = async (factura: FacturaDatos) => {
             `Q ${c.subtotal.toFixed(2)}`
         ]);
 
+        let startY = 78;
         autoTable(doc, {
-            startY: currentY,
-            head: [['Descripción / Servicio', 'Cant.', 'Precio Unit.', 'Subtotal']],
+            startY,
+            head: [['DESCRIPCIÓN / SERVICIO', 'CANT.', 'PRECIO UNIT.', 'SUBTOTAL']],
             body: tableData,
             theme: 'plain',
             styles: { 
                 fontSize: 9, 
                 cellPadding: 5, 
-                textColor: [71, 85, 105],
-                overflow: 'linebreak'
+                textColor: colorTextDark,
+                font: 'helvetica'
             },
             headStyles: { 
-                fillColor: [248, 250, 252], 
-                textColor: [15, 23, 42], 
+                fillColor: colorDarkNavy, 
+                textColor: 255, 
                 fontStyle: 'bold',
-                lineWidth: { bottom: 0.5 },
-                lineColor: [226, 232, 240]
-            }, 
+                halign: 'center'
+            },
             bodyStyles: {
-                lineWidth: { bottom: 0.1 },
-                lineColor: [241, 245, 249]
+                lineWidth: { bottom: 0 },
             },
             columnStyles: {
                 0: { cellWidth: 'auto', halign: 'left' },
-                1: { cellWidth: 20, halign: 'center' },
-                2: { cellWidth: 35, halign: 'right' },
-                3: { cellWidth: 35, halign: 'right', fontStyle: 'bold', textColor: [15, 23, 42] },
+                1: { cellWidth: 22, halign: 'center' },
+                2: { cellWidth: 35, halign: 'center' },
+                3: { cellWidth: 35, halign: 'center', fontStyle: 'bold' },
             },
+            margin: { left: 12, right: 12 },
+            tableLineColor: colorBorder,
+            tableLineWidth: 0.5,
+            willDrawCell: (data) => {
+                // Table header text overrides
+                if (data.section === 'head' && data.column.index === 0) {
+                    data.cell.styles.halign = 'left';
+                }
+            },
+            didDrawCell: (data) => {
+                // Vertical lines only inside the table
+                if (data.section === 'body' && data.column.index > 0) {
+                    doc.setDrawColor(...colorBorder);
+                    doc.setLineWidth(0.3);
+                    doc.line(data.cell.x, data.cell.y, data.cell.x, data.cell.y + data.cell.height);
+                }
+                // Wrap border around the table body
+                if (data.section === 'body' && data.column.index === 0) {
+                    doc.setDrawColor(...colorBorder);
+                    doc.setLineWidth(0.5);
+                    doc.line(12, data.cell.y, 12, data.cell.y + data.cell.height); // Left
+                }
+                if (data.section === 'body' && data.column.index === 3) {
+                    doc.setDrawColor(...colorBorder);
+                    doc.setLineWidth(0.5);
+                    doc.line(W - 12, data.cell.y, W - 12, data.cell.y + data.cell.height); // Right
+                }
+            },
+            didDrawPage: (data) => {
+                // Bottom border for the table
+                doc.setDrawColor(...colorBorder);
+                doc.setLineWidth(0.5);
+                doc.line(12, data.cursor!.y, W - 12, data.cursor!.y);
+            }
         });
 
-        // --- TOTALS AREA ---
+        // --- Totals and Observations ---
         let finalY = (doc as any).lastAutoTable.finalY + 10;
-        
-        doc.setFillColor(248, 250, 252);
-        doc.roundedRect(W - 85, finalY, 71, 42, 2, 2, 'F');
 
-        let textY = finalY + 8;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...colorText);
-        doc.text('Subtotal', W - 45, textY, { align: 'right' });
+        // Observations Box (Left)
+        doc.setFillColor(245, 248, 253); // #f5f8fd
+        doc.setDrawColor(255,255,255); // no border basically
+        doc.roundedRect(12, finalY, 85, 32, 3, 3, 'F');
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text(`Q ${montoTotalNeto.toFixed(2)}`, W - 18, textY, { align: 'right' });
-        
-        textY += 8;
+        doc.setFontSize(7.5);
+        doc.setTextColor(...colorLabel);
+        doc.text('OBSERVACIONES', 18, finalY + 8);
+        doc.setFillColor(...colorOrange);
+        doc.circle(19, finalY + 15.5, 1, 'F');
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(...colorText);
-        doc.text('Pagado', W - 45, textY, { align: 'right' });
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorSuccess);
-        doc.text(`Q ${totalPagado.toFixed(2)}`, W - 18, textY, { align: 'right' });
+        doc.setFontSize(8);
+        doc.setTextColor(...colorTextDark);
+        doc.text('Gracias por confiar en YOUBOX GT.', 23, finalY + 16.5);
 
-        // Divider
-        textY += 6;
-        doc.setDrawColor(226, 232, 240);
+        // Summary Box (Right)
+        doc.setFillColor(251, 252, 254);
+        doc.setDrawColor(...colorBorder);
         doc.setLineWidth(0.5);
-        doc.line(W - 80, textY, W - 18, textY);
-        
-        textY += 9;
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colorDark);
-        doc.text('Total a Pagar', W - 45, textY, { align: 'right' });
-        
-        if (saldoPendiente > 0) {
-            doc.setTextColor(...colorWarning);
-            doc.text(`Q ${saldoPendiente.toFixed(2)}`, W - 18, textY, { align: 'right' });
-        } else {
-            doc.setTextColor(...colorSuccess);
-            doc.text(`Q 0.00`, W - 18, textY, { align: 'right' });
-        }
+        doc.roundedRect(100, finalY, W - 112, 32, 3, 3, 'FD');
 
-        // --- FOOTER SECTION ---
-        doc.setFillColor(...colorPrimary);
-        doc.rect(0, H - 20, W, 20, 'F');
-        
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 255, 255);
-        doc.text('Gracias por preferir a YOUBOX GT.', W / 2, H - 11, { align: 'center' });
-        
-        doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
-        doc.text('Generado electrónicamente por el sistema YOUBOX GT', W / 2, H - 6, { align: 'center' });
+        doc.setFontSize(8);
+        doc.setTextColor(...colorTextDark);
+        doc.text('SUBTOTAL', 108, finalY + 8);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`Q ${montoTotalNeto.toFixed(2)}`, W - 18, finalY + 8, { align: 'right' });
 
-        // Generar el archivo
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('PAGADO', 108, finalY + 15);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(...colorGreen);
+        doc.text(`Q ${totalPagado.toFixed(2)}`, W - 18, finalY + 15, { align: 'right' });
+
+        doc.setDrawColor(207, 216, 230); // #cfd8e6
+        doc.setLineWidth(0.3);
+        doc.line(108, finalY + 20, W - 18, finalY + 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(...colorTextDark);
+        doc.text('TOTAL A PAGAR', 108, finalY + 26);
+        doc.setFontSize(14);
+        const finalColor = saldoPendiente > 0 ? [234, 88, 12] : colorGreen;
+        doc.setTextColor(finalColor[0], finalColor[1], finalColor[2]); // Orange if pending, green if 0
+        doc.text(`Q ${saldoPendiente.toFixed(2)}`, W - 18, finalY + 26, { align: 'right' });
+
+        // --- Footer Services ---
+        const footerY = H - 35;
+        doc.setDrawColor(...colorBorder);
+        doc.setLineWidth(0.5);
+        doc.line(12, footerY, W - 12, footerY);
+
+        const cols = [
+            { t: 'ENVÍOS', s: 'USA & MÉXICO' },
+            { t: 'COMPRAS POR TI', s: 'Servicio asistido' },
+            { t: 'CASILLERO', s: 'En USA' },
+            { t: 'SEGURO', s: 'Opcional' },
+            { t: 'PAGO', s: 'Transferencia' },
+        ];
+        
+        const colW = (W - 24) / cols.length;
+        cols.forEach((col, i) => {
+            const cx = 12 + (colW * i) + (colW / 2);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(...colorTextDark);
+            doc.text(col.t, cx, footerY + 8, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...colorMuted);
+            doc.text(col.s, cx, footerY + 12, { align: 'center' });
+        });
+
+        // --- Bottom Navy Band ---
+        doc.setFillColor(...colorNavy);
+        doc.rect(0, H - 15, W, 15, 'F');
+        // Bottom Right Orange Corner
+        doc.setFillColor(...colorOrange);
+        doc.triangle(W - 25, H, W, H - 15, W, H, 'F');
+
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(14);
+        doc.setTextColor(255, 255, 255);
+        doc.text('¡Gracias por preferir a YOUBOX GT!', W / 2, H - 8, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('TU MUNDO, SIN FRONTERAS', W / 2, H - 3.5, { align: 'center' });
+
         doc.save(`Factura_${factura.numero}.pdf`);
 
     } catch (e: any) {
