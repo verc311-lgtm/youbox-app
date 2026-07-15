@@ -197,6 +197,21 @@ export function Consolidation() {
 
     try {
       setSaving(true);
+      const idsArray = Array.from(selectedIds);
+
+      // Verify that none of these packages are already consolidated
+      const { data: alreadyConsolidated, error: checkError } = await supabase
+        .from('consolidacion_paquetes')
+        .select('paquete_id, consolidaciones(codigo)')
+        .in('paquete_id', idsArray);
+
+      if (checkError) throw checkError;
+
+      if (alreadyConsolidated && alreadyConsolidated.length > 0) {
+        const codes = alreadyConsolidated.map((c: any) => c.consolidaciones?.codigo).filter(Boolean).join(', ');
+        throw new Error(`Algunos paquetes ya pertenecen a otro(s) consolidado(s): ${codes}. Por favor, recarga la página.`);
+      }
+
       // Generate Code like CON-YYYYMMDD-RAMDOM
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
       const code = `CON-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -221,7 +236,6 @@ export function Consolidation() {
       if (consError || !consData) throw consError;
 
       const consId = consData.id;
-      const idsArray = Array.from(selectedIds);
 
       // 2. Pivot Table Insert
       const pivotData = idsArray.map(pid => ({

@@ -137,6 +137,18 @@ export function ManageConsolidationModal({ isOpen, onClose, consolidationId, con
     const handleAddPackage = async (paquete: Paquete) => {
         setActionLoading(paquete.id);
         try {
+            // Verify if package is already in any consolidation
+            const { data: existing, error: checkError } = await supabase
+                .from('consolidacion_paquetes')
+                .select('consolidaciones(codigo)')
+                .eq('paquete_id', paquete.id);
+
+            if (checkError) throw checkError;
+            if (existing && existing.length > 0) {
+                const codes = existing.map((c: any) => c.consolidaciones?.codigo).filter(Boolean).join(', ');
+                throw new Error(`Este paquete ya pertenece a otro consolidado: ${codes}`);
+            }
+
             // Add to pivot
             const { error: pivotError } = await supabase.from('consolidacion_paquetes').insert({
                 consolidacion_id: consolidationId,
