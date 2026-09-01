@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar, AlertCircle, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -56,6 +56,24 @@ export function PreAlertsAdmin() {
     const [debitMonto, setDebitMonto] = useState('');
     const [debitDescripcion, setDebitDescripcion] = useState('');
     const [debitSaving, setDebitSaving] = useState(false);
+
+    // --- INSURANCE PAYMENT modal state ---
+    const [paymentPrealerta, setPaymentPrealerta] = useState<any | null>(null);
+    const [pagoMetodo, setPagoMetodo] = useState('transferencia');
+    const [pagoReferencia, setPagoReferencia] = useState('');
+    const [pagoFecha, setPagoFecha] = useState(new Date().toISOString().split('T')[0]);
+    const [pagoMonto, setPagoMonto] = useState('');
+    const [pagoNotas, setPagoNotas] = useState('');
+    const [guardandoPago, setGuardandoPago] = useState(false);
+
+    const openPaymentModal = (p: any) => {
+        setPaymentPrealerta(p);
+        setPagoMetodo('transferencia');
+        setPagoReferencia('');
+        setPagoFecha(new Date().toISOString().split('T')[0]);
+        setPagoMonto(String(p.monto_seguro || (p.valor_factura * 0.05).toFixed(2)));
+        setPagoNotas('');
+    };
 
     const openEdit = (p: any) => {
         setEditPrealerta(p);
@@ -115,6 +133,13 @@ export function PreAlertsAdmin() {
                     ),
                     bodegas (
                         nombre
+                    ),
+                    fondo_seguros (
+                        id,
+                        monto_ingreso,
+                        metodo_pago,
+                        referencia,
+                        created_at
                     )
                 `)
                 .gte('created_at', start.toISOString())
@@ -134,17 +159,24 @@ export function PreAlertsAdmin() {
                 return;
             }
 
-            const dataToExport = data.map(p => ({
-                Fecha: format(new Date(p.created_at), "dd/MM/yyyy HH:mm"),
-                Casillero: p.clientes?.locker_id || '',
-                Cliente: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`,
-                Tracking: p.tracking,
-                Bodega: p.bodegas?.nombre || 'N/A',
-                Valor: p.valor_factura || 0,
-                Seguro: p.con_seguro ? 'Sí' : 'No',
-                'Monto Seguro': p.monto_seguro || 0,
-                Estado: p.estado
-            }));
+            const dataToExport = data.map(p => {
+                const pago = p.fondo_seguros && p.fondo_seguros.length > 0 ? p.fondo_seguros[0] : null;
+                const estadoPago = !p.con_seguro ? 'No Aplica' : (pago ? 'PAGADO' : 'PENDIENTE DE PAGO');
+                return {
+                    Fecha: format(new Date(p.created_at), "dd/MM/yyyy HH:mm"),
+                    Casillero: p.clientes?.locker_id || '',
+                    Cliente: `${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`,
+                    Tracking: p.tracking,
+                    Bodega: p.bodegas?.nombre || 'N/A',
+                    'Valor Declarado ($)': p.valor_factura || 0,
+                    'Seguro Solicitado': p.con_seguro ? 'Sí' : 'No',
+                    'Monto Seguro ($)': p.monto_seguro || 0,
+                    'Estado Pago Seguro': estadoPago,
+                    'Método Pago Seguro': pago?.metodo_pago || 'N/A',
+                    'Referencia Pago': pago?.referencia || (p.con_seguro && !pago ? 'Debe Seguro' : 'N/A'),
+                    'Estado Operativo': p.estado
+                };
+            });
 
             const worksheet = XLSX.utils.json_to_sheet(dataToExport);
             const workbook = XLSX.utils.book_new();
@@ -180,6 +212,15 @@ export function PreAlertsAdmin() {
           ),
           bodegas (
             nombre
+          ),
+          fondo_seguros (
+            id,
+            monto_ingreso,
+            metodo_pago,
+            referencia,
+            created_at,
+            fecha_ingreso,
+            verificado_por
           )
         `)
                 .order('created_at', { ascending: false });
@@ -214,30 +255,10 @@ export function PreAlertsAdmin() {
         }
     };
 
+    // Cambio de estado operativo independiente (NO cobra seguro automáticamente)
     const handleProcesar = async (prealerta: any, estadoDestino: string) => {
         try {
             setProcesando(true);
-
-            if (estadoDestino === 'procesada' && prealerta.con_seguro) {
-                const { data: existing } = await supabase
-                    .from('fondo_seguros')
-                    .select('id')
-                    .eq('prealerta_id', prealerta.id)
-                    .maybeSingle();
-
-                if (!existing) {
-                    const { error: insError } = await supabase
-                        .from('fondo_seguros')
-                        .insert({
-                            prealerta_id: prealerta.id,
-                            monto_ingreso: prealerta.monto_seguro,
-                            metodo_pago: 'transferencia',
-                            referencia: 'Aprobación manual de Admin',
-                            verificado_por: user?.id === 'admin-001' ? null : user?.id
-                        });
-                    if (insError) throw insError;
-                }
-            }
 
             const { error: updError } = await supabase
                 .from('prealertas')
@@ -246,33 +267,103 @@ export function PreAlertsAdmin() {
 
             if (updError) throw updError;
 
-            // Try to generate receipt but don't block success if PDF fails
-            if (estadoDestino === 'procesada' && prealerta.con_seguro) {
-                try {
-                    generateInsuranceReceipt(prealerta);
-                } catch (pdfErr) {
-                    console.error('Error generating insurance PDF receipt:', pdfErr);
-                    // Just log, don't throw
-                }
-            }
-
             setSelectedPrealerta(null);
             fetchData();
 
         } catch (err: any) {
-            console.error('Error procesando:', err);
+            console.error('Error procesando estado operativo:', err);
             alert('Error al procesar: ' + (err.message || err.details || JSON.stringify(err)));
         } finally {
             setProcesando(false);
         }
     };
 
-    const generateInsuranceReceipt = (prealerta: any) => {
+    // Registrar cobro real de seguro
+    const handleGuardarPagoSeguro = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!paymentPrealerta) return;
+        const montoNum = parseFloat(pagoMonto);
+        if (isNaN(montoNum) || montoNum <= 0) {
+            alert('Ingresa un monto válido mayor a 0.');
+            return;
+        }
+        if (!pagoReferencia.trim()) {
+            alert('Ingresa el número de referencia o boleta de pago.');
+            return;
+        }
+
+        setGuardandoPago(true);
+        try {
+            const fechaISO = pagoFecha ? new Date(pagoFecha + 'T12:00:00').toISOString() : new Date().toISOString();
+            const { data: newPago, error: pagoErr } = await supabase
+                .from('fondo_seguros')
+                .insert({
+                    prealerta_id: paymentPrealerta.id,
+                    monto_ingreso: montoNum,
+                    metodo_pago: pagoMetodo,
+                    referencia: pagoReferencia.trim(),
+                    fecha_ingreso: fechaISO,
+                    verificado_por: user?.id === 'admin-001' ? null : user?.id
+                })
+                .select()
+                .single();
+
+            if (pagoErr) throw pagoErr;
+
+            // Generar recibo oficial con los datos del pago
+            try {
+                generateInsuranceReceipt(paymentPrealerta, {
+                    metodo: pagoMetodo,
+                    referencia: pagoReferencia.trim(),
+                    fecha: fechaISO,
+                    monto: montoNum
+                });
+            } catch (pErr) {
+                console.error("Error generando PDF de recibo:", pErr);
+            }
+
+            setPaymentPrealerta(null);
+            if (selectedPrealerta && selectedPrealerta.id === paymentPrealerta.id) {
+                setSelectedPrealerta(null);
+            }
+            fetchData();
+        } catch (err: any) {
+            console.error('Error registrando pago de seguro:', err);
+            alert('Error al registrar pago de seguro: ' + err.message);
+        } finally {
+            setGuardandoPago(false);
+        }
+    };
+
+    // Anular pago de seguro en caso de error
+    const handleAnularPagoSeguro = async (prealerta: any, fondoId: string) => {
+        if (!window.confirm(`¿Estás seguro de anular el pago de seguro para el tracking ${prealerta.tracking}? Esta acción revertirá el fondo y marcará el seguro como pendiente de cobro.`)) {
+            return;
+        }
+        try {
+            setProcesando(true);
+            const { error: delErr } = await supabase
+                .from('fondo_seguros')
+                .delete()
+                .eq('id', fondoId);
+
+            if (delErr) throw delErr;
+
+            if (selectedPrealerta && selectedPrealerta.id === prealerta.id) {
+                setSelectedPrealerta(null);
+            }
+            fetchData();
+        } catch (err: any) {
+            console.error('Error anulando pago:', err);
+            alert('Error al anular pago: ' + err.message);
+        } finally {
+            setProcesando(false);
+        }
+    };
+
+    const generateInsuranceReceipt = (prealerta: any, pagoDetails?: any) => {
         const doc = new jsPDF({ unit: 'mm', format: 'a5' });
         const W = doc.internal.pageSize.getWidth();
-        const grayLight = '#f1f5f9';
-        const blue = '#1e40af';
-        const teal = '#0f766e';
 
         // ── Background header band ──────────────────────────
         doc.setFillColor(30, 64, 175); // blue-800
@@ -297,7 +388,8 @@ export function PreAlertsAdmin() {
         doc.text('PÓLIZA ACTIVA — SEGURO CUBIERTO', W / 2, 54, { align: 'center' });
         doc.setTextColor(30, 64, 175);
         doc.setFontSize(22);
-        doc.text(`$${Number(prealerta.monto_seguro).toFixed(2)}`, W / 2, 66, { align: 'center' });
+        const montoFinal = pagoDetails?.monto || prealerta.monto_seguro || (prealerta.valor_factura * 0.05);
+        doc.text(`$${Number(montoFinal).toFixed(2)}`, W / 2, 66, { align: 'center' });
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
         doc.text('Prima de seguro pagada (USD)', W / 2, 72, { align: 'center' });
@@ -307,9 +399,11 @@ export function PreAlertsAdmin() {
             ['Tracking', prealerta.tracking],
             ['Cliente', `${prealerta.clientes?.locker_id || ''} – ${prealerta.clientes?.nombre || ''} ${prealerta.clientes?.apellido || ''}`],
             ['Bodega', prealerta.bodegas?.nombre || 'N/A'],
-            ['Valor Declarado', `$${Number(prealerta.valor_factura).toFixed(2)}`],
-            ['Cobertura Máxima', `$${Number(prealerta.valor_factura).toFixed(2)}`],
-            ['Fecha de Validación', format(new Date(), "d 'de' MMMM yyyy, HH:mm", { locale: es })],
+            ['Valor Declarado', `$${Number(prealerta.valor_factura).toFixed(2)} USD`],
+            ['Cobertura Máxima', `$${Number(prealerta.valor_factura).toFixed(2)} USD`],
+            ['Método de Pago', (pagoDetails?.metodo_pago || pagoDetails?.metodo || 'Transferencia').toUpperCase()],
+            ['Referencia / Boleta', pagoDetails?.referencia || 'Pago verificado'],
+            ['Fecha de Pago', pagoDetails?.created_at || pagoDetails?.fecha ? format(new Date(pagoDetails?.fecha || pagoDetails?.created_at), "d 'de' MMMM yyyy, HH:mm", { locale: es }) : format(new Date(), "d 'de' MMMM yyyy, HH:mm", { locale: es })],
             ['Aprobado por', user?.nombre || 'Admin'],
         ];
 
@@ -326,7 +420,7 @@ export function PreAlertsAdmin() {
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(15, 23, 42);
             doc.text(String(value), 60, y);
-            y += 9;
+            y += 8;
         });
 
         // ── Footer ──────────────────────────────────────────
@@ -461,16 +555,24 @@ export function PreAlertsAdmin() {
         }
     };
 
+    // Cálculos de deuda y seguros
+    const segurosPorCobrar = prealertas.filter(p => p.con_seguro === true && (!p.fondo_seguros || p.fondo_seguros.length === 0));
+    const totalDeudaSeguros = segurosPorCobrar.reduce((acc, p) => acc + Number(p.monto_seguro || 0), 0);
+    const segurosPagados = prealertas.filter(p => p.con_seguro === true && p.fondo_seguros && p.fondo_seguros.length > 0);
+
     const filteredData = prealertas.filter(p => {
         const matchesSearch = p.tracking.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.clientes?.locker_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             p.clientes?.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
 
+        const hasPago = p.fondo_seguros && p.fondo_seguros.length > 0;
+
         let matchesFilter = true;
         if (filterMode === 'procesadas') matchesFilter = p.estado === 'procesada';
         else if (filterMode === 'recibidas') matchesFilter = p.estado === 'recibido';
-        else if (filterMode === 'seguro') matchesFilter = p.con_seguro === true;
-        else if (filterMode === 'seguros confirmados') matchesFilter = p.con_seguro === true && (p.estado === 'procesada' || p.estado === 'recibido');
+        else if (filterMode === 'por cobrar seguro') matchesFilter = p.con_seguro === true && !hasPago;
+        else if (filterMode === 'seguros pagados') matchesFilter = p.con_seguro === true && hasPago;
+        else if (filterMode === 'con seguro') matchesFilter = p.con_seguro === true;
         else if (filterMode === 'greensboro') matchesFilter = p.estado === 'pendiente' && p.bodegas?.nombre?.toLowerCase().includes('greensboro');
         else if (filterMode === 'tapachula') matchesFilter = p.estado === 'pendiente' && p.bodegas?.nombre?.toLowerCase().includes('tapachula');
         else if (filterMode === 'laredo') matchesFilter = p.estado === 'pendiente' && p.bodegas?.nombre?.toLowerCase().includes('laredo');
@@ -483,7 +585,7 @@ export function PreAlertsAdmin() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-800">Control de Pre-Alertas</h1>
-                    <p className="text-sm text-slate-500 mt-1">Valida prealertas y administra el Fondo Fijo de Seguros.</p>
+                    <p className="text-sm text-slate-500 mt-1">Valida prealertas operativamente y gestiona el cobro del Fondo Fijo de Seguros.</p>
                 </div>
                 {/* CTA buttons */}
                 <div className="flex items-center gap-2">
@@ -506,42 +608,68 @@ export function PreAlertsAdmin() {
 
             {/* Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* 1. Operativas Pendientes */}
                 <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex justify-between items-start mb-2">
                         <div>
-                            <p className="text-sm font-medium text-slate-500">Total Pre-Alertas Pendientes</p>
+                            <p className="text-sm font-medium text-slate-500">Pre-Alertas Pendientes</p>
                             <h3 className="text-3xl font-bold text-slate-800 mt-1">
                                 {prealertas.filter(p => p.estado === 'pendiente').length}
                             </h3>
                         </div>
-                        <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
+                        <div className="h-11 w-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
                             <Clock className="w-5 h-5" />
                         </div>
                     </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                        Pendientes de validación y recepción física.
+                    </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-blue-700 to-indigo-800 rounded-2xl p-6 shadow-md relative overflow-hidden text-white sm:col-span-2 lg:col-span-2">
+                {/* 2. Seguros Por Cobrar (Deuda) */}
+                <div className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-2xl p-6 border border-rose-200 shadow-sm relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-2">
+                        <div>
+                            <p className="text-sm font-bold text-rose-700 flex items-center gap-1.5">
+                                <AlertCircle className="w-4 h-4 text-rose-600" />
+                                Seguros Por Cobrar (Deuda)
+                            </p>
+                            <h3 className="text-3xl font-extrabold text-rose-900 mt-1">
+                                $ {totalDeudaSeguros.toFixed(2)} USD
+                            </h3>
+                        </div>
+                        <div className="h-11 w-11 rounded-xl bg-rose-100 flex items-center justify-center text-rose-700 font-bold">
+                            <DollarSign className="w-5 h-5" />
+                        </div>
+                    </div>
+                    <p className="text-xs text-rose-600/90 font-medium mt-1">
+                        <b>{segurosPorCobrar.length}</b> paquete{segurosPorCobrar.length === 1 ? '' : 's'} con seguro pendiente de pago.
+                    </p>
+                </div>
+
+                {/* 3. Fondo Fijo Cobrado */}
+                <div className="bg-gradient-to-br from-emerald-700 to-teal-800 rounded-2xl p-6 shadow-md relative overflow-hidden text-white">
                     <div className="absolute -right-6 -top-6 h-32 w-32 bg-white opacity-10 rounded-full blur-2xl"></div>
                     <div className="flex justify-between items-start mb-2 relative z-10">
                         <div>
-                            <p className="text-sm font-medium text-blue-100 flex items-center gap-2">
-                                <Shield className="w-4 h-4" />
-                                Fondo Fijo de Seguro (Ingresos Acumulados)
+                            <p className="text-sm font-medium text-emerald-100 flex items-center gap-2">
+                                <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                                Fondo Fijo Recaudado (Cobrado)
                             </p>
-                            <h3 className="text-4xl font-bold mt-2">
-                                $&nbsp;{fondoTotal.toFixed(2)}
+                            <h3 className="text-3xl font-bold mt-1">
+                                $ {fondoTotal.toFixed(2)} USD
                             </h3>
                         </div>
                         <button 
                             onClick={() => setShowDebitModal(true)}
-                            className="h-12 w-12 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white backdrop-blur-sm cursor-pointer"
+                            className="h-11 w-11 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center text-white backdrop-blur-sm cursor-pointer"
                             title="Debitar fondo por paquete extraviado"
                         >
-                            <HandCoins className="w-6 h-6" />
+                            <HandCoins className="w-5 h-5" />
                         </button>
                     </div>
-                    <p className="text-xs text-blue-200 mt-2 relative z-10 opacity-80">
-                        Monto de protección recaudado (5% de cada paquete asegurado validado).
+                    <p className="text-xs text-emerald-200/90 mt-1 relative z-10">
+                        <b>{segurosPagados.length}</b> seguro{segurosPagados.length === 1 ? '' : 's'} verificado{segurosPagados.length === 1 ? '' : 's'} y depositado{segurosPagados.length === 1 ? '' : 's'} en el fondo.
                     </p>
                 </div>
             </div>
@@ -550,13 +678,18 @@ export function PreAlertsAdmin() {
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                     <div className="flex bg-slate-100 p-1 rounded-xl w-full lg:w-auto overflow-x-auto hide-scrollbar">
-                        {['Todas', 'Procesadas', 'Recibidas', 'Seguro', 'Seguros Confirmados', 'Greensboro', 'Tapachula', 'Laredo'].map(f => (
+                        {['Todas', 'Por Cobrar Seguro', 'Seguros Pagados', 'Con Seguro', 'Procesadas', 'Recibidas', 'Greensboro', 'Tapachula', 'Laredo'].map(f => (
                             <button
                                 key={f}
                                 onClick={() => setFilterMode(f.toLowerCase())}
                                 className={`px-4 py-1.5 text-sm font-bold rounded-lg whitespace-nowrap transition-all ${filterMode === f.toLowerCase() ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {f}
+                                {f === 'Por Cobrar Seguro' && segurosPorCobrar.length > 0 && (
+                                    <span className="ml-1.5 px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold">
+                                        {segurosPorCobrar.length}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -580,160 +713,404 @@ export function PreAlertsAdmin() {
                                 <th className="p-4">Cliente</th>
                                 <th className="p-4">Tracking & Bodega</th>
                                 <th className="p-4">Valor Eq.</th>
-                                <th className="p-4">Seguro</th>
+                                <th className="p-4">Seguro & Estado Pago</th>
                                 <th className="p-4 text-center">Factura</th>
                                 <th className="p-4 text-center">Renuncia</th>
-                                <th className="p-4">Estado</th>
+                                <th className="p-4">Estado Operativo</th>
                                 <th className="p-4">Acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
-                                <tr><td colSpan={8} className="p-8 text-center text-slate-400"><Clock className="w-6 h-6 animate-spin mx-auto mb-2" /> Cargando...</td></tr>
+                                <tr><td colSpan={9} className="p-8 text-center text-slate-400"><Clock className="w-6 h-6 animate-spin mx-auto mb-2" /> Cargando...</td></tr>
                             ) : filteredData.length === 0 ? (
-                                <tr><td colSpan={8} className="p-8 text-center text-slate-500 font-medium">No hay prealertas coincidiendo.</td></tr>
+                                <tr><td colSpan={9} className="p-8 text-center text-slate-500 font-medium">No hay prealertas coincidiendo.</td></tr>
                             ) : (
-                                filteredData.map((p) => (
-                                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="p-4 text-sm text-slate-600">
-                                            {format(new Date(p.created_at), "d MMM, yyyy - HH:mm", { locale: es })}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="font-semibold text-slate-800">{p.clientes?.locker_id}</div>
-                                            <div className="text-xs text-slate-500">{p.clientes?.nombre} {p.clientes?.apellido}</div>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs select-all inline-block mb-1 border border-slate-200">{p.tracking}</div>
-                                            <div className="text-xs text-slate-500 flex items-center gap-1">
-                                                <MapPin className="w-3 h-3" /> {p.bodegas?.nombre || 'N/A'}
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <span className="font-semibold text-slate-800">${Number(p.valor_factura).toFixed(2)}</span>
-                                        </td>
-                                        <td className="p-4">
-                                            {p.con_seguro ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
-                                                    <Shield className="w-3 h-3" />
-                                                    Sí (+${Number(p.monto_seguro).toFixed(2)})
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                                    No
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <a href={p.factura_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors" title="Ver archivo">
-                                                <FileText className="w-4 h-4" />
-                                            </a>
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            {p.renuncia_url ? (
-                                                <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-colors" title="Ver renuncia firmada">
-                                                    <Shield className="w-4 h-4 text-rose-500" />
+                                filteredData.map((p) => {
+                                    const isPagado = p.con_seguro && p.fondo_seguros && p.fondo_seguros.length > 0;
+                                    const pagoDetails = isPagado ? p.fondo_seguros[0] : null;
+
+                                    return (
+                                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="p-4 text-sm text-slate-600">
+                                                {format(new Date(p.created_at), "d MMM, yyyy - HH:mm", { locale: es })}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-semibold text-slate-800">{p.clientes?.locker_id}</div>
+                                                <div className="text-xs text-slate-500">{p.clientes?.nombre} {p.clientes?.apellido}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs select-all inline-block mb-1 border border-slate-200">{p.tracking}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-1">
+                                                    <MapPin className="w-3 h-3" /> {p.bodegas?.nombre || 'N/A'}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className="font-semibold text-slate-800">${Number(p.valor_factura).toFixed(2)}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                {p.con_seguro ? (
+                                                    isPagado ? (
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm" title={`Pagado vía ${pagoDetails?.metodo_pago}`}>
+                                                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                                                Pagado (${Number(p.monto_seguro).toFixed(2)})
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                                Ref: {pagoDetails?.referencia || pagoDetails?.metodo_pago}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
+                                                                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                                                Debe ${Number(p.monto_seguro).toFixed(2)}
+                                                            </span>
+                                                            <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider">
+                                                                Pendiente de Cobro
+                                                            </span>
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                                        No (Renuncia)
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <a href={p.factura_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors" title="Ver factura de compra">
+                                                    <FileText className="w-4 h-4" />
                                                 </a>
-                                            ) : (
-                                                <span className="text-slate-300">-</span>
-                                            )}
-                                        </td>
-                                        <td className="p-4">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize border ${p.estado === 'pendiente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                                p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                    p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                                        'bg-rose-50 text-rose-700 border-rose-200'
-                                                }`}>
-                                                {p.estado}
-                                            </span>
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => setSelectedPrealerta(p)}
-                                                    className="text-sm font-medium text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2"
-                                                >
-                                                    Administrar
-                                                </button>
-                                                <button
-                                                    onClick={() => openEdit(p)}
-                                                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition-colors"
-                                                    title="Editar pre-alerta"
-                                                >
-                                                    <Pencil className="w-3 h-3" />
-                                                    Editar
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                {p.renuncia_url ? (
+                                                    <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-colors" title="Ver renuncia firmada">
+                                                        <Shield className="w-4 h-4 text-rose-500" />
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize border ${p.estado === 'pendiente' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                    p.estado === 'procesada' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                        p.estado === 'recibido' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                                            'bg-rose-50 text-rose-700 border-rose-200'
+                                                    }`}>
+                                                    {p.estado}
+                                                </span>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    {/* Botón rápido para cobrar seguro si debe */}
+                                                    {p.con_seguro && !isPagado && (
+                                                        <button
+                                                            onClick={() => openPaymentModal(p)}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+                                                            title="Registrar pago del seguro"
+                                                        >
+                                                            <DollarSign className="w-3.5 h-3.5" />
+                                                            Cobrar
+                                                        </button>
+                                                    )}
+
+                                                    {/* Botón para descargar recibo si ya está pagado */}
+                                                    {p.con_seguro && isPagado && (
+                                                        <button
+                                                            onClick={() => generateInsuranceReceipt(p, pagoDetails)}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-medium transition-all shadow-sm"
+                                                            title="Descargar comprobante de seguro PDF"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5 text-blue-600" />
+                                                            Recibo
+                                                        </button>
+                                                    )}
+
+                                                    <button
+                                                        onClick={() => setSelectedPrealerta(p)}
+                                                        className="text-sm font-medium text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2"
+                                                    >
+                                                        Administrar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openEdit(p)}
+                                                        className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-amber-600 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition-colors"
+                                                        title="Editar pre-alerta"
+                                                    >
+                                                        <Pencil className="w-3 h-3" />
+                                                        Editar
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Admin Validation Modal */}
+            {/* Admin Validation Modal (SEPARADO: Operativo vs Cobro de Seguro) */}
             {
-                selectedPrealerta && (
+                selectedPrealerta && (() => {
+                    const isPagado = selectedPrealerta.con_seguro && selectedPrealerta.fondo_seguros && selectedPrealerta.fondo_seguros.length > 0;
+                    const pagoDetails = isPagado ? selectedPrealerta.fondo_seguros[0] : null;
+
+                    return (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPrealerta(null)} />
+                            <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
+                                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">Administrar Pre-Alerta</h3>
+                                        <p className="text-xs text-slate-500">Gestión de estado y póliza de seguro</p>
+                                    </div>
+                                    <button onClick={() => setSelectedPrealerta(null)} className="text-slate-400 hover:text-slate-600">
+                                        <XCircle className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <div className="p-6 space-y-5 overflow-y-auto">
+                                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
+                                        <p className="text-xs text-slate-500 uppercase font-semibold">Tracking & Cliente</p>
+                                        <p className="font-mono font-bold text-slate-800 break-all">{selectedPrealerta.tracking}</p>
+                                        <p className="text-xs text-slate-600 font-medium">
+                                            {selectedPrealerta.clientes?.locker_id} — {selectedPrealerta.clientes?.nombre} {selectedPrealerta.clientes?.apellido}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            Bodega: <b>{selectedPrealerta.bodegas?.nombre || 'N/A'}</b> | Declarado: <b>${Number(selectedPrealerta.valor_factura).toFixed(2)} USD</b>
+                                        </p>
+                                    </div>
+
+                                    {/* ── SECCIÓN 1: ESTADO FINANCIERO DEL SEGURO ── */}
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">1. Póliza y Cobro del Seguro</p>
+                                        {selectedPrealerta.con_seguro ? (
+                                            isPagado ? (
+                                                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-bold text-emerald-900 flex items-center gap-1.5 text-sm">
+                                                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                                                            Seguro Pagado y Verificado
+                                                        </p>
+                                                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800">
+                                                            ${Number(selectedPrealerta.monto_seguro).toFixed(2)} USD
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs text-emerald-800 space-y-0.5 bg-white/60 p-2.5 rounded-lg border border-emerald-100 font-mono">
+                                                        <p><b>Método:</b> {pagoDetails.metodo_pago}</p>
+                                                        <p><b>Referencia:</b> {pagoDetails.referencia || 'N/A'}</p>
+                                                        <p><b>Fecha:</b> {format(new Date(pagoDetails.fecha_ingreso || pagoDetails.created_at), "dd/MM/yyyy HH:mm")}</p>
+                                                    </div>
+                                                    <div className="pt-2 flex gap-2">
+                                                        <button
+                                                            onClick={() => generateInsuranceReceipt(selectedPrealerta, pagoDetails)}
+                                                            className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" /> Descargar Recibo
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleAnularPagoSeguro(selectedPrealerta, pagoDetails.id)}
+                                                            disabled={procesando}
+                                                            className="py-2 px-3 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-medium transition-colors"
+                                                            title="Anular pago si hubo un error"
+                                                        >
+                                                            Anular Pago
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="font-bold text-rose-900 flex items-center gap-1.5 text-sm">
+                                                            <AlertCircle className="w-4 h-4 text-rose-600" />
+                                                            Seguro Pendiente de Cobro
+                                                        </p>
+                                                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-rose-200 text-rose-900">
+                                                            Debe ${Number(selectedPrealerta.monto_seguro).toFixed(2)} USD
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-rose-700 leading-relaxed">
+                                                        El cliente solicitó seguro de paquete, pero <b>aún no ha sido cobrado ni verificado</b> en la cuenta bancaria.
+                                                    </p>
+                                                    <button
+                                                        onClick={() => openPaymentModal(selectedPrealerta)}
+                                                        className="w-full mt-2 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-98"
+                                                    >
+                                                        <DollarSign className="w-4 h-4" /> Registrar Pago del Seguro
+                                                    </button>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs text-slate-500">
+                                                Esta pre-alerta no tiene seguro contratado (renuncia legal firmada).
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* ── SECCIÓN 2: ESTADO OPERATIVO (INDEPENDIENTE) ── */}
+                                    <div className="space-y-3 pt-3 border-t border-slate-100">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">2. Estado Operativo</p>
+                                            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded uppercase">
+                                                Actual: {selectedPrealerta.estado}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={() => handleProcesar(selectedPrealerta, 'procesada')}
+                                                disabled={procesando}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" /> Validar / Procesar
+                                            </button>
+                                            <button
+                                                onClick={() => handleProcesar(selectedPrealerta, 'recibido')}
+                                                disabled={procesando}
+                                                className="bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
+                                            >
+                                                Marcar Recibido
+                                            </button>
+                                            <button
+                                                onClick={() => handleProcesar(selectedPrealerta, 'rechazada')}
+                                                disabled={procesando}
+                                                className="col-span-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 focus:ring-4 focus:ring-rose-50 p-2 text-sm rounded-xl font-medium transition-all"
+                                            >
+                                                Rechazar Pre-Alerta
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 text-center">
+                                            ℹ️ Cambiar el estado operativo NO altera el pago del seguro. Ambos procesos están totalmente separados.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()
+            }
+
+            {/* ── MODAL DEDICADO: REGISTRAR PAGO DE SEGURO ── */}
+            {
+                paymentPrealerta && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedPrealerta(null)} />
-                        <div className="relative bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95">
-                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                                <h3 className="font-bold text-slate-800">Administrar Pre-Alerta</h3>
-                                <button onClick={() => setSelectedPrealerta(null)} className="text-slate-400 hover:text-slate-600">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !guardandoPago && setPaymentPrealerta(null)} />
+                        <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-emerald-600 to-teal-700 text-white">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                                        <DollarSign className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-base">Registrar Pago de Seguro</h3>
+                                        <p className="text-xs text-emerald-100">Fondo Fijo de Protección</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => !guardandoPago && setPaymentPrealerta(null)} className="text-emerald-100 hover:text-white">
                                     <XCircle className="w-5 h-5" />
                                 </button>
                             </div>
-                            <div className="p-6 space-y-4">
-                                <div className="space-y-1">
-                                    <p className="text-xs text-slate-500 uppercase font-semibold">Tracking</p>
-                                    <p className="font-bold text-slate-800 break-all">{selectedPrealerta.tracking}</p>
+
+                            <form onSubmit={handleGuardarPagoSeguro} className="p-6 space-y-4">
+                                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-500">Tracking:</span>
+                                        <span className="font-mono font-bold text-slate-800">{paymentPrealerta.tracking}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-500">Cliente:</span>
+                                        <span className="font-bold text-slate-800">{paymentPrealerta.clientes?.locker_id} – {paymentPrealerta.clientes?.nombre} {paymentPrealerta.clientes?.apellido}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs">
+                                        <span className="text-slate-500">Valor Declarado:</span>
+                                        <span className="font-semibold text-slate-700">${Number(paymentPrealerta.valor_factura).toFixed(2)} USD</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
+                                        <span className="font-bold text-slate-700">Prima Seguro (5%):</span>
+                                        <span className="font-extrabold text-emerald-600 text-base">${Number(paymentPrealerta.monto_seguro).toFixed(2)} USD</span>
+                                    </div>
                                 </div>
 
-                                {selectedPrealerta.con_seguro && (
-                                    <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl space-y-2">
-                                        <p className="font-semibold text-blue-900 flex items-center gap-2">
-                                            <Shield className="w-4 h-4" />
-                                            Seguro Solicitado
-                                        </p>
-                                        <p className="text-sm text-blue-800 leading-relaxed">
-                                            El cliente debe haber enviado un comprobante por <b>${Number(selectedPrealerta.monto_seguro).toFixed(2)}</b> (5% de ${selectedPrealerta.valor_factura}) a tu WhatsApp. Revisa el banco.
-                                        </p>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Monto Cobrado (USD) *</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            required
+                                            value={pagoMonto}
+                                            onChange={(e) => setPagoMonto(e.target.value)}
+                                            className="w-full rounded-xl border-slate-300 pl-7 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm font-bold text-emerald-700"
+                                        />
                                     </div>
-                                )}
-
-                                <div className="space-y-3 pt-2">
-                                    <label className="text-sm font-medium text-slate-700">Cambiar Estado:</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <button
-                                            onClick={() => handleProcesar(selectedPrealerta, 'procesada')}
-                                            disabled={procesando}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                                        >
-                                            <CheckCircle2 className="w-4 h-4" /> Validar/Procesar
-                                        </button>
-                                        <button
-                                            onClick={() => handleProcesar(selectedPrealerta, 'recibido')}
-                                            disabled={procesando}
-                                            className="bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-xl font-medium text-sm transition-colors disabled:opacity-50"
-                                        >
-                                            Marcar Recibido
-                                        </button>
-                                        <button
-                                            onClick={() => handleProcesar(selectedPrealerta, 'rechazada')}
-                                            disabled={procesando}
-                                            className="col-span-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 focus:ring-4 focus:ring-rose-50 p-2 text-sm rounded-xl font-medium transition-all"
-                                        >
-                                            Rechazar Pre-Alerta
-                                        </button>
-                                    </div>
-                                    {selectedPrealerta.con_seguro && selectedPrealerta.estado !== 'procesada' && (
-                                        <p className="text-[10px] text-slate-400 text-center mt-2">
-                                            Al "Validar/Procesar", el monto del seguro se agregará automáticamente al Fondo Fijo.
-                                        </p>
-                                    )}
                                 </div>
-                            </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Método de Pago *</label>
+                                    <select
+                                        value={pagoMetodo}
+                                        onChange={(e) => setPagoMetodo(e.target.value)}
+                                        className="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm font-medium py-2 px-3"
+                                    >
+                                        <option value="transferencia">Transferencia Bancaria</option>
+                                        <option value="deposito">Depósito Bancario</option>
+                                        <option value="efectivo">Efectivo</option>
+                                        <option value="tarjeta">Link de Pago / Tarjeta</option>
+                                        <option value="saldo_socio">Saldo Socio YouBox</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">No. de Boleta / Referencia Bancaria *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej. Transf. Banrural #894523"
+                                        value={pagoReferencia}
+                                        onChange={(e) => setPagoReferencia(e.target.value)}
+                                        className="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm py-2 px-3"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fecha del Pago</label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={pagoFecha}
+                                        onChange={(e) => setPagoFecha(e.target.value)}
+                                        className="w-full rounded-xl border-slate-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm py-2 px-3"
+                                    />
+                                </div>
+
+                                <div className="pt-2 flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaymentPrealerta(null)}
+                                        disabled={guardandoPago}
+                                        className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={guardandoPago}
+                                        className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50"
+                                    >
+                                        {guardandoPago ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" /> Registrando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle2 className="w-4 h-4" /> Confirmar Cobro
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )
