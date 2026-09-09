@@ -36,12 +36,12 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
 
         // Datos de la empresa
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
+        doc.setFontSize(13);
         doc.setTextColor(...colorDarkNavy);
         doc.text('YOUBOX GT', 54, 15);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(7.2);
         doc.setTextColor(...colorMuted);
         doc.text('13 AVENIDA 4-60 ZONA 3 LOCAL 106 PLAZA MONTERREY', 54, 20);
         doc.text('Quetzaltenango, Guatemala, 09001', 54, 24);
@@ -60,24 +60,24 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         doc.roundedRect(boxX, boxY, boxW, boxH, 3, 3, 'F');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
+        doc.setFontSize(7.5);
         doc.setTextColor(255, 255, 255);
         doc.text('COMPROBANTE DE ORDEN', boxX + boxW / 2, boxY + 7, { align: 'center' });
 
-        doc.setFontSize(13);
+        doc.setFontSize(11.5);
         doc.text(orden.numero_orden, boxX + boxW / 2, boxY + 14, { align: 'center' });
 
         // Badge de modalidad (Pre-orden 100% vs Orden 50%)
         if (isPreorden) {
             doc.setFillColor(...colorOrange);
             doc.roundedRect(boxX + 4, boxY + 18, boxW - 8, 5.5, 1.5, 1.5, 'F');
-            doc.setFontSize(7.5);
+            doc.setFontSize(7);
             doc.setTextColor(255, 255, 255);
             doc.text('PRE-ORDEN (100% ANTICIPO)', boxX + boxW / 2, boxY + 22, { align: 'center' });
         } else {
             doc.setFillColor(37, 99, 235); // Blue 600
             doc.roundedRect(boxX + 4, boxY + 18, boxW - 8, 5.5, 1.5, 1.5, 'F');
-            doc.setFontSize(7.5);
+            doc.setFontSize(7);
             doc.setTextColor(255, 255, 255);
             doc.text('ORDEN (50% ANTICIPO)', boxX + boxW / 2, boxY + 22, { align: 'center' });
         }
@@ -91,16 +91,16 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         doc.roundedRect(12, currentY, 110, 26, 2.5, 2.5, 'FD');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(...colorNavy);
         doc.text('DATOS DEL CLIENTE', 16, currentY + 5.5);
 
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setTextColor(...colorTextDark);
         doc.text(orden.cliente_nombre || 'Cliente Final', 16, currentY + 11.5);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(7);
         doc.setTextColor(...colorMuted);
         const contactInfo = [
             orden.locker_id ? `Casillero: ${orden.locker_id}` : null,
@@ -108,17 +108,18 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
             orden.cliente_email ? `Email: ${orden.cliente_email}` : null
         ].filter(Boolean).join('  •  ');
         doc.text(contactInfo || 'Sin información adicional de contacto', 16, currentY + 17);
+        doc.setFontSize(6.5);
         doc.text('Gestión para importación directa', 16, currentY + 22);
 
         // Tarjeta Fecha y Estado
         doc.roundedRect(128, currentY, W - 140, 26, 2.5, 2.5, 'FD');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setTextColor(...colorNavy);
         doc.text('FECHA Y ESTADO', 132, currentY + 5.5);
 
-        doc.setFontSize(9);
+        doc.setFontSize(8);
         doc.setTextColor(...colorTextDark);
         const fechaFormateada = orden.created_at
             ? format(new Date(orden.created_at), "dd 'de' MMMM, yyyy", { locale: es })
@@ -126,7 +127,7 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         doc.text(fechaFormateada, 132, currentY + 12);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(7);
         doc.setTextColor(...colorMuted);
         const estadoLabels: Record<string, string> = {
             pendiente_compra: 'Pendiente de Compra',
@@ -144,7 +145,7 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         // --- Especificaciones del iPhone ---
         currentY = 75;
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
+        doc.setFontSize(8);
         doc.setTextColor(...colorDarkNavy);
         doc.text('DETALLES DEL DISPOSITIVO SOLICITADO', 12, currentY);
 
@@ -165,16 +166,16 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
                 fillColor: colorDarkNavy,
                 textColor: [255, 255, 255],
                 fontStyle: 'bold',
-                fontSize: 8,
+                fontSize: 7,
                 halign: 'center',
-                cellPadding: 3
+                cellPadding: 2.5
             },
             bodyStyles: {
                 textColor: colorTextDark,
-                fontSize: 8.5,
+                fontSize: 7.5,
                 fontStyle: 'bold',
                 halign: 'center',
-                cellPadding: 4
+                cellPadding: 3
             },
             styles: {
                 lineColor: colorBorder,
@@ -185,7 +186,7 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         // --- Desglose Financiero ---
         currentY = (doc as any).lastAutoTable.finalY + 8;
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
+        doc.setFontSize(8);
         doc.setTextColor(...colorDarkNavy);
         doc.text('DESGLOSE FINANCIERO Y ANTICIPO', 12, currentY);
 
@@ -212,13 +213,13 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
                 fillColor: colorNavy,
                 textColor: [255, 255, 255],
                 fontStyle: 'bold',
-                fontSize: 8,
-                cellPadding: 3
+                fontSize: 7,
+                cellPadding: 2.5
             },
             columnStyles: {
-                0: { cellWidth: 95, fontSize: 8.5 },
-                1: { cellWidth: 45, halign: 'center', fontSize: 8 },
-                2: { halign: 'right', fontStyle: 'bold', fontSize: 9 }
+                0: { cellWidth: 95, fontSize: 7.5 },
+                1: { cellWidth: 45, halign: 'center', fontSize: 7 },
+                2: { halign: 'right', fontStyle: 'bold', fontSize: 7.8 }
             },
             styles: {
                 lineColor: colorBorder,
@@ -227,69 +228,97 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
             }
         });
 
-        // --- Resumen de saldos destacado ---
-        currentY = (doc as any).lastAutoTable.finalY + 6;
-        const totalBoxW = 75;
+        // --- Resumen de saldos destacado y Observaciones ---
+        const summaryY = (doc as any).lastAutoTable.finalY + 5;
+        const totalBoxW = 76;
         const totalBoxX = W - 12 - totalBoxW;
+        const totalBoxH = 22;
 
+        // Tarjeta Resumen Financiero a la derecha
         doc.setFillColor(241, 245, 249);
         doc.setDrawColor(...colorBorder);
-        doc.roundedRect(totalBoxX, currentY, totalBoxW, 24, 2, 2, 'FD');
+        doc.roundedRect(totalBoxX, summaryY, totalBoxW, totalBoxH, 2, 2, 'FD');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
+        doc.setFontSize(7.2);
         doc.setTextColor(...colorMuted);
-        doc.text('TOTAL DE LA COMPRA:', totalBoxX + 4, currentY + 6);
+        doc.text('TOTAL DE LA COMPRA:', totalBoxX + 4, summaryY + 5.5);
         doc.setTextColor(...colorTextDark);
-        doc.text(formatoQ(orden.precio_total), totalBoxX + totalBoxW - 4, currentY + 6, { align: 'right' });
+        doc.text(formatoQ(orden.precio_total), totalBoxX + totalBoxW - 4, summaryY + 5.5, { align: 'right' });
 
         doc.setTextColor(...colorGreen);
-        doc.text('ANTICIPO PAGADO:', totalBoxX + 4, currentY + 12);
-        doc.text(formatoQ(orden.anticipo_pagado), totalBoxX + totalBoxW - 4, currentY + 12, { align: 'right' });
+        doc.text('ANTICIPO PAGADO:', totalBoxX + 4, summaryY + 11);
+        doc.text(formatoQ(orden.anticipo_pagado), totalBoxX + totalBoxW - 4, summaryY + 11, { align: 'right' });
 
         doc.setFillColor(254, 242, 242);
-        doc.rect(totalBoxX + 1, currentY + 15, totalBoxW - 2, 8, 'F');
+        doc.rect(totalBoxX + 1, summaryY + 14, totalBoxW - 2, 7, 'F');
         doc.setTextColor(orden.saldo_pendiente > 0 ? colorOrange[0] : colorGreen[0], orden.saldo_pendiente > 0 ? colorOrange[1] : colorGreen[1], orden.saldo_pendiente > 0 ? colorOrange[2] : colorGreen[2]);
-        doc.setFontSize(9);
-        doc.text('SALDO PENDIENTE:', totalBoxX + 4, currentY + 20.5);
-        doc.text(formatoQ(orden.saldo_pendiente), totalBoxX + totalBoxW - 4, currentY + 20.5, { align: 'right' });
+        doc.setFontSize(7.8);
+        doc.text('SALDO PENDIENTE:', totalBoxX + 4, summaryY + 19);
+        doc.text(formatoQ(orden.saldo_pendiente), totalBoxX + totalBoxW - 4, summaryY + 19, { align: 'right' });
 
-        // --- Notas y Condiciones de Compra ---
-        const notesBoxW = totalBoxX - 16;
+        // Tarjeta Observaciones a la izquierda
+        const obsBoxW = totalBoxX - 16;
         doc.setFillColor(255, 255, 255);
         doc.setDrawColor(...colorBorder);
-        doc.roundedRect(12, currentY, notesBoxW, 36, 2, 2, 'D');
+        doc.roundedRect(12, summaryY, obsBoxW, totalBoxH, 2, 2, 'FD');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(...colorDarkNavy);
-        doc.text('POLÍTICAS DE PRE-ORDEN Y COMPRA iPHONE:', 16, currentY + 5.5);
+        doc.setFontSize(7);
+        doc.setTextColor(...colorNavy);
+        doc.text('OBSERVACIONES / NOTAS DEL PEDIDO:', 16, summaryY + 5.5);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.setTextColor(...colorMuted);
-        doc.text('1. PRE-ORDEN: Requiere el pago del 100% por adelantado para asegurar precio y disponibilidad en USA.', 16, currentY + 10.5);
-        doc.text('2. ORDEN REGULAR: Requiere el 50% de anticipo. El 50% restante se cancela contra entrega en Guatemala.', 16, currentY + 15);
-        doc.text('3. TIEMPO ESTIMADO: 5 a 10 días hábiles a partir de la confirmación de compra y arribo a casillero USA.', 16, currentY + 19.5);
-        doc.text('4. GARANTÍA: Todos los equipos son verificados físicamente y cuentan con garantía de funcionamiento.', 16, currentY + 24);
+        doc.setFontSize(6.5);
+        doc.setTextColor(...colorTextDark);
+        const notasTexto = orden.notas && orden.notas.trim()
+            ? orden.notas.trim()
+            : 'Sin observaciones adicionales. Gestión conforme a las especificaciones solicitadas.';
+        doc.text(notasTexto, 16, summaryY + 10.5, { maxWidth: obsBoxW - 8 });
 
-        if (orden.notas) {
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(...colorTextDark);
-            doc.text(`Observaciones: ${orden.notas.substring(0, 70)}`, 16, currentY + 30);
-        }
+        // --- Políticas de Pre-Orden y Compra iPhone (Ubicadas abajo, ancho completo y letra pequeña) ---
+        const policiesBoxY = Math.max(summaryY + totalBoxH + 14, 185);
+        const policiesBoxW = W - 24;
+        const policiesBoxH = 46;
+
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(...colorBorder);
+        doc.roundedRect(12, policiesBoxY, policiesBoxW, policiesBoxH, 2.5, 2.5, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.8);
+        doc.setTextColor(...colorDarkNavy);
+        doc.text('POLÍTICAS DE PRE-ORDEN, COMPRA Y CONDICIONES DE GARANTÍA — YOUBOX GT:', 16, policiesBoxY + 6);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.0);
+        doc.setTextColor(...colorMuted);
+
+        const politicas = [
+            '1. PRE-ORDEN (100% ANTICIPO): Requiere el pago del 100% por adelantado para asegurar precio y disponibilidad inmediata en USA.',
+            '2. ORDEN REGULAR (50% ANTICIPO): Requiere el 50% de anticipo. El 50% restante se cancela contra entrega al recibir el teléfono en Guatemala.',
+            '3. TIEMPO ESTIMADO: El plazo de entrega es de 5 a 10 días hábiles a partir de la confirmación de compra y arribo al casillero en Miami, USA.',
+            '4. GARANTÍA Y REVISIÓN: Todos los equipos son verificados física y técnicamente para asegurar su autenticidad y óptimo funcionamiento.',
+            '5. POLÍTICA DE IMPORTACIÓN: Una vez ejecutada la compra internacional con el proveedor, no se admiten cancelaciones ni cambios de modelo.'
+        ];
+
+        let pY = policiesBoxY + 12;
+        politicas.forEach(p => {
+            doc.text(p, 16, pY, { maxWidth: policiesBoxW - 8 });
+            pY += 6.5;
+        });
 
         // --- Footer ---
         doc.setDrawColor(...colorBorder);
         doc.line(12, H - 18, W - 12, H - 18);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(6.5);
         doc.setTextColor(...colorMuted);
         doc.text('YouBox GT — Soluciones Logísticas, Courier y Compras Internacionales en Guatemala', 12, H - 13);
         doc.text(`Comprobante generado: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, W - 12, H - 13, { align: 'right' });
 
-        doc.setFontSize(6.5);
+        doc.setFontSize(5.8);
         doc.text('Este documento sirve como comprobante formal de orden y anticipo para compra de equipo iPhone.', 12, H - 9);
 
         // Descargar el archivo
