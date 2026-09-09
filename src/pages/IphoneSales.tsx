@@ -3,7 +3,7 @@ import {
     Smartphone, Plus, Search, Filter, FileDown, Loader2,
     CheckCircle2, Clock, Truck, Package, XCircle, DollarSign,
     User, Phone, Mail, Hash, AlertCircle, ShoppingCart, RefreshCw,
-    ChevronDown, Trash2, Edit3, ShieldAlert
+    ChevronDown, Trash2, Edit3, ShieldAlert, FileSpreadsheet, FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,8 @@ import {
     iphoneSalesService, OrdenIphone, TipoOrden, EstadoOrden
 } from '../services/iphoneSalesService';
 import { downloadIphoneOrderPDF } from '../utils/generateIphoneOrderPDF';
+import { exportIphoneOrdersExcel } from '../utils/exportIphoneOrdersExcel';
+import { generateIphoneReportPDF } from '../utils/generateIphoneReportPDF';
 
 const IPHONE_MODELS = [
     'iPhone Pro 18',
@@ -60,6 +62,10 @@ export function IphoneSales() {
     const [selectedExistingClient, setSelectedExistingClient] = useState<any | null>(null);
     const [manualClient, setManualClient] = useState(false);
     const searchTimeoutRef = useRef<NodeJS.Timeout>();
+
+    // Estados de exportación de reportes
+    const [exportingExcel, setExportingExcel] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
 
     // Formulario de Nueva Orden
     const [formData, setFormData] = useState({
@@ -406,6 +412,64 @@ export function IphoneSales() {
 
     const formatQ = (amount: number) => `Q ${Number(amount || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+    const getFilterDescription = () => {
+        const parts: string[] = [];
+        if (filterType !== 'all') {
+            parts.push(filterType === 'pre_orden' ? 'Pre-Órdenes (100% Anticipo)' : 'Órdenes (50% Anticipo)');
+        }
+        if (filterState !== 'all') {
+            const labels: Record<string, string> = {
+                pendiente_compra: 'Pendiente de Compra',
+                comprado: 'Comprado en USA',
+                en_transito: 'En Tránsito',
+                en_bodega: 'En Bodega YouBox',
+                entregado: 'Entregado al Cliente',
+                cancelado: 'Cancelado'
+            };
+            parts.push(labels[filterState] || filterState);
+        }
+        if (searchTerm.trim()) {
+            parts.push(`Búsqueda: "${searchTerm.trim()}"`);
+        }
+        return parts.length > 0 ? parts.join(' • ') : 'Todas las órdenes';
+    };
+
+    const handleExportExcel = () => {
+        if (filteredOrders.length === 0) {
+            toast.error('No hay órdenes para exportar con los filtros actuales.');
+            return;
+        }
+        setExportingExcel(true);
+        try {
+            exportIphoneOrdersExcel(filteredOrders, getFilterDescription());
+            toast.success(`Reporte Excel generado (${filteredOrders.length} órdenes)`);
+        } catch (err: any) {
+            console.error('Error exportando reporte Excel:', err);
+            toast.error('Error al generar Excel: ' + (err.message || 'Desconocido'));
+        } finally {
+            setExportingExcel(false);
+        }
+    };
+
+    const handleExportPdf = async () => {
+        if (filteredOrders.length === 0) {
+            toast.error('No hay órdenes para exportar con los filtros actuales.');
+            return;
+        }
+        setExportingPdf(true);
+        try {
+            await generateIphoneReportPDF(filteredOrders, {
+                filterDescription: getFilterDescription()
+            });
+            toast.success(`Reporte PDF generado (${filteredOrders.length} órdenes)`);
+        } catch (err: any) {
+            console.error('Error exportando reporte PDF:', err);
+            toast.error('Error al generar PDF: ' + (err.message || 'Desconocido'));
+        } finally {
+            setExportingPdf(false);
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in">
             {/* Header */}
@@ -426,7 +490,29 @@ export function IphoneSales() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                    {/* Botón Descargar PDF */}
+                    <button
+                        onClick={handleExportPdf}
+                        disabled={exportingPdf || loading || filteredOrders.length === 0}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:text-red-600 hover:border-red-300 shadow-sm transition-all disabled:opacity-50"
+                        title="Descargar reporte general de ventas en PDF"
+                    >
+                        <FileText className={`w-4 h-4 text-red-600 ${exportingPdf ? 'animate-bounce' : ''}`} />
+                        <span>Reporte PDF</span>
+                    </button>
+
+                    {/* Botón Descargar Excel */}
+                    <button
+                        onClick={handleExportExcel}
+                        disabled={exportingExcel || loading || filteredOrders.length === 0}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs sm:text-sm font-bold text-slate-700 hover:text-emerald-700 hover:border-emerald-300 shadow-sm transition-all disabled:opacity-50"
+                        title="Descargar reporte completo en Excel (.xlsx)"
+                    >
+                        <FileSpreadsheet className={`w-4 h-4 text-emerald-600 ${exportingExcel ? 'animate-bounce' : ''}`} />
+                        <span>Excel</span>
+                    </button>
+
                     <button
                         onClick={loadOrders}
                         className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all"
@@ -436,10 +522,11 @@ export function IphoneSales() {
                     </button>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all"
                     >
                         <Plus className="w-4 h-4" />
-                        Nueva Venta / Pre-Orden
+                        <span className="hidden sm:inline">Nueva Venta / Pre-Orden</span>
+                        <span className="sm:hidden">Nueva Venta</span>
                     </button>
                 </div>
             </div>
