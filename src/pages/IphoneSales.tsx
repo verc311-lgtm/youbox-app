@@ -14,38 +14,20 @@ import {
 import { downloadIphoneOrderPDF } from '../utils/generateIphoneOrderPDF';
 
 const IPHONE_MODELS = [
-    'iPhone 16 Pro Max',
-    'iPhone 16 Pro',
-    'iPhone 16 Plus',
-    'iPhone 16',
-    'iPhone 15 Pro Max',
-    'iPhone 15 Pro',
-    'iPhone 15 Plus',
-    'iPhone 15',
-    'iPhone 14 Pro Max',
-    'iPhone 14 Pro',
-    'iPhone 14',
-    'iPhone 13 Pro Max',
-    'iPhone 13 Pro',
-    'iPhone 13',
-    'iPhone 12',
-    'iPhone 11'
+    'iPhone Pro 18',
+    'iPhone Pro Max 18',
+    'iPhone Duo'
 ];
 
 const CAPACITIES = ['64 GB', '128 GB', '256 GB', '512 GB', '1 TB', '2 TB'];
 
 const COLORS = [
-    'Titán Natural',
-    'Titán Negro',
-    'Titán Blanco',
-    'Titán Desierto',
-    'Azul',
-    'Verde',
-    'Rosa',
-    'Negro Medianoche',
-    'Blanco Estelar',
-    'Plata',
-    'Oro'
+    'Glacier',
+    'Burgundy',
+    'Silver',
+    'Black',
+    'Star White',
+    'Night Sky'
 ];
 
 export function IphoneSales() {
@@ -86,9 +68,11 @@ export function IphoneSales() {
         cliente_telefono: '',
         cliente_email: '',
         locker_id: '',
-        modelo: '',
+        modelo: 'iPhone Pro 18',
+        otro_modelo: '',
         capacidad: '256 GB',
-        color: '',
+        color: 'Glacier',
+        otro_color: '',
         estado_equipo: 'nuevo',
         precio_total: '',
         anticipo_pagado: '',
@@ -228,13 +212,18 @@ export function IphoneSales() {
             return;
         }
 
-        const modeloFinal = formData.modelo.trim();
+        const modeloFinal = formData.modelo === 'Otro'
+            ? formData.otro_modelo.trim()
+            : formData.modelo.trim();
+
         if (!modeloFinal) {
-            toast.error('Por favor ingresa el modelo del iPhone.');
+            toast.error('Por favor selecciona o ingresa el modelo del iPhone.');
             return;
         }
 
-        const colorFinal = formData.color.trim() || null;
+        const colorFinal = formData.color === 'Otro'
+            ? (formData.otro_color.trim() || null)
+            : (formData.color.trim() || null);
 
         setSubmitting(true);
         try {
@@ -270,9 +259,11 @@ export function IphoneSales() {
                 cliente_telefono: '',
                 cliente_email: '',
                 locker_id: '',
-                modelo: '',
+                modelo: 'iPhone Pro 18',
+                otro_modelo: '',
                 capacidad: '256 GB',
-                color: '',
+                color: 'Glacier',
+                otro_color: '',
                 estado_equipo: 'nuevo',
                 precio_total: '',
                 anticipo_pagado: '',
@@ -875,39 +866,51 @@ export function IphoneSales() {
                                         <label className="block text-[11px] font-bold text-slate-500 mb-1">
                                             Modelo de iPhone *
                                         </label>
-                                        <input
-                                            type="text"
-                                            list="iphone-models-list"
-                                            required
-                                            placeholder="Ej. iPhone 16 Pro Max"
+                                        <select
                                             value={formData.modelo}
                                             onChange={e => setFormData({ ...formData, modelo: e.target.value })}
                                             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        />
-                                        <datalist id="iphone-models-list">
+                                        >
                                             {IPHONE_MODELS.map(m => (
-                                                <option key={m} value={m} />
+                                                <option key={m} value={m}>{m}</option>
                                             ))}
-                                        </datalist>
+                                            <option value="Otro">Otro modelo...</option>
+                                        </select>
+                                        {formData.modelo === 'Otro' && (
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="Especifica el modelo exacto..."
+                                                value={formData.otro_modelo}
+                                                onChange={e => setFormData({ ...formData, otro_modelo: e.target.value })}
+                                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white"
+                                            />
+                                        )}
                                     </div>
 
                                     <div>
                                         <label className="block text-[11px] font-bold text-slate-500 mb-1">
                                             Color
                                         </label>
-                                        <input
-                                            type="text"
-                                            list="iphone-colors-list"
-                                            placeholder="Ej. Titán Natural, Negro, Blanco..."
+                                        <select
                                             value={formData.color}
                                             onChange={e => setFormData({ ...formData, color: e.target.value })}
                                             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        />
-                                        <datalist id="iphone-colors-list">
+                                        >
                                             {COLORS.map(c => (
-                                                <option key={c} value={c} />
+                                                <option key={c} value={c}>{c}</option>
                                             ))}
-                                        </datalist>
+                                            <option value="Otro">Otro color...</option>
+                                        </select>
+                                        {formData.color === 'Otro' && (
+                                            <input
+                                                type="text"
+                                                placeholder="Especifica el color..."
+                                                value={formData.otro_color}
+                                                onChange={e => setFormData({ ...formData, otro_color: e.target.value })}
+                                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white"
+                                            />
+                                        )}
                                     </div>
                                 </div>
 
