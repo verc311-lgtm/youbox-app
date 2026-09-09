@@ -30,6 +30,7 @@ const Profile = lazy(() => import('./pages/Profile').then(m => ({ default: m.Pro
 const PreAlertsAdmin = lazy(() => import('./pages/PreAlertsAdmin').then(m => ({ default: m.PreAlertsAdmin })));
 const ClientPreAlerts = lazy(() => import('./pages/ClientPreAlerts').then(m => ({ default: m.ClientPreAlerts })));
 const UserDashboard = lazy(() => import('./pages/UserDashboard').then(m => ({ default: m.UserDashboard })));
+const IphoneSales = lazy(() => import('./pages/IphoneSales').then(m => ({ default: m.IphoneSales })));
 
 // Loading Component for Suspense
 const PageLoader = () => (
@@ -131,6 +132,7 @@ function AppRoutes() {
             <Route path="warehouse" element={<OperadorRoute><Warehouse /></OperadorRoute>} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="consolidation" element={<OperadorRoute><Consolidation /></OperadorRoute>} />
+            <Route path="iphone-sales" element={<OperadorRoute><IphoneSales /></OperadorRoute>} />
             <Route path="billing" element={<Billing />} />
             <Route path="settings" element={<AdminOnlyRoute><Settings /></AdminOnlyRoute>} />
             <Route path="tariffs" element={<AdminOnlyRoute><Tariffs /></AdminOnlyRoute>} />

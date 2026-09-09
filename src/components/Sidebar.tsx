@@ -17,7 +17,8 @@ import {
   BarChart3,
   Building2,
   X,
-  FileUp
+  FileUp,
+  Smartphone
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'Warehouse', href: '/warehouse', icon: Inbox, section: 'Operaciones' },
   { name: 'Inventario', href: '/inventory', icon: Boxes, section: 'Operaciones' },
   { name: 'Consolidación', href: '/consolidation', icon: Layers, section: 'Operaciones' },
+  { name: 'Venta iPhone', href: '/iphone-sales', icon: Smartphone, section: 'Operaciones' },
   { name: 'Facturación', href: '/billing', icon: FileText, section: 'Finanzas' },
   { name: 'Pagos', href: '/payments', icon: CreditCard, section: 'Finanzas' },
   { name: 'Gastos', href: '/expenses', icon: Receipt, section: 'Finanzas' },
