@@ -54,6 +54,44 @@ export const defaultTelefonoItem = (): TelefonoFormItem => ({
     precio_unitario: ''
 });
 
+export interface EditItemState {
+    id: string;
+    modelo: string;
+    otro_modelo: string;
+    capacidad: string;
+    color: string;
+    otro_color: string;
+    estado_equipo: string;
+    precio_unitario: string;
+}
+
+export const itemToEditState = (it: ItemIphone, idx: number): EditItemState => {
+    const isModelInList = IPHONE_MODELS.includes(it.modelo);
+    const isColorInList = COLORS.includes(it.color || '');
+
+    return {
+        id: it.id || `edit-${idx}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        modelo: isModelInList ? it.modelo : (it.modelo ? 'Otro' : 'iPhone Pro 18'),
+        otro_modelo: isModelInList ? '' : (it.modelo || ''),
+        capacidad: it.capacidad || '256 GB',
+        color: isColorInList ? (it.color || 'Glacier') : (it.color ? 'Otro' : 'Glacier'),
+        otro_color: isColorInList ? '' : (it.color || ''),
+        estado_equipo: it.estado_equipo || 'nuevo',
+        precio_unitario: it.precio_unitario != null && it.precio_unitario > 0 ? String(it.precio_unitario) : ''
+    };
+};
+
+export const createNewEditItem = (): EditItemState => ({
+    id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    modelo: 'iPhone Pro 18',
+    otro_modelo: '',
+    capacidad: '256 GB',
+    color: 'Glacier',
+    otro_color: '',
+    estado_equipo: 'nuevo',
+    precio_unitario: ''
+});
+
 export function IphoneSales() {
     const { user } = useAuth();
     const [orders, setOrders] = useState<OrdenIphone[]>([]);
@@ -77,6 +115,11 @@ export function IphoneSales() {
     const [newTracking, setNewTracking] = useState('');
     const [newNotes, setNewNotes] = useState('');
     const [updatingStatus, setUpdatingStatus] = useState(false);
+
+    // Estado de edición de teléfonos en la orden seleccionada
+    const [editItems, setEditItems] = useState<EditItemState[]>([]);
+    const [editingItemIdx, setEditingItemIdx] = useState<number | null>(null);
+    const [showAllItemEditors, setShowAllItemEditors] = useState<boolean>(false);
 
     // Búsqueda de clientes existentes
     const [clientSearch, setClientSearch] = useState('');
@@ -411,13 +454,86 @@ export function IphoneSales() {
         }
     };
 
+    const editItemsTotal = useMemo(() => {
+        if (!editItems || editItems.length === 0) return 0;
+        const sum = editItems.reduce((acc, it) => acc + (parseFloat(it.precio_unitario) || 0), 0);
+        if (sum > 0) return sum;
+        return selectedOrder ? selectedOrder.precio_total : 0;
+    }, [editItems, selectedOrder]);
+
     const handleUpdateStatus = async () => {
         if (!selectedOrder) return;
+
+        // Validar que la orden tenga al menos un teléfono
+        if (editItems.length === 0) {
+            toast.error('La orden debe tener al menos un iPhone.');
+            return;
+        }
+
+        // Validar cada teléfono
+        for (let i = 0; i < editItems.length; i++) {
+            const it = editItems[i];
+            const m = it.modelo === 'Otro' ? it.otro_modelo.trim() : it.modelo.trim();
+            if (!m) {
+                toast.error(`Por favor especifica el modelo para el iPhone #${i + 1}.`);
+                return;
+            }
+        }
+
         setUpdatingStatus(true);
         try {
             const buyerFinal = newBuyer.trim() || null;
+
+            const itemsFinal: ItemIphone[] = editItems.map(it => {
+                const m = it.modelo === 'Otro' ? it.otro_modelo.trim() : it.modelo.trim();
+                const c = it.color === 'Otro' ? (it.otro_color.trim() || null) : (it.color.trim() || null);
+                const p = parseFloat(it.precio_unitario);
+                return {
+                    id: it.id,
+                    modelo: m,
+                    capacidad: it.capacidad,
+                    color: c,
+                    estado_equipo: it.estado_equipo,
+                    precio_unitario: !isNaN(p) && p > 0 ? p : undefined
+                };
+            });
+
+            const newCantidad = itemsFinal.length;
+            const hasAnyPrices = itemsFinal.some(it => (it.precio_unitario || 0) > 0);
+            let newPrecioTotal = selectedOrder.precio_total;
+            if (hasAnyPrices) {
+                const sum = itemsFinal.reduce((acc, it) => acc + (it.precio_unitario || 0), 0);
+                if (sum > 0) newPrecioTotal = sum;
+            }
+
+            const newSaldo = Math.max(0, newPrecioTotal - (selectedOrder.anticipo_pagado || 0));
+
+            const modeloSummary = itemsFinal.length === 1
+                ? itemsFinal[0].modelo
+                : `${itemsFinal.length} iPhones: ${itemsFinal.map(i => i.modelo).join(', ')}`;
+
+            const capacidadSummary = itemsFinal.every(i => i.capacidad === itemsFinal[0].capacidad)
+                ? itemsFinal[0].capacidad
+                : itemsFinal.map(i => i.capacidad).join(' / ');
+
+            const colorSummary = itemsFinal.length === 1
+                ? itemsFinal[0].color
+                : (itemsFinal.every(i => i.color === itemsFinal[0].color) ? itemsFinal[0].color : 'Varios');
+
+            const estadoEquipoSummary = itemsFinal.every(i => i.estado_equipo === itemsFinal[0].estado_equipo)
+                ? itemsFinal[0].estado_equipo
+                : 'varios';
+
             await iphoneSalesService.updateOrderStatus(selectedOrder.id, newStatus, {
                 comprador_asignado: buyerFinal,
+                items: itemsFinal,
+                cantidad_equipos: newCantidad,
+                precio_total: newPrecioTotal,
+                saldo_pendiente: newSaldo,
+                modelo: modeloSummary,
+                capacidad: capacidadSummary,
+                color: colorSummary,
+                estado_equipo: estadoEquipoSummary,
                 imei_serie: newImei.trim() || selectedOrder.imei_serie,
                 tracking_proveedor: newTracking.trim() || selectedOrder.tracking_proveedor,
                 notas: newNotes.trim() || selectedOrder.notas
@@ -429,6 +545,14 @@ export function IphoneSales() {
                         ...o,
                         estado: newStatus,
                         comprador_asignado: buyerFinal,
+                        items: itemsFinal,
+                        cantidad_equipos: newCantidad,
+                        precio_total: newPrecioTotal,
+                        saldo_pendiente: newSaldo,
+                        modelo: modeloSummary,
+                        capacidad: capacidadSummary,
+                        color: colorSummary,
+                        estado_equipo: estadoEquipoSummary,
                         imei_serie: newImei.trim() || o.imei_serie,
                         tracking_proveedor: newTracking.trim() || o.tracking_proveedor,
                         notas: newNotes.trim() || o.notas
@@ -437,7 +561,7 @@ export function IphoneSales() {
                 return o;
             }));
 
-            toast.success('Estado y comprador asignado actualizados.');
+            toast.success('Orden y teléfonos actualizados correctamente.');
             setSelectedOrder(null);
         } catch (err: any) {
             toast.error('Error actualizando orden: ' + err.message);
@@ -897,12 +1021,28 @@ export function IphoneSales() {
                                                 </button>
                                                 <button
                                                     onClick={() => {
+                                                        const rawItems = (Array.isArray(order.items) && order.items.length > 0)
+                                                            ? order.items
+                                                            : [{
+                                                                modelo: order.modelo,
+                                                                capacidad: order.capacidad,
+                                                                color: order.color,
+                                                                estado_equipo: order.estado_equipo,
+                                                                precio_unitario: order.precio_total,
+                                                                imei_serie: order.imei_serie,
+                                                                tracking_proveedor: order.tracking_proveedor,
+                                                                comprador_asignado: order.comprador_asignado
+                                                            }];
+
                                                         setSelectedOrder(order);
                                                         setNewStatus(order.estado);
                                                         setNewBuyer(order.comprador_asignado || '');
                                                         setNewImei(order.imei_serie || '');
                                                         setNewTracking(order.tracking_proveedor || '');
                                                         setNewNotes(order.notas || '');
+                                                        setEditItems(rawItems.map(itemToEditState));
+                                                        setEditingItemIdx(null);
+                                                        setShowAllItemEditors(false);
                                                     }}
                                                     className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition-colors"
                                                     title="Gestionar Estado y Detalles"
@@ -1392,41 +1532,276 @@ export function IphoneSales() {
             {/* Modal Editar Estado / Seguimiento */}
             {selectedOrder && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200">
-                        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/60">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+                        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 shrink-0">
                             <div>
-                                <h3 className="font-bold text-slate-900 text-base">
-                                    Gestionar Orden {selectedOrder.numero_orden}
+                                <h3 className="font-bold text-slate-900 text-base flex items-center gap-2 flex-wrap">
+                                    <span>Gestionar Orden {selectedOrder.numero_orden}</span>
+                                    {selectedOrder.tipo_orden === 'pre_orden' ? (
+                                        <span className="text-[10px] uppercase font-bold bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded border border-orange-200">
+                                            Pre-Orden (100%)
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] uppercase font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded border border-blue-200">
+                                            Orden (50%)
+                                        </span>
+                                    )}
                                 </h3>
-                                <p className="text-xs text-slate-500">{selectedOrder.cliente_nombre} • {selectedOrder.cantidad_equipos || selectedOrder.items?.length || 1} {((selectedOrder.cantidad_equipos || selectedOrder.items?.length || 1) === 1 ? 'iPhone' : 'iPhones')}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    {selectedOrder.cliente_nombre} • {editItems.length} {editItems.length === 1 ? 'iPhone' : 'iPhones'}
+                                </p>
                             </div>
                             <button onClick={() => setSelectedOrder(null)} className="p-1 text-slate-400 hover:text-slate-600">
                                 <XCircle className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="p-5 space-y-4">
-                            {/* Lista de equipos si hay más de 1 */}
-                            {selectedOrder.items && selectedOrder.items.length > 1 && (
-                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-2">
-                                    <p className="font-bold text-slate-700 flex items-center justify-between">
-                                        <span>Equipos en esta orden ({selectedOrder.items.length}):</span>
-                                        <span className="font-mono text-slate-900">Total: {formatQ(selectedOrder.precio_total)}</span>
-                                    </p>
-                                    <div className="space-y-1 divide-y divide-slate-200/60 max-h-36 overflow-y-auto pr-1">
-                                        {selectedOrder.items.map((it, idx) => (
-                                            <div key={idx} className="pt-1 first:pt-0 flex items-center justify-between text-slate-600">
-                                                <span>
-                                                    <strong className="text-slate-800">#{idx + 1} {it.modelo}</strong> {it.capacidad} {it.color ? `• ${it.color}` : ''} ({it.estado_equipo})
-                                                </span>
-                                                {it.precio_unitario ? (
-                                                    <span className="font-mono font-bold text-slate-700 ml-2">{formatQ(it.precio_unitario)}</span>
-                                                ) : null}
-                                            </div>
-                                        ))}
+                        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+                            {/* Sección Interactiva: Equipos en esta Orden */}
+                            <div className="bg-slate-50 rounded-2xl p-3.5 sm:p-4 border border-slate-200 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+                                    <div>
+                                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                            <Smartphone className="w-4 h-4 text-blue-600" />
+                                            Equipos en esta orden ({editItems.length})
+                                        </span>
+                                        <div className="flex items-center gap-2 text-xs font-mono mt-0.5">
+                                            <span className="text-slate-500">Total Equipos:</span>
+                                            <span className="font-bold text-slate-900">{formatQ(editItemsTotal)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newItem = createNewEditItem();
+                                                setEditItems(prev => [...prev, newItem]);
+                                                setEditingItemIdx(editItems.length);
+                                            }}
+                                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            <span>+ Agregar Teléfono</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllItemEditors(!showAllItemEditors)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all shadow-sm"
+                                        >
+                                            <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                                            <span>{showAllItemEditors ? 'Ver Compacto' : 'Modificar Todos'}</span>
+                                        </button>
                                     </div>
                                 </div>
-                            )}
+
+                                {/* Lista de Teléfonos con Modificación en Línea */}
+                                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                                    {editItems.map((it, idx) => {
+                                        const isEditingThis = showAllItemEditors || editingItemIdx === idx;
+                                        const itemModelName = it.modelo === 'Otro' ? (it.otro_modelo || 'Otro') : it.modelo;
+                                        const itemColorName = it.color === 'Otro' ? (it.otro_color || '') : it.color;
+                                        const unitPriceNum = parseFloat(it.precio_unitario) || 0;
+
+                                        if (isEditingThis) {
+                                            return (
+                                                <div key={it.id} className="p-3.5 bg-white rounded-xl border-2 border-blue-400 shadow-sm space-y-3 animate-fade-in">
+                                                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                                        <span className="text-xs font-bold text-blue-700 flex items-center gap-1.5">
+                                                            <Smartphone className="w-3.5 h-3.5" /> Modificando Teléfono #{idx + 1}
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            {editItems.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (window.confirm(`¿Seguro que deseas quitar el teléfono #${idx + 1} (${itemModelName}) de esta orden?`)) {
+                                                                            setEditItems(prev => prev.filter((_, i) => i !== idx));
+                                                                            if (editingItemIdx === idx) setEditingItemIdx(null);
+                                                                        }
+                                                                    }}
+                                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" /> Quitar
+                                                                </button>
+                                                            )}
+                                                            {!showAllItemEditors && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditingItemIdx(null)}
+                                                                    className="text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold px-2.5 py-1 rounded-lg transition-colors"
+                                                                >
+                                                                    Listo ✓
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                                                        <div>
+                                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Modelo de iPhone *</label>
+                                                            <select
+                                                                value={it.modelo}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, modelo: val } : item));
+                                                                }}
+                                                                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                                                            >
+                                                                {IPHONE_MODELS.map(m => (
+                                                                    <option key={m} value={m}>{m}</option>
+                                                                ))}
+                                                                <option value="Otro">Otro modelo...</option>
+                                                            </select>
+                                                            {it.modelo === 'Otro' && (
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Especifica el modelo..."
+                                                                    value={it.otro_modelo}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, otro_modelo: val } : item));
+                                                                    }}
+                                                                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+                                                                />
+                                                            )}
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Color</label>
+                                                            <select
+                                                                value={it.color}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, color: val } : item));
+                                                                }}
+                                                                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                                                            >
+                                                                {COLORS.map(c => (
+                                                                    <option key={c} value={c}>{c}</option>
+                                                                ))}
+                                                                <option value="Otro">Otro color...</option>
+                                                            </select>
+                                                            {it.color === 'Otro' && (
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Especifica el color..."
+                                                                    value={it.otro_color}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, otro_color: val } : item));
+                                                                    }}
+                                                                    className="mt-1.5 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                                                        <div>
+                                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Capacidad</label>
+                                                            <select
+                                                                value={it.capacidad}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, capacidad: val } : item));
+                                                                }}
+                                                                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                                                            >
+                                                                {CAPACITIES.map(c => (
+                                                                    <option key={c} value={c}>{c}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Condición</label>
+                                                            <select
+                                                                value={it.estado_equipo}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, estado_equipo: val } : item));
+                                                                }}
+                                                                className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-2.5 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
+                                                            >
+                                                                <option value="nuevo">Nuevo Sellado</option>
+                                                                <option value="reacondicionado">Reacondicionado (Grado A)</option>
+                                                                <option value="seminuevo">Seminuevo</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">Precio (Q)</label>
+                                                            <div className="relative">
+                                                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Q</span>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    min="0"
+                                                                    placeholder="0.00"
+                                                                    value={it.precio_unitario}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        setEditItems(prev => prev.map((item, i) => i === idx ? { ...item, precio_unitario: val } : item));
+                                                                    }}
+                                                                    className="w-full rounded-lg border border-slate-200 bg-white pl-7 pr-2.5 py-2 text-xs font-bold font-mono text-slate-900 outline-none focus:border-blue-500"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div
+                                                key={it.id}
+                                                className="p-2.5 bg-white rounded-xl border border-slate-200 hover:border-blue-300 transition-all flex items-center justify-between text-xs group"
+                                            >
+                                                <div className="flex-1 min-w-0 pr-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-bold text-slate-900">
+                                                            #{idx + 1} {itemModelName}
+                                                        </span>
+                                                        <span className="text-slate-500">
+                                                            {it.capacidad} {itemColorName ? `• ${itemColorName}` : ''} ({it.estado_equipo})
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    {unitPriceNum > 0 && (
+                                                        <span className="font-mono font-bold text-slate-800">
+                                                            {formatQ(unitPriceNum)}
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingItemIdx(idx)}
+                                                        className="px-2 py-1 rounded-md text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors font-bold flex items-center gap-1 text-[11px]"
+                                                        title="Modificar este teléfono"
+                                                    >
+                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                        <span>Modificar</span>
+                                                    </button>
+                                                    {editItems.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (window.confirm(`¿Seguro que deseas quitar el teléfono #${idx + 1} (${itemModelName}) de esta orden?`)) {
+                                                                    setEditItems(prev => prev.filter((_, i) => i !== idx));
+                                                                }
+                                                            }}
+                                                            className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                            title="Eliminar este teléfono"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Estado de la Orden
