@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import {
-    iphoneSalesService, OrdenIphone, TipoOrden, EstadoOrden
+    iphoneSalesService, OrdenIphone, TipoOrden, EstadoOrden, ItemIphone
 } from '../services/iphoneSalesService';
 import { downloadIphoneOrderPDF } from '../utils/generateIphoneOrderPDF';
 import { exportIphoneOrdersExcel } from '../utils/exportIphoneOrdersExcel';
@@ -31,6 +31,28 @@ const COLORS = [
     'Star White',
     'Night Sky'
 ];
+
+export interface TelefonoFormItem {
+    id: string;
+    modelo: string;
+    otro_modelo: string;
+    capacidad: string;
+    color: string;
+    otro_color: string;
+    estado_equipo: string;
+    precio_unitario: string;
+}
+
+export const defaultTelefonoItem = (): TelefonoFormItem => ({
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'item-' + Math.random().toString(36).slice(2, 9),
+    modelo: 'iPhone Pro 18',
+    otro_modelo: '',
+    capacidad: '256 GB',
+    color: 'Glacier',
+    otro_color: '',
+    estado_equipo: 'nuevo',
+    precio_unitario: ''
+});
 
 export function IphoneSales() {
     const { user } = useAuth();
@@ -74,12 +96,7 @@ export function IphoneSales() {
         cliente_telefono: '',
         cliente_email: '',
         locker_id: '',
-        modelo: 'iPhone Pro 18',
-        otro_modelo: '',
-        capacidad: '256 GB',
-        color: 'Glacier',
-        otro_color: '',
-        estado_equipo: 'nuevo',
+        telefonos: [defaultTelefonoItem()] as TelefonoFormItem[],
         precio_total: '',
         anticipo_pagado: '',
         metodo_pago: 'transferencia',
@@ -104,6 +121,75 @@ export function IphoneSales() {
             setLoading(false);
         }
     }
+
+    // Manejo de múltiples teléfonos en el formulario
+    const handleAddTelefono = () => {
+        setFormData(prev => ({
+            ...prev,
+            telefonos: [...prev.telefonos, defaultTelefonoItem()]
+        }));
+    };
+
+    const handleRemoveTelefono = (index: number) => {
+        setFormData(prev => {
+            if (prev.telefonos.length <= 1) return prev;
+            const newTels = prev.telefonos.filter((_, i) => i !== index);
+
+            // Si se ingresaron precios unitarios, recalcular totales automáticamente
+            let newTotal = prev.precio_total;
+            let newAnticipo = prev.anticipo_pagado;
+            const hasUnitPrices = newTels.some(t => parseFloat(t.precio_unitario) > 0);
+            if (hasUnitPrices) {
+                const sum = newTels.reduce((acc, t) => acc + (parseFloat(t.precio_unitario) || 0), 0);
+                newTotal = sum > 0 ? sum.toFixed(2) : '';
+                if (sum > 0) {
+                    newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                } else {
+                    newAnticipo = '';
+                }
+            }
+
+            return {
+                ...prev,
+                telefonos: newTels,
+                precio_total: newTotal,
+                anticipo_pagado: newAnticipo
+            };
+        });
+    };
+
+    const handleUpdateTelefono = (index: number, field: keyof TelefonoFormItem, value: string) => {
+        setFormData(prev => {
+            const updated = prev.telefonos.map((item, i) => {
+                if (i !== index) return item;
+                return { ...item, [field]: value };
+            });
+
+            let newTotal = prev.precio_total;
+            let newAnticipo = prev.anticipo_pagado;
+
+            // Recalcular precio total si se edita precio unitario
+            if (field === 'precio_unitario') {
+                const hasUnitPrices = updated.some(t => parseFloat(t.precio_unitario) > 0);
+                if (hasUnitPrices) {
+                    const sum = updated.reduce((acc, t) => acc + (parseFloat(t.precio_unitario) || 0), 0);
+                    newTotal = sum > 0 ? sum.toFixed(2) : '';
+                    if (sum > 0) {
+                        newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                    } else {
+                        newAnticipo = '';
+                    }
+                }
+            }
+
+            return {
+                ...prev,
+                telefonos: updated,
+                precio_total: newTotal,
+                anticipo_pagado: newAnticipo
+            };
+        });
+    };
 
     // Actualiza el cálculo de anticipo según tipo de orden (100% vs 50%)
     const handlePrecioChange = (val: string, tipo: TipoOrden = formData.tipo_orden) => {
@@ -205,7 +291,7 @@ export function IphoneSales() {
             return;
         }
 
-        // Validación de reglas de negocio solicitadas:
+        // Validación de reglas de negocio:
         // Pre-orden: 100%
         // Orden: mínimo 50%
         if (formData.tipo_orden === 'pre_orden' && anticipo < precio) {
@@ -218,18 +304,50 @@ export function IphoneSales() {
             return;
         }
 
-        const modeloFinal = formData.modelo === 'Otro'
-            ? formData.otro_modelo.trim()
-            : formData.modelo.trim();
-
-        if (!modeloFinal) {
-            toast.error('Por favor selecciona o ingresa el modelo del iPhone.');
+        // Validación de teléfonos
+        if (!formData.telefonos || formData.telefonos.length === 0) {
+            toast.error('Debes agregar al menos un iPhone al pedido.');
             return;
         }
 
-        const colorFinal = formData.color === 'Otro'
-            ? (formData.otro_color.trim() || null)
-            : (formData.color.trim() || null);
+        for (let i = 0; i < formData.telefonos.length; i++) {
+            const tel = formData.telefonos[i];
+            const m = tel.modelo === 'Otro' ? tel.otro_modelo.trim() : tel.modelo.trim();
+            if (!m) {
+                toast.error(`Por favor especifica el modelo para el iPhone #${i + 1}.`);
+                return;
+            }
+        }
+
+        const itemsParsed: ItemIphone[] = formData.telefonos.map(t => {
+            const m = t.modelo === 'Otro' ? t.otro_modelo.trim() : t.modelo.trim();
+            const c = t.color === 'Otro' ? (t.otro_color.trim() || null) : (t.color.trim() || null);
+            const p = parseFloat(t.precio_unitario);
+            return {
+                modelo: m,
+                capacidad: t.capacidad,
+                color: c,
+                estado_equipo: t.estado_equipo,
+                precio_unitario: !isNaN(p) && p > 0 ? p : undefined
+            };
+        });
+
+        // Resúmenes para compatibilidad y listados
+        const modeloSummary = itemsParsed.length === 1
+            ? itemsParsed[0].modelo
+            : `${itemsParsed.length} iPhones: ${itemsParsed.map(i => i.modelo).join(', ')}`;
+
+        const capacidadSummary = itemsParsed.every(i => i.capacidad === itemsParsed[0].capacidad)
+            ? itemsParsed[0].capacidad
+            : itemsParsed.map(i => i.capacidad).join(' / ');
+
+        const colorSummary = itemsParsed.length === 1
+            ? itemsParsed[0].color
+            : (itemsParsed.every(i => i.color === itemsParsed[0].color) ? itemsParsed[0].color : 'Varios');
+
+        const estadoSummary = itemsParsed.every(i => i.estado_equipo === itemsParsed[0].estado_equipo)
+            ? itemsParsed[0].estado_equipo
+            : 'varios';
 
         setSubmitting(true);
         try {
@@ -240,10 +358,12 @@ export function IphoneSales() {
                 cliente_telefono: formData.cliente_telefono.trim() || null,
                 cliente_email: formData.cliente_email.trim() || null,
                 locker_id: formData.locker_id.trim() || null,
-                modelo: modeloFinal,
-                capacidad: formData.capacidad,
-                color: colorFinal,
-                estado_equipo: formData.estado_equipo,
+                modelo: modeloSummary,
+                capacidad: capacidadSummary,
+                color: colorSummary,
+                estado_equipo: estadoSummary,
+                cantidad_equipos: itemsParsed.length,
+                items: itemsParsed,
                 precio_total: precio,
                 anticipo_pagado: anticipo,
                 metodo_pago: formData.metodo_pago,
@@ -265,12 +385,7 @@ export function IphoneSales() {
                 cliente_telefono: '',
                 cliente_email: '',
                 locker_id: '',
-                modelo: 'iPhone Pro 18',
-                otro_modelo: '',
-                capacidad: '256 GB',
-                color: 'Glacier',
-                otro_color: '',
-                estado_equipo: 'nuevo',
+                telefonos: [defaultTelefonoItem()],
                 precio_total: '',
                 anticipo_pagado: '',
                 metodo_pago: 'transferencia',
@@ -350,6 +465,11 @@ export function IphoneSales() {
                 o.cliente_nombre.toLowerCase().includes(query) ||
                 (o.locker_id && o.locker_id.toLowerCase().includes(query)) ||
                 o.modelo.toLowerCase().includes(query) ||
+                (o.items && o.items.some(it =>
+                    it.modelo.toLowerCase().includes(query) ||
+                    (it.color && it.color.toLowerCase().includes(query)) ||
+                    it.capacidad.toLowerCase().includes(query)
+                )) ||
                 (o.cliente_telefono && o.cliente_telefono.includes(query));
 
             const matchesType = filterType === 'all' || o.tipo_orden === filterType;
@@ -362,11 +482,14 @@ export function IphoneSales() {
     // Métricas
     const metrics = useMemo(() => {
         const total = orders.length;
-        const pendientesCompra = orders.filter(o => o.estado === 'pendiente_compra').length;
+        const totalEquipos = orders.reduce((acc, o) => acc + (o.cantidad_equipos || (o.items && o.items.length) || 1), 0);
+        const pendientesCompra = orders
+            .filter(o => o.estado === 'pendiente_compra')
+            .reduce((acc, o) => acc + (o.cantidad_equipos || (o.items && o.items.length) || 1), 0);
         const totalAnticipos = orders.reduce((acc, o) => acc + (Number(o.anticipo_pagado) || 0), 0);
         const totalSaldosPendientes = orders.reduce((acc, o) => acc + (Number(o.saldo_pendiente) || 0), 0);
 
-        return { total, pendientesCompra, totalAnticipos, totalSaldosPendientes };
+        return { total, totalEquipos, pendientesCompra, totalAnticipos, totalSaldosPendientes };
     }, [orders]);
 
     const getEstadoBadge = (estado: EstadoOrden) => {
@@ -700,10 +823,37 @@ export function IphoneSales() {
                                             </div>
                                         </td>
                                         <td className="py-4 px-4">
-                                            <p className="font-bold text-slate-900">{order.modelo}</p>
-                                            <p className="text-xs text-slate-500">
-                                                {order.capacidad} {order.color ? `• ${order.color}` : ''}
-                                            </p>
+                                            {order.items && order.items.length > 1 ? (
+                                                <div>
+                                                    <div className="flex items-center gap-1.5 mb-1">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                                                            {order.items.length} iPhones
+                                                        </span>
+                                                        <span className="font-bold text-slate-800 text-xs truncate max-w-[200px]" title={order.modelo}>
+                                                            {order.modelo}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-[11px] text-slate-500 space-y-0.5">
+                                                        {order.items.slice(0, 2).map((item, itIdx) => (
+                                                            <div key={itIdx} className="truncate max-w-[220px]">
+                                                                • {item.modelo} {item.capacidad} {item.color ? `(${item.color})` : ''}
+                                                            </div>
+                                                        ))}
+                                                        {order.items.length > 2 && (
+                                                            <span className="text-[10px] text-blue-600 font-semibold">
+                                                                +{order.items.length - 2} equipo(s) más...
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <p className="font-bold text-slate-900">{order.modelo}</p>
+                                                    <p className="text-xs text-slate-500">
+                                                        {order.capacidad} {order.color ? `• ${order.color}` : ''}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="py-4 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">
                                             {formatQ(order.precio_total)}
@@ -942,92 +1092,153 @@ export function IphoneSales() {
                                 )}
                             </div>
 
-                            {/* Especificaciones del iPhone */}
+                            {/* Especificaciones de los iPhones */}
                             <div className="space-y-3 pt-2 border-t border-slate-100">
-                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                                    Detalles del iPhone *
-                                </label>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                                            Modelo de iPhone *
-                                        </label>
-                                        <select
-                                            value={formData.modelo}
-                                            onChange={e => setFormData({ ...formData, modelo: e.target.value })}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        >
-                                            {IPHONE_MODELS.map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                            <option value="Otro">Otro modelo...</option>
-                                        </select>
-                                        {formData.modelo === 'Otro' && (
-                                            <input
-                                                type="text"
-                                                required
-                                                placeholder="Especifica el modelo exacto..."
-                                                value={formData.otro_modelo}
-                                                onChange={e => setFormData({ ...formData, otro_modelo: e.target.value })}
-                                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white"
-                                            />
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-500 mb-1">
-                                            Color
-                                        </label>
-                                        <select
-                                            value={formData.color}
-                                            onChange={e => setFormData({ ...formData, color: e.target.value })}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        >
-                                            {COLORS.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                            <option value="Otro">Otro color...</option>
-                                        </select>
-                                        {formData.color === 'Otro' && (
-                                            <input
-                                                type="text"
-                                                placeholder="Especifica el color..."
-                                                value={formData.otro_color}
-                                                onChange={e => setFormData({ ...formData, otro_color: e.target.value })}
-                                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white"
-                                            />
-                                        )}
-                                    </div>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Equipos iPhone ({formData.telefonos.length} {formData.telefonos.length === 1 ? 'dispositivo' : 'dispositivos'}) *
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddTelefono}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition-all border border-blue-200 shadow-sm"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>+ Agregar Teléfono</span>
+                                    </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Capacidad</label>
-                                        <select
-                                            value={formData.capacidad}
-                                            onChange={e => setFormData({ ...formData, capacidad: e.target.value })}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        >
-                                            {CAPACITIES.map(c => (
-                                                <option key={c} value={c}>{c}</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                <div className="space-y-3">
+                                    {formData.telefonos.map((tel, idx) => (
+                                        <div key={tel.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 relative space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                                                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                                    <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                                                    Dispositivo #{idx + 1}
+                                                </span>
+                                                {formData.telefonos.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveTelefono(idx)}
+                                                        className="text-red-500 hover:text-red-700 p-1 rounded-md hover:bg-red-50 text-xs font-semibold flex items-center gap-1 transition-colors"
+                                                        title="Eliminar este teléfono"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        <span>Quitar</span>
+                                                    </button>
+                                                )}
+                                            </div>
 
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-500 mb-1">Condición</label>
-                                        <select
-                                            value={formData.estado_equipo}
-                                            onChange={e => setFormData({ ...formData, estado_equipo: e.target.value })}
-                                            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500 focus:bg-white"
-                                        >
-                                            <option value="nuevo">Nuevo Sellado</option>
-                                            <option value="reacondicionado">Reacondicionado (Grado A)</option>
-                                            <option value="seminuevo">Seminuevo</option>
-                                        </select>
-                                    </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                                                        Modelo de iPhone *
+                                                    </label>
+                                                    <select
+                                                        value={tel.modelo}
+                                                        onChange={e => handleUpdateTelefono(idx, 'modelo', e.target.value)}
+                                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:border-blue-500"
+                                                    >
+                                                        {IPHONE_MODELS.map(m => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                        <option value="Otro">Otro modelo...</option>
+                                                    </select>
+                                                    {tel.modelo === 'Otro' && (
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Especifica el modelo exacto..."
+                                                            value={tel.otro_modelo}
+                                                            onChange={e => handleUpdateTelefono(idx, 'otro_modelo', e.target.value)}
+                                                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-blue-500"
+                                                        />
+                                                    )}
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                                                        Color
+                                                    </label>
+                                                    <select
+                                                        value={tel.color}
+                                                        onChange={e => handleUpdateTelefono(idx, 'color', e.target.value)}
+                                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                                                    >
+                                                        {COLORS.map(c => (
+                                                            <option key={c} value={c}>{c}</option>
+                                                        ))}
+                                                        <option value="Otro">Otro color...</option>
+                                                    </select>
+                                                    {tel.color === 'Otro' && (
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Especifica el color..."
+                                                            value={tel.otro_color}
+                                                            onChange={e => handleUpdateTelefono(idx, 'otro_color', e.target.value)}
+                                                            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-blue-500"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1">Capacidad</label>
+                                                    <select
+                                                        value={tel.capacidad}
+                                                        onChange={e => handleUpdateTelefono(idx, 'capacidad', e.target.value)}
+                                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                                                    >
+                                                        {CAPACITIES.map(c => (
+                                                            <option key={c} value={c}>{c}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1">Condición</label>
+                                                    <select
+                                                        value={tel.estado_equipo}
+                                                        onChange={e => handleUpdateTelefono(idx, 'estado_equipo', e.target.value)}
+                                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-blue-500"
+                                                    >
+                                                        <option value="nuevo">Nuevo Sellado</option>
+                                                        <option value="reacondicionado">Reacondicionado (Grado A)</option>
+                                                        <option value="seminuevo">Seminuevo</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 mb-1">
+                                                        Precio Estimado (Q) <span className="font-normal text-slate-400">(Opc.)</span>
+                                                    </label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">Q</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            placeholder="0.00"
+                                                            value={tel.precio_unitario}
+                                                            onChange={e => handleUpdateTelefono(idx, 'precio_unitario', e.target.value)}
+                                                            className="w-full rounded-xl border border-slate-200 bg-white pl-7 pr-3 py-2 text-sm font-bold font-mono text-slate-800 outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
+
+                                <button
+                                    type="button"
+                                    onClick={handleAddTelefono}
+                                    className="w-full py-2.5 px-3 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/50 hover:bg-blue-50 text-blue-600 hover:text-blue-700 text-xs font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span>+ Agregar Otro iPhone a esta Orden</span>
+                                </button>
                             </div>
 
                             {/* Precio y Anticipo */}
@@ -1176,7 +1387,7 @@ export function IphoneSales() {
                                 <h3 className="font-bold text-slate-900 text-base">
                                     Gestionar Orden {selectedOrder.numero_orden}
                                 </h3>
-                                <p className="text-xs text-slate-500">{selectedOrder.modelo} • {selectedOrder.cliente_nombre}</p>
+                                <p className="text-xs text-slate-500">{selectedOrder.cliente_nombre} • {selectedOrder.cantidad_equipos || selectedOrder.items?.length || 1} {((selectedOrder.cantidad_equipos || selectedOrder.items?.length || 1) === 1 ? 'iPhone' : 'iPhones')}</p>
                             </div>
                             <button onClick={() => setSelectedOrder(null)} className="p-1 text-slate-400 hover:text-slate-600">
                                 <XCircle className="w-5 h-5" />
@@ -1184,6 +1395,27 @@ export function IphoneSales() {
                         </div>
 
                         <div className="p-5 space-y-4">
+                            {/* Lista de equipos si hay más de 1 */}
+                            {selectedOrder.items && selectedOrder.items.length > 1 && (
+                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-2">
+                                    <p className="font-bold text-slate-700 flex items-center justify-between">
+                                        <span>Equipos en esta orden ({selectedOrder.items.length}):</span>
+                                        <span className="font-mono text-slate-900">Total: {formatQ(selectedOrder.precio_total)}</span>
+                                    </p>
+                                    <div className="space-y-1 divide-y divide-slate-200/60 max-h-36 overflow-y-auto pr-1">
+                                        {selectedOrder.items.map((it, idx) => (
+                                            <div key={idx} className="pt-1 first:pt-0 flex items-center justify-between text-slate-600">
+                                                <span>
+                                                    <strong className="text-slate-800">#{idx + 1} {it.modelo}</strong> {it.capacidad} {it.color ? `• ${it.color}` : ''} ({it.estado_equipo})
+                                                </span>
+                                                {it.precio_unitario ? (
+                                                    <span className="font-mono font-bold text-slate-700 ml-2">{formatQ(it.precio_unitario)}</span>
+                                                ) : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Estado de la Orden

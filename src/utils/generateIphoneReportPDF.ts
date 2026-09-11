@@ -83,7 +83,10 @@ export const generateIphoneReportPDF = async (
     doc.text(`Emisión: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, metaCardX + 4, metaCardY + 11);
     doc.text(`Total Registros: ${orders.length} órdenes`, metaCardX + 4, metaCardY + 16);
 
-    const pendientesCount = orders.filter(o => o.estado === 'pendiente_compra').length;
+    const pendientesCount = orders
+        .filter(o => o.estado === 'pendiente_compra')
+        .reduce((sum, o) => sum + (o.cantidad_equipos || (o.items && o.items.length > 0 ? o.items.length : 1)), 0);
+
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...colorOrange);
     doc.text(`Pendientes compra: ${pendientesCount} equipos`, metaCardX + 4, metaCardY + 21);
@@ -103,7 +106,7 @@ export const generateIphoneReportPDF = async (
 
     const kpis = [
         { label: 'TOTAL ÓRDENES', val: `${orders.length}`, sub: 'Registradas', color: colorTextDark, bg: [248, 250, 252] as [number, number, number] },
-        { label: 'PENDIENTES COMPRA', val: `${pendientesCount}`, sub: 'Listos para comprar', color: colorOrange, bg: [255, 251, 235] as [number, number, number] },
+        { label: 'PENDIENTES COMPRA', val: `${pendientesCount}`, sub: 'Equipos listos para comprar', color: colorOrange, bg: [255, 251, 235] as [number, number, number] },
         { label: 'TOTAL ANTICIPOS', val: formatoQ(totalAnticipo), sub: 'Fondos recaudados', color: colorGreen, bg: [240, 253, 244] as [number, number, number] },
         { label: 'SALDOS POR COBRAR', val: formatoQ(totalSaldo), sub: 'Contra entrega', color: colorNavy, bg: [239, 246, 255] as [number, number, number] },
     ];
@@ -142,7 +145,10 @@ export const generateIphoneReportPDF = async (
     const tableBody = orders.map((o, idx) => {
         const fecha = o.created_at ? format(new Date(o.created_at), 'dd/MM/yy HH:mm') : '-';
         const clienteDesc = `${o.cliente_nombre || 'Cliente'}${o.cliente_telefono ? `\nTel: ${o.cliente_telefono}` : ''}`;
-        const dispDesc = `${o.modelo} (${o.capacidad})${o.color ? `\nColor: ${o.color}` : ''}`;
+        const hasMultiple = Array.isArray(o.items) && o.items.length > 1;
+        const dispDesc = hasMultiple
+            ? o.items!.map(it => `• ${it.modelo} (${it.capacidad}, ${it.color || 'S/C'})`).join('\n')
+            : `${o.modelo} (${o.capacidad})${o.color ? `\nColor: ${o.color}` : ''}`;
         const modDesc = o.tipo_orden === 'pre_orden' ? 'Pre-Orden (100%)' : 'Orden (50%)';
 
         return [

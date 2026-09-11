@@ -16,29 +16,47 @@ export const exportIphoneOrdersExcel = (orders: OrdenIphone[], filterDescription
         cancelado: 'Cancelado'
     };
 
-    const rows = orders.map((o, index) => ({
-        '#': index + 1,
-        'No. Orden': o.numero_orden,
-        'Fecha': o.created_at ? format(new Date(o.created_at), 'dd/MM/yyyy HH:mm') : '',
-        'Modalidad': o.tipo_orden === 'pre_orden' ? 'Pre-Orden (100% Anticipo)' : 'Orden Regular (50% Anticipo)',
-        'Cliente': o.cliente_nombre || 'Cliente Final',
-        'Casillero': o.locker_id || 'S/C',
-        'Teléfono': o.cliente_telefono || '',
-        'Email': o.cliente_email || '',
-        'Modelo': o.modelo,
-        'Capacidad': o.capacidad,
-        'Color': o.color || 'No especificado',
-        'Condición': o.estado_equipo ? o.estado_equipo.toUpperCase() : 'NUEVO',
-        'Serie / IMEI': o.imei_serie || 'Pendiente',
-        'Tracking Proveedor': o.tracking_proveedor || 'Pendiente',
-        'Precio Total (Q)': Number(o.precio_total || 0),
-        'Anticipo Pagado (Q)': Number(o.anticipo_pagado || 0),
-        'Saldo Pendiente (Q)': Number(o.saldo_pendiente || 0),
-        'Método Pago': (o.metodo_pago || '').toUpperCase(),
-        'Ref. Pago': o.referencia_pago || '',
-        'Estado': estadoLabels[o.estado] || o.estado,
-        'Observaciones': o.notas || ''
-    }));
+    const rows = orders.map((o, index) => {
+        const hasMultiple = Array.isArray(o.items) && o.items.length > 1;
+        const cant = o.cantidad_equipos || (o.items ? o.items.length : 1);
+        const modeloDesc = hasMultiple
+            ? o.items!.map((it, idx) => `Item ${idx + 1}: ${it.modelo} (${it.capacidad}, ${it.color || 'S/C'})`).join(' | ')
+            : o.modelo;
+        const capacidadDesc = hasMultiple
+            ? o.items!.map(it => it.capacidad).join(' | ')
+            : o.capacidad;
+        const colorDesc = hasMultiple
+            ? o.items!.map(it => it.color || 'No especificado').join(' | ')
+            : (o.color || 'No especificado');
+        const condicionDesc = hasMultiple
+            ? o.items!.map(it => (it.estado_equipo || 'NUEVO').toUpperCase()).join(' | ')
+            : (o.estado_equipo ? o.estado_equipo.toUpperCase() : 'NUEVO');
+
+        return {
+            '#': index + 1,
+            'No. Orden': o.numero_orden,
+            'Fecha': o.created_at ? format(new Date(o.created_at), 'dd/MM/yyyy HH:mm') : '',
+            'Modalidad': o.tipo_orden === 'pre_orden' ? 'Pre-Orden (100% Anticipo)' : 'Orden Regular (50% Anticipo)',
+            'Cliente': o.cliente_nombre || 'Cliente Final',
+            'Casillero': o.locker_id || 'S/C',
+            'Cant. Equipos': cant,
+            'Teléfono': o.cliente_telefono || '',
+            'Email': o.cliente_email || '',
+            'Modelo': modeloDesc,
+            'Capacidad': capacidadDesc,
+            'Color': colorDesc,
+            'Condición': condicionDesc,
+            'Serie / IMEI': o.imei_serie || 'Pendiente',
+            'Tracking Proveedor': o.tracking_proveedor || 'Pendiente',
+            'Precio Total (Q)': Number(o.precio_total || 0),
+            'Anticipo Pagado (Q)': Number(o.anticipo_pagado || 0),
+            'Saldo Pendiente (Q)': Number(o.saldo_pendiente || 0),
+            'Método Pago': (o.metodo_pago || '').toUpperCase(),
+            'Ref. Pago': o.referencia_pago || '',
+            'Estado': estadoLabels[o.estado] || o.estado,
+            'Observaciones': o.notas || ''
+        };
+    });
 
     // Fila de totales
     const totalPrecio = orders.reduce((sum, o) => sum + Number(o.precio_total || 0), 0);

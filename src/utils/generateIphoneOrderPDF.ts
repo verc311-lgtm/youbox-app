@@ -147,20 +147,34 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(...colorDarkNavy);
-        doc.text('DETALLES DEL DISPOSITIVO SOLICITADO', 12, currentY);
+
+        const itemsToRender = orden.items && orden.items.length > 0 ? orden.items : [
+            {
+                modelo: orden.modelo,
+                capacidad: orden.capacidad,
+                color: orden.color,
+                estado_equipo: orden.estado_equipo,
+                imei_serie: orden.imei_serie
+            }
+        ];
+
+        const cantEquipos = itemsToRender.length;
+        doc.text(`DETALLES DE ${cantEquipos > 1 ? `LOS DISPOSITIVOS (${cantEquipos} EQUIPOS)` : 'DISPOSITIVO SOLICITADO'}`, 12, currentY);
 
         currentY += 3;
+        const deviceTableBody = itemsToRender.map((it, idx) => [
+            cantEquipos > 1 ? `${idx + 1}. ${it.modelo}` : it.modelo,
+            it.capacidad,
+            it.color || 'No especificado',
+            it.estado_equipo ? it.estado_equipo.toUpperCase() : 'NUEVO',
+            it.imei_serie || 'Asignado al comprar'
+        ]);
+
         autoTable(doc, {
             startY: currentY,
             margin: { left: 12, right: 12 },
             head: [['PRODUCTO / MODELO', 'CAPACIDAD', 'COLOR', 'CONDICIÓN', 'SERIE / IMEI']],
-            body: [[
-                orden.modelo,
-                orden.capacidad,
-                orden.color || 'No especificado',
-                orden.estado_equipo ? orden.estado_equipo.toUpperCase() : 'NUEVO',
-                orden.imei_serie || 'Asignado al comprar'
-            ]],
+            body: deviceTableBody,
             theme: 'grid',
             headStyles: {
                 fillColor: colorDarkNavy,
@@ -199,12 +213,16 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
             ? 'Anticipo Requerido / Pagado (100% Pre-orden)'
             : 'Anticipo Requerido / Pagado (50% Orden)';
 
+        const conceptoTotalDesc = cantEquipos > 1
+            ? `Precio Total de ${cantEquipos} Equipos Apple iPhone`
+            : 'Precio Total del Equipo Apple iPhone';
+
         autoTable(doc, {
             startY: currentY,
             margin: { left: 12, right: 12 },
             head: [['CONCEPTO', 'MODALIDAD', 'MONTO EN QUETZALES']],
             body: [
-                ['Precio Total del Equipo Apple iPhone', 'Valor Total', formatoQ(orden.precio_total)],
+                [conceptoTotalDesc, 'Valor Total', formatoQ(orden.precio_total)],
                 [anticipoDesc, `Anticipo ${porcentajeAnticipo}`, formatoQ(orden.anticipo_pagado)],
                 ['Saldo Pendiente por Liquidar (Contra Entrega)', isPreorden ? 'Completado' : 'Contra Entrega', formatoQ(orden.saldo_pendiente)]
             ],

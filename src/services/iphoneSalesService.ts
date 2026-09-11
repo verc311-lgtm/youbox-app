@@ -3,6 +3,17 @@ import { supabase } from '../lib/supabase';
 export type TipoOrden = 'pre_orden' | 'orden';
 export type EstadoOrden = 'pendiente_compra' | 'comprado' | 'en_transito' | 'en_bodega' | 'entregado' | 'cancelado';
 
+export interface ItemIphone {
+    id?: string;
+    modelo: string;
+    capacidad: string;
+    color?: string | null;
+    estado_equipo: string;
+    precio_unitario?: number;
+    imei_serie?: string | null;
+    tracking_proveedor?: string | null;
+}
+
 export interface OrdenIphone {
     id: string;
     numero_orden: string;
@@ -16,6 +27,8 @@ export interface OrdenIphone {
     capacidad: string;
     color?: string | null;
     estado_equipo: string;
+    cantidad_equipos?: number;
+    items?: ItemIphone[];
     precio_total: number;
     anticipo_pagado: number;
     saldo_pendiente: number;
@@ -87,6 +100,17 @@ export const iphoneSalesService = {
 
             const orders: OrdenIphone[] = (data || []).map((item: any) => ({
                 ...item,
+                cantidad_equipos: item.cantidad_equipos || (Array.isArray(item.items) && item.items.length > 0 ? item.items.length : 1),
+                items: Array.isArray(item.items) && item.items.length > 0 ? item.items : [
+                    {
+                        modelo: item.modelo,
+                        capacidad: item.capacidad,
+                        color: item.color,
+                        estado_equipo: item.estado_equipo,
+                        imei_serie: item.imei_serie,
+                        tracking_proveedor: item.tracking_proveedor
+                    }
+                ],
                 precio_total: Number(item.precio_total) || 0,
                 anticipo_pagado: Number(item.anticipo_pagado) || 0,
                 saldo_pendiente: Number(item.saldo_pendiente) || 0
@@ -113,10 +137,13 @@ export const iphoneSalesService = {
         const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'iph-' + Date.now();
         const now = new Date().toISOString();
 
+        const cantidad = data.items && data.items.length > 0 ? data.items.length : (data.cantidad_equipos || 1);
+
         const orderPayload: OrdenIphone = {
             ...data,
             id: newId,
             numero_orden: nextOrderNumber,
+            cantidad_equipos: cantidad,
             precio_total: precioTotal,
             anticipo_pagado: anticipo,
             saldo_pendiente: saldoPendiente,
@@ -124,37 +151,56 @@ export const iphoneSalesService = {
             updated_at: now
         };
 
+        const baseInsertData: any = {
+            numero_orden: orderPayload.numero_orden,
+            tipo_orden: orderPayload.tipo_orden,
+            cliente_id: orderPayload.cliente_id || null,
+            cliente_nombre: orderPayload.cliente_nombre,
+            cliente_telefono: orderPayload.cliente_telefono || null,
+            cliente_email: orderPayload.cliente_email || null,
+            locker_id: orderPayload.locker_id || null,
+            modelo: orderPayload.modelo,
+            capacidad: orderPayload.capacidad,
+            color: orderPayload.color || null,
+            estado_equipo: orderPayload.estado_equipo,
+            precio_total: orderPayload.precio_total,
+            anticipo_pagado: orderPayload.anticipo_pagado,
+            saldo_pendiente: orderPayload.saldo_pendiente,
+            metodo_pago: orderPayload.metodo_pago || null,
+            referencia_pago: orderPayload.referencia_pago || null,
+            estado: orderPayload.estado,
+            imei_serie: orderPayload.imei_serie || null,
+            tracking_proveedor: orderPayload.tracking_proveedor || null,
+            notas: orderPayload.notas || null,
+            creado_por: orderPayload.creado_por === 'admin-001' ? null : orderPayload.creado_por || null,
+            sucursal_id: orderPayload.sucursal_id || null
+        };
+
         try {
-            const { data: inserted, error } = await supabase
+            // Intentar insertar incluyendo columnas items y cantidad_equipos
+            let { data: inserted, error } = await supabase
                 .from('ventas_iphone')
                 .insert([
                     {
-                        numero_orden: orderPayload.numero_orden,
-                        tipo_orden: orderPayload.tipo_orden,
-                        cliente_id: orderPayload.cliente_id || null,
-                        cliente_nombre: orderPayload.cliente_nombre,
-                        cliente_telefono: orderPayload.cliente_telefono || null,
-                        cliente_email: orderPayload.cliente_email || null,
-                        locker_id: orderPayload.locker_id || null,
-                        modelo: orderPayload.modelo,
-                        capacidad: orderPayload.capacidad,
-                        color: orderPayload.color || null,
-                        estado_equipo: orderPayload.estado_equipo,
-                        precio_total: orderPayload.precio_total,
-                        anticipo_pagado: orderPayload.anticipo_pagado,
-                        saldo_pendiente: orderPayload.saldo_pendiente,
-                        metodo_pago: orderPayload.metodo_pago || null,
-                        referencia_pago: orderPayload.referencia_pago || null,
-                        estado: orderPayload.estado,
-                        imei_serie: orderPayload.imei_serie || null,
-                        tracking_proveedor: orderPayload.tracking_proveedor || null,
-                        notas: orderPayload.notas || null,
-                        creado_por: orderPayload.creado_por === 'admin-001' ? null : orderPayload.creado_por || null,
-                        sucursal_id: orderPayload.sucursal_id || null
+                        ...baseInsertData,
+                        items: orderPayload.items || [],
+                        cantidad_equipos: orderPayload.cantidad_equipos || 1
                     }
                 ])
                 .select()
                 .single();
+
+            // Si falla porque las columnas nuevas no han sido creadas aún en Supabase, reintentar sin ellas
+            if (error && (error.message.includes('column') || error.code === 'PGRST204')) {
+                console.warn('Columnas items/cantidad_equipos no detectadas en Supabase, insertando estructura base:', error.message);
+                const retry = await supabase
+                    .from('ventas_iphone')
+                    .insert([baseInsertData])
+                    .select()
+                    .single();
+                inserted = retry.data;
+                error = retry.error;
+            }
 
             if (error) {
                 console.warn('Error insertando en Supabase, guardando localmente:', error.message);
@@ -165,6 +211,8 @@ export const iphoneSalesService = {
 
             const result: OrdenIphone = {
                 ...inserted,
+                items: orderPayload.items || inserted.items,
+                cantidad_equipos: orderPayload.cantidad_equipos || inserted.cantidad_equipos || 1,
                 precio_total: Number(inserted.precio_total),
                 anticipo_pagado: Number(inserted.anticipo_pagado),
                 saldo_pendiente: Number(inserted.saldo_pendiente)
