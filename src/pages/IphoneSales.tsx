@@ -72,6 +72,7 @@ export function IphoneSales() {
     // Modal Cambiar Estado / Detalles
     const [selectedOrder, setSelectedOrder] = useState<OrdenIphone | null>(null);
     const [newStatus, setNewStatus] = useState<EstadoOrden>('pendiente_compra');
+    const [newBuyer, setNewBuyer] = useState('');
     const [newImei, setNewImei] = useState('');
     const [newTracking, setNewTracking] = useState('');
     const [newNotes, setNewNotes] = useState('');
@@ -414,7 +415,9 @@ export function IphoneSales() {
         if (!selectedOrder) return;
         setUpdatingStatus(true);
         try {
+            const buyerFinal = newBuyer.trim() || null;
             await iphoneSalesService.updateOrderStatus(selectedOrder.id, newStatus, {
+                comprador_asignado: buyerFinal,
                 imei_serie: newImei.trim() || selectedOrder.imei_serie,
                 tracking_proveedor: newTracking.trim() || selectedOrder.tracking_proveedor,
                 notas: newNotes.trim() || selectedOrder.notas
@@ -425,6 +428,7 @@ export function IphoneSales() {
                     return {
                         ...o,
                         estado: newStatus,
+                        comprador_asignado: buyerFinal,
                         imei_serie: newImei.trim() || o.imei_serie,
                         tracking_proveedor: newTracking.trim() || o.tracking_proveedor,
                         notas: newNotes.trim() || o.notas
@@ -433,7 +437,7 @@ export function IphoneSales() {
                 return o;
             }));
 
-            toast.success('Estado de orden actualizado.');
+            toast.success('Estado y comprador asignado actualizados.');
             setSelectedOrder(null);
         } catch (err: any) {
             toast.error('Error actualizando orden: ' + err.message);
@@ -465,6 +469,7 @@ export function IphoneSales() {
                 o.cliente_nombre.toLowerCase().includes(query) ||
                 (o.locker_id && o.locker_id.toLowerCase().includes(query)) ||
                 o.modelo.toLowerCase().includes(query) ||
+                (o.comprador_asignado && o.comprador_asignado.toLowerCase().includes(query)) ||
                 (o.items && o.items.some(it =>
                     it.modelo.toLowerCase().includes(query) ||
                     (it.color && it.color.toLowerCase().includes(query)) ||
@@ -875,6 +880,11 @@ export function IphoneSales() {
                                         </td>
                                         <td className="py-4 px-4 whitespace-nowrap">
                                             {getEstadoBadge(order.estado)}
+                                            {order.comprador_asignado && (
+                                                <span className="block mt-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 max-w-fit">
+                                                    👤 {order.comprador_asignado}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="py-4 px-4 text-right whitespace-nowrap">
                                             <div className="flex items-center justify-end gap-1.5">
@@ -889,6 +899,7 @@ export function IphoneSales() {
                                                     onClick={() => {
                                                         setSelectedOrder(order);
                                                         setNewStatus(order.estado);
+                                                        setNewBuyer(order.comprador_asignado || '');
                                                         setNewImei(order.imei_serie || '');
                                                         setNewTracking(order.tracking_proveedor || '');
                                                         setNewNotes(order.notas || '');
@@ -1432,6 +1443,19 @@ export function IphoneSales() {
                                     <option value="entregado">Entregado al Cliente (Liquidado)</option>
                                     <option value="cancelado">Cancelado</option>
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">
+                                    Comprador Asignado (Quién lo va a comprar en USA)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Nombre de la persona encargada de la compra..."
+                                    value={newBuyer}
+                                    onChange={e => setNewBuyer(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                                />
                             </div>
 
                             <div>

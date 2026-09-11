@@ -12,6 +12,7 @@ export interface ItemIphone {
     precio_unitario?: number;
     imei_serie?: string | null;
     tracking_proveedor?: string | null;
+    comprador_asignado?: string | null;
 }
 
 export interface OrdenIphone {
@@ -35,6 +36,7 @@ export interface OrdenIphone {
     metodo_pago?: string | null;
     referencia_pago?: string | null;
     estado: EstadoOrden;
+    comprador_asignado?: string | null;
     imei_serie?: string | null;
     tracking_proveedor?: string | null;
     notas?: string | null;
@@ -100,6 +102,7 @@ export const iphoneSalesService = {
 
             const orders: OrdenIphone[] = (data || []).map((item: any) => ({
                 ...item,
+                comprador_asignado: item.comprador_asignado || null,
                 cantidad_equipos: item.cantidad_equipos || (Array.isArray(item.items) && item.items.length > 0 ? item.items.length : 1),
                 items: Array.isArray(item.items) && item.items.length > 0 ? item.items : [
                     {
@@ -108,7 +111,8 @@ export const iphoneSalesService = {
                         color: item.color,
                         estado_equipo: item.estado_equipo,
                         imei_serie: item.imei_serie,
-                        tracking_proveedor: item.tracking_proveedor
+                        tracking_proveedor: item.tracking_proveedor,
+                        comprador_asignado: item.comprador_asignado || null
                     }
                 ],
                 precio_total: Number(item.precio_total) || 0,
@@ -241,10 +245,20 @@ export const iphoneSalesService = {
             // Remove non-db fields if any
             delete updatePayload.id;
 
-            const { error } = await supabase
+            let { error } = await supabase
                 .from('ventas_iphone')
                 .update(updatePayload)
                 .eq('id', id);
+
+            if (error && (error.message.includes('column') || error.code === 'PGRST204')) {
+                const fallbackPayload = { ...updatePayload };
+                delete fallbackPayload.comprador_asignado;
+                const retry = await supabase
+                    .from('ventas_iphone')
+                    .update(fallbackPayload)
+                    .eq('id', id);
+                error = retry.error;
+            }
 
             if (error) {
                 console.warn('Error actualizando en Supabase, actualizando local:', error.message);
