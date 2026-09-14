@@ -208,10 +208,14 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
 
         const formatoQ = (val: number) => `Q ${Number(val || 0).toLocaleString('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-        const porcentajeAnticipo = isPreorden ? '100%' : '50%';
-        const anticipoDesc = isPreorden
-            ? 'Anticipo Requerido / Pagado (100% Pre-orden)'
-            : 'Anticipo Requerido / Pagado (50% Orden)';
+        const porcentajeAnticipoNum = orden.precio_total > 0
+            ? ((orden.anticipo_pagado / orden.precio_total) * 100)
+            : 0;
+        const porcentajeAnticipoStr = (porcentajeAnticipoNum % 1 === 0)
+            ? `${porcentajeAnticipoNum.toFixed(0)}%`
+            : `${porcentajeAnticipoNum.toFixed(1)}%`;
+
+        const anticipoDesc = `Anticipo Abonado / Pagado (${porcentajeAnticipoStr})`;
 
         const conceptoTotalDesc = cantEquipos > 1
             ? `Precio Total de ${cantEquipos} Equipos Apple iPhone`
@@ -222,9 +226,9 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
             margin: { left: 12, right: 12 },
             head: [['CONCEPTO', 'MODALIDAD', 'MONTO EN QUETZALES']],
             body: [
-                [conceptoTotalDesc, 'Valor Total', formatoQ(orden.precio_total)],
-                [anticipoDesc, `Anticipo ${porcentajeAnticipo}`, formatoQ(orden.anticipo_pagado)],
-                ['Saldo Pendiente por Liquidar (Contra Entrega)', isPreorden ? 'Completado' : 'Contra Entrega', formatoQ(orden.saldo_pendiente)]
+                [conceptoTotalDesc, isPreorden ? 'Pre-Orden' : 'Orden Regular', formatoQ(orden.precio_total)],
+                [anticipoDesc, `Abonado (${porcentajeAnticipoStr})`, formatoQ(orden.anticipo_pagado)],
+                ['Saldo Pendiente por Liquidar (Contra Entrega)', orden.saldo_pendiente <= 0 ? 'Completado' : 'Contra Entrega', formatoQ(orden.saldo_pendiente)]
             ],
             theme: 'grid',
             headStyles: {
@@ -313,8 +317,8 @@ export const downloadIphoneOrderPDF = async (orden: OrdenIphone) => {
         doc.setTextColor(...colorMuted);
 
         const politicas = [
-            '1. PRE-ORDEN (100% ANTICIPO): Requiere el pago del 100% por adelantado para asegurar precio y disponibilidad inmediata en USA.',
-            '2. ORDEN REGULAR (50% ANTICIPO): Requiere el 50% de anticipo. El 50% restante se cancela contra entrega al recibir el teléfono en Guatemala.',
+            '1. PRE-ORDEN: Pago sugerido del 100% por adelantado para asegurar precio y disponibilidad inmediata en USA.',
+            '2. ORDEN REGULAR: Pago de anticipo pactado (sugerido 50%). El saldo restante se liquida contra entrega al recibir el equipo en Guatemala.',
             '3. TIEMPO ESTIMADO: El plazo de entrega es de 5 a 10 días hábiles a partir de la confirmación de compra y arribo al casillero en Miami, USA.',
             '4. GARANTÍA Y REVISIÓN: Todos los equipos son verificados física y técnicamente para asegurar su autenticidad y óptimo funcionamiento.',
             '5. POLÍTICA DE IMPORTACIÓN: Una vez ejecutada la compra internacional con el proveedor, no se admiten cancelaciones ni cambios de modelo.'

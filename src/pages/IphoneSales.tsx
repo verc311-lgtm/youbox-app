@@ -114,6 +114,7 @@ export function IphoneSales() {
     const [newImei, setNewImei] = useState('');
     const [newTracking, setNewTracking] = useState('');
     const [newNotes, setNewNotes] = useState('');
+    const [newAnticipoPagado, setNewAnticipoPagado] = useState('');
     const [updatingStatus, setUpdatingStatus] = useState(false);
 
     // Estado de edición de teléfonos en la orden seleccionada
@@ -187,7 +188,14 @@ export function IphoneSales() {
                 const sum = newTels.reduce((acc, t) => acc + (parseFloat(t.precio_unitario) || 0), 0);
                 newTotal = sum > 0 ? sum.toFixed(2) : '';
                 if (sum > 0) {
-                    newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                    if (!prev.anticipo_pagado || prev.anticipo_pagado === '0') {
+                        newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                    } else {
+                        const currentAnt = parseFloat(prev.anticipo_pagado) || 0;
+                        if (currentAnt > sum) {
+                            newAnticipo = sum.toFixed(2);
+                        }
+                    }
                 } else {
                     newAnticipo = '';
                 }
@@ -219,7 +227,14 @@ export function IphoneSales() {
                     const sum = updated.reduce((acc, t) => acc + (parseFloat(t.precio_unitario) || 0), 0);
                     newTotal = sum > 0 ? sum.toFixed(2) : '';
                     if (sum > 0) {
-                        newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                        if (!prev.anticipo_pagado || prev.anticipo_pagado === '0') {
+                            newAnticipo = prev.tipo_orden === 'pre_orden' ? sum.toFixed(2) : (sum * 0.5).toFixed(2);
+                        } else {
+                            const currentAnt = parseFloat(prev.anticipo_pagado) || 0;
+                            if (currentAnt > sum) {
+                                newAnticipo = sum.toFixed(2);
+                            }
+                        }
                     } else {
                         newAnticipo = '';
                     }
@@ -235,16 +250,14 @@ export function IphoneSales() {
         });
     };
 
-    // Actualiza el cálculo de anticipo según tipo de orden (100% vs 50%)
+    // Actualiza el cálculo de precio y sugiere anticipo (100% vs 50% sugerido)
     const handlePrecioChange = (val: string, tipo: TipoOrden = formData.tipo_orden) => {
         const precio = parseFloat(val) || 0;
-        let anticipoCalculado = '';
-        if (precio > 0) {
-            if (tipo === 'pre_orden') {
-                anticipoCalculado = precio.toFixed(2); // 100%
-            } else {
-                anticipoCalculado = (precio * 0.5).toFixed(2); // 50%
-            }
+        let anticipoCalculado = formData.anticipo_pagado;
+        if ((!formData.anticipo_pagado || formData.anticipo_pagado === '0') && precio > 0) {
+            anticipoCalculado = tipo === 'pre_orden' ? precio.toFixed(2) : (precio * 0.5).toFixed(2);
+        } else if (precio > 0 && parseFloat(formData.anticipo_pagado) > precio) {
+            anticipoCalculado = precio.toFixed(2);
         }
         setFormData(prev => ({
             ...prev,
@@ -256,12 +269,8 @@ export function IphoneSales() {
     const handleTipoOrdenChange = (nuevoTipo: TipoOrden) => {
         const precio = parseFloat(formData.precio_total) || 0;
         let anticipoCalculado = formData.anticipo_pagado;
-        if (precio > 0) {
-            if (nuevoTipo === 'pre_orden') {
-                anticipoCalculado = precio.toFixed(2); // 100%
-            } else {
-                anticipoCalculado = (precio * 0.5).toFixed(2); // 50%
-            }
+        if ((!formData.anticipo_pagado || formData.anticipo_pagado === '0') && precio > 0) {
+            anticipoCalculado = nuevoTipo === 'pre_orden' ? precio.toFixed(2) : (precio * 0.5).toFixed(2);
         }
         setFormData(prev => ({
             ...prev,
@@ -330,21 +339,13 @@ export function IphoneSales() {
         }
 
         const anticipo = parseFloat(formData.anticipo_pagado);
-        if (isNaN(anticipo) || anticipo <= 0) {
-            toast.error('Por favor ingresa el monto de anticipo recibido.');
+        if (isNaN(anticipo) || anticipo < 0) {
+            toast.error('Por favor ingresa un monto de anticipo válido (Q0.00 o superior).');
             return;
         }
 
-        // Validación de reglas de negocio:
-        // Pre-orden: 100%
-        // Orden: mínimo 50%
-        if (formData.tipo_orden === 'pre_orden' && anticipo < precio) {
-            toast.error(`Las pre-órdenes requieren el pago del 100% anticipado (Q${precio.toFixed(2)}).`);
-            return;
-        }
-
-        if (formData.tipo_orden === 'orden' && anticipo < (precio * 0.5)) {
-            toast.error(`Las órdenes regulares requieren al menos el 50% de anticipo (mínimo Q${(precio * 0.5).toFixed(2)}).`);
+        if (anticipo > precio) {
+            toast.error(`El anticipo (${formatQ(anticipo)}) no puede ser mayor al valor total (${formatQ(precio)}).`);
             return;
         }
 
@@ -506,7 +507,9 @@ export function IphoneSales() {
                 if (sum > 0) newPrecioTotal = sum;
             }
 
-            const newSaldo = Math.max(0, newPrecioTotal - (selectedOrder.anticipo_pagado || 0));
+            const antNumber = parseFloat(newAnticipoPagado);
+            const validAnticipo = (!isNaN(antNumber) && antNumber >= 0) ? antNumber : (selectedOrder.anticipo_pagado || 0);
+            const newSaldo = Math.max(0, newPrecioTotal - validAnticipo);
 
             const modeloSummary = itemsFinal.length === 1
                 ? itemsFinal[0].modelo
@@ -529,6 +532,7 @@ export function IphoneSales() {
                 items: itemsFinal,
                 cantidad_equipos: newCantidad,
                 precio_total: newPrecioTotal,
+                anticipo_pagado: validAnticipo,
                 saldo_pendiente: newSaldo,
                 modelo: modeloSummary,
                 capacidad: capacidadSummary,
@@ -548,6 +552,7 @@ export function IphoneSales() {
                         items: itemsFinal,
                         cantidad_equipos: newCantidad,
                         precio_total: newPrecioTotal,
+                        anticipo_pagado: validAnticipo,
                         saldo_pendiente: newSaldo,
                         modelo: modeloSummary,
                         capacidad: capacidadSummary,
@@ -736,7 +741,7 @@ export function IphoneSales() {
                                 Venta y Pre-Orden de iPhone
                             </h1>
                             <p className="text-sm font-medium text-slate-500 mt-0.5">
-                                Gestión de solicitudes, compras en USA y control de anticipos (Pre-orden 100% / Orden 50%)
+                                Gestión de solicitudes, compras en USA y control de anticipos (Sugerido: Pre-orden 100% / Orden 50%)
                             </p>
                         </div>
                     </div>
@@ -1040,6 +1045,7 @@ export function IphoneSales() {
                                                         setNewImei(order.imei_serie || '');
                                                         setNewTracking(order.tracking_proveedor || '');
                                                         setNewNotes(order.notas || '');
+                                                        setNewAnticipoPagado(order.anticipo_pagado != null ? String(order.anticipo_pagado) : '0');
                                                         setEditItems(rawItems.map(itemToEditState));
                                                         setEditingItemIdx(null);
                                                         setShowAllItemEditors(false);
@@ -1107,10 +1113,10 @@ export function IphoneSales() {
                                     >
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="font-bold text-slate-900 text-sm">Pre-Orden</span>
-                                            <span className="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded">100% Anticipo</span>
+                                            <span className="text-xs font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded">Sugerido 100%</span>
                                         </div>
                                         <p className="text-xs text-slate-500">
-                                            El cliente paga la totalidad antes de la compra para asegurar el equipo en USA.
+                                            Recomendado pago total para asegurar precio y equipo en USA. El anticipo recibido es flexible.
                                         </p>
                                     </button>
 
@@ -1124,10 +1130,10 @@ export function IphoneSales() {
                                     >
                                         <div className="flex items-center justify-between mb-1">
                                             <span className="font-bold text-slate-900 text-sm">Orden Regular</span>
-                                            <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">50% Anticipo</span>
+                                            <span className="text-xs font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Sugerido 50%</span>
                                         </div>
                                         <p className="text-xs text-slate-500">
-                                            Anticipo del 50%. El 50% restante se liquida al entregar el teléfono en Guatemala.
+                                            Anticipo sugerido del 50%. El saldo restante se cancela contra entrega en Guatemala.
                                         </p>
                                     </button>
                                 </div>
@@ -1417,15 +1423,38 @@ export function IphoneSales() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                                            Anticipo a Pagar ({formData.tipo_orden === 'pre_orden' ? '100%' : '50% Mínimo'}) *
-                                        </label>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-xs font-bold text-slate-700">
+                                                Anticipo Recibido *
+                                            </label>
+                                            {parseFloat(formData.precio_total) > 0 && (
+                                                <div className="flex items-center gap-1.5 text-[10px]">
+                                                    <span className="text-slate-400 font-medium">Sugerir:</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, anticipo_pagado: (parseFloat(prev.precio_total) * 0.5).toFixed(2) }))}
+                                                        className="font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition-colors"
+                                                        title="Sugerir 50% de anticipo"
+                                                    >
+                                                        50%
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, anticipo_pagado: parseFloat(prev.precio_total).toFixed(2) }))}
+                                                        className="font-bold text-orange-700 hover:text-orange-900 bg-orange-50 hover:bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200 transition-colors"
+                                                        title="Sugerir 100% de anticipo"
+                                                    >
+                                                        100%
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Q</span>
                                             <input
                                                 type="number"
                                                 step="0.01"
-                                                min="1"
+                                                min="0"
                                                 required
                                                 placeholder="0.00"
                                                 value={formData.anticipo_pagado}
@@ -1433,6 +1462,9 @@ export function IphoneSales() {
                                                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-8 pr-4 py-2.5 text-base font-bold font-mono text-emerald-700 outline-none focus:border-blue-500 focus:bg-white"
                                             />
                                         </div>
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            Monto abonado por el cliente. (50% o 100% es únicamente una recomendación sugerida).
+                                        </p>
                                     </div>
                                 </div>
 
@@ -1802,6 +1834,68 @@ export function IphoneSales() {
                                     })}
                                 </div>
                             </div>
+
+                            {/* Sección de Control Financiero y Anticipo */}
+                            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2.5">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                                        Control de Anticipo y Saldo
+                                    </label>
+                                    <span className="text-xs font-mono text-slate-500">
+                                        Total Orden: <strong className="text-slate-900">{formatQ(editItemsTotal)}</strong>
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-[11px] font-bold text-slate-600">Anticipo Pagado (Q)</label>
+                                            {editItemsTotal > 0 && (
+                                                <div className="flex items-center gap-1 text-[10px]">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNewAnticipoPagado((editItemsTotal * 0.5).toFixed(2))}
+                                                        className="font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded border border-blue-200 transition-colors"
+                                                        title="Sugerir 50%"
+                                                    >
+                                                        50%
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNewAnticipoPagado(editItemsTotal.toFixed(2))}
+                                                        className="font-bold text-orange-700 hover:text-orange-900 bg-orange-50 hover:bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200 transition-colors"
+                                                        title="Sugerir 100%"
+                                                    >
+                                                        100%
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="relative">
+                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Q</span>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                placeholder="0.00"
+                                                value={newAnticipoPagado}
+                                                onChange={e => setNewAnticipoPagado(e.target.value)}
+                                                className="w-full rounded-xl border border-slate-200 bg-white pl-7 pr-2.5 py-2 text-xs font-bold font-mono text-emerald-700 outline-none focus:border-blue-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 mb-1">Saldo Contra Entrega</label>
+                                        <div className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold font-mono text-amber-800 flex items-center justify-between h-[34px]">
+                                            <span className="text-slate-500 font-normal">Pendiente:</span>
+                                            <span className="text-sm font-bold text-amber-700">
+                                                {formatQ(Math.max(0, editItemsTotal - (parseFloat(newAnticipoPagado) || 0)))}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Estado de la Orden
