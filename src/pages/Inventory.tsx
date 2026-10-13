@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft } from 'lucide-react';
+import { Filter, Download, Inbox, Package as PkgIcon, Loader2, Truck, ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -45,6 +46,10 @@ export function Inventory() {
   const [printingLabel, setPrintingLabel] = useState<any>(null);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>({
@@ -72,52 +77,94 @@ export function Inventory() {
 
   // ── React Query: paquetes (scoped by role) ─────────────────────────────────
   const { data: paquetes = [], isLoading: loading, error: queryError, refetch: refetchPaquetes } = useQuery({
-    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v4', personal: user?.role === 'cliente' ? user.id : undefined }),
+    queryKey: QUERY_KEYS.paquetes({ scope: isSuperAdmin ? 'all' : user?.sucursal_id, debug: 'v5', personal: user?.role === 'cliente' ? user.id : undefined }),
     queryFn: async () => {
       console.log('DEBUG: Initiating fetch for sucursal:', user?.sucursal_id);
-      let allData: any[] = [];
-      let page = 0;
-      const PAGE_SIZE = 1000;
-      let hasMore = true;
 
-      while (hasMore) {
-        let query = supabase
-          .from('paquetes')
-          .select(`
-            id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
-            bodegas (id, nombre),
-            clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
-            transportistas (id, nombre),
-            consolidacion_paquetes ( consolidaciones ( codigo ) )
-          `)
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
-          .order('fecha_recepcion', { ascending: false });
-
-        // 1. If it's a client, ONLY show their packages
-        if (user?.role === 'cliente') {
-          query = query.eq('cliente_id', user.id);
+      // 1. Fetch consolidation mapping in parallel without causing statement timeouts on paquetes
+      const fetchConsMap = async () => {
+        try {
+          const { data: cons } = await supabase
+            .from('consolidaciones')
+            .select('codigo, consolidacion_paquetes(paquete_id)');
+          const map = new Map<string, string>();
+          if (cons) {
+            cons.forEach((c: any) => {
+              c.consolidacion_paquetes?.forEach((cp: any) => {
+                if (cp?.paquete_id && c?.codigo) {
+                  map.set(cp.paquete_id, c.codigo);
+                }
+              });
+            });
+          }
+          return map;
+        } catch (e) {
+          console.warn('Could not load consolidation codes:', e);
+          return new Map<string, string>();
         }
-        // 2. If it's branch staff (not super admin), ONLY show packages of clients in their branch
-        else if (!isSuperAdmin && user?.sucursal_id) {
-          query = query.eq('clientes.sucursal_id', user.sucursal_id);
-        }
+      };
 
-        const { data, error } = await query;
+      // 2. Fetch packages in batches of 1,000 without the heavy embedded join
+      const fetchAllPackages = async () => {
+        let allData: any[] = [];
+        let page = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
 
-        if (error) {
-          console.error('DEBUG: Fetch error details:', error);
-          throw error;
-        }
+        while (hasMore) {
+          let query = supabase
+            .from('paquetes')
+            .select(`
+              id, tracking, peso_lbs, piezas, estado, fecha_recepcion, notas, created_at, bodega_id, transportista_id, cliente_id,
+              bodegas (id, nombre),
+              clientes!inner (id, nombre, apellido, locker_id, sucursal_id),
+              transportistas (id, nombre)
+            `)
+            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+            .order('fecha_recepcion', { ascending: false });
 
-        if (data) {
-          allData = [...allData, ...data];
-        }
+          // 1. If it's a client, ONLY show their packages
+          if (user?.role === 'cliente') {
+            query = query.eq('cliente_id', user.id);
+          }
+          // 2. If it's branch staff (not super admin), ONLY show packages of clients in their branch
+          else if (!isSuperAdmin && user?.sucursal_id) {
+            query = query.eq('clientes.sucursal_id', user.sucursal_id);
+          }
 
-        if (!data || data.length < PAGE_SIZE) {
-          hasMore = false;
-        } else {
-          page++;
+          const { data, error } = await query;
+
+          if (error) {
+            console.error('DEBUG: Fetch error details:', error);
+            throw error;
+          }
+
+          if (data) {
+            allData = [...allData, ...data];
+          }
+
+          if (!data || data.length < PAGE_SIZE) {
+            hasMore = false;
+          } else {
+            page++;
+          }
         }
+        return allData;
+      };
+
+      const [consMap, allData] = await Promise.all([
+        fetchConsMap(),
+        fetchAllPackages()
+      ]);
+
+      // Attach consolidation codes to packages so existing UI renders "📦 Lote: {cons}" seamlessly
+      if (consMap.size > 0) {
+        allData.forEach((p: any) => {
+          const lote = consMap.get(p.id);
+          if (lote) {
+            p.consolidacion_paquetes = [{ consolidaciones: { codigo: lote } }];
+          }
+        });
       }
 
       console.log('DEBUG: Fetch success, total rows:', allData.length);
@@ -226,6 +273,50 @@ export function Inventory() {
     });
   }, [paquetesList, searchTerm, activeFilters, hasActiveFilters]);
 
+  // Reset page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeFilters]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPaquetes.length / itemsPerPage));
+  const paginatedPaquetes = useMemo(() => {
+    if (itemsPerPage <= 0) return filteredPaquetes;
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredPaquetes.slice(start, start + itemsPerPage);
+  }, [filteredPaquetes, currentPage, itemsPerPage]);
+
+  const handleExport = () => {
+    if (filteredPaquetes.length === 0) {
+      toast.error('No hay paquetes para exportar');
+      return;
+    }
+    const dataToExport = filteredPaquetes.map(p => {
+      const pCliente = Array.isArray(p.clientes) ? p.clientes[0] : p.clientes;
+      const cons = p.consolidacion_paquetes && p.consolidacion_paquetes.length > 0
+        ? (Array.isArray(p.consolidacion_paquetes[0].consolidaciones) ? p.consolidacion_paquetes[0].consolidaciones[0]?.codigo : p.consolidacion_paquetes[0].consolidaciones?.codigo)
+        : '';
+      return {
+        'Tracking': p.tracking,
+        'Lote Consolidación': cons || 'N/A',
+        'Cliente': `${pCliente?.nombre || ''} ${pCliente?.apellido || ''}`.trim(),
+        'Casillero': pCliente?.locker_id || '',
+        'Fecha Recepción': p.fecha_recepcion ? format(new Date(p.fecha_recepcion), 'dd/MM/yyyy HH:mm') : '',
+        'Peso (lbs)': p.peso_lbs || 0,
+        'Piezas': p.piezas || 1,
+        'Bodega': p.bodegas?.nombre || 'General',
+        'Transportista': p.transportistas?.nombre || 'N/A',
+        'Estado': ESTADOS[p.estado]?.label || p.estado,
+        'Notas': p.notas || ''
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventario');
+    XLSX.writeFile(workbook, `Inventario_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    toast.success(`Exportados ${filteredPaquetes.length} paquetes a Excel`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in relative z-10 w-full max-w-full overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -269,7 +360,10 @@ export function Inventory() {
             )}
           </button>
           {isAdmin && (
-            <button className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <button
+              onClick={handleExport}
+              className="inline-flex flex-1 md:flex-none items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-500 hover:to-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+            >
               <Download className="h-4 w-4" />
               Exportar
             </button>
@@ -344,12 +438,12 @@ export function Inventory() {
                   </td>
                 </tr>
               ) : (
-                filteredPaquetes.map((p, index) => {
+                paginatedPaquetes.map((p, index) => {
                   const cons = p.consolidacion_paquetes && p.consolidacion_paquetes.length > 0
                     ? (Array.isArray(p.consolidacion_paquetes[0].consolidaciones) ? p.consolidacion_paquetes[0].consolidaciones[0]?.codigo : p.consolidacion_paquetes[0].consolidaciones?.codigo)
                     : null;
                   return (
-                    <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${index * 50}ms` }}>
+                    <tr key={p.id} className="hover:bg-blue-50/50 transition-colors animate-fade-in group" style={{ animationDelay: `${Math.min(index * 15, 200)}ms` }}>
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 sm:pl-6">
                         <div className="flex items-center gap-4">
                           <div className="rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 p-2.5 hidden sm:block shadow-sm group-hover:scale-105 transition-transform">
@@ -460,6 +554,72 @@ export function Inventory() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredPaquetes.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-white/70 backdrop-blur-sm border-t border-slate-200/80">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+              <span>
+                Mostrando <b className="text-slate-800">{(currentPage - 1) * itemsPerPage + 1}</b> - <b className="text-slate-800">{Math.min(currentPage * itemsPerPage, filteredPaquetes.length)}</b> de <b className="text-slate-800">{filteredPaquetes.length}</b> paquetes
+              </span>
+              <span className="text-slate-300">|</span>
+              <div className="flex items-center gap-1.5">
+                <span>Por página:</span>
+                <select
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-slate-100 border-none rounded-lg text-xs font-bold text-slate-700 py-1 px-2 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Primera página"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Página anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="px-3 py-1 text-xs font-bold text-slate-700 bg-slate-100 rounded-lg">
+                Pág. {currentPage} de {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Página siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Última página"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {printingLabel && (
