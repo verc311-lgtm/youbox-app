@@ -143,8 +143,8 @@ export function ClientPreAlerts() {
                                             </td>
                                             <td className="p-4 text-center">
                                                 {p.renuncia_url ? (
-                                                    <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-600 hover:bg-slate-200 transition-colors" title="Ver mi renuncia firmada">
-                                                        <Shield className="w-4 h-4 text-rose-500" />
+                                                    <a href={p.renuncia_url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Ver mi constancia firmada">
+                                                        <FileText className="w-4 h-4 text-blue-600" />
                                                     </a>
                                                 ) : (
                                                     <span className="text-slate-300">-</span>

@@ -1088,8 +1088,8 @@ export function PreAlertsAdmin() {
                                                                 rel="noreferrer"
                                                                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-semibold transition-colors shadow-xs"
                                                             >
-                                                                <Shield className="w-3 h-3 text-amber-600" />
-                                                                Ver Firma / Renuncia
+                                                                <FileText className="w-3 h-3 text-blue-600" />
+                                                                Ver Constancia / Firma
                                                             </a>
                                                         )}
 
