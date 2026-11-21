@@ -753,7 +753,7 @@ export function PreAlertsAdmin() {
     };
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-300">
+        <div className="p-4 sm:p-6 lg:p-8 w-full max-w-full space-y-6 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-800">Control de Pre-Alertas</h1>
@@ -879,28 +879,27 @@ export function PreAlertsAdmin() {
 
                 <div className="overflow-x-auto lg:overflow-x-visible">
                     <table className="w-full text-left border-collapse table-auto">
-                        <thead className="bg-slate-50/90 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-600 font-bold sticky top-0 z-10 backdrop-blur-sm">
+                        <thead className="bg-slate-50/95 border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-600 font-bold sticky top-0 z-10 backdrop-blur-sm">
                             <tr>
-                                <th className="p-4 w-[110px] whitespace-nowrap">1. Fecha</th>
-                                <th className="p-4 w-[170px]">2. Cliente / Casillero</th>
-                                <th className="p-4 w-[170px]">3. Número de Guía</th>
-                                <th className="p-4 min-w-[360px]">4. Descripción Organizada</th>
-                                <th className="p-4 w-[90px] text-center whitespace-nowrap">Peso</th>
-                                <th className="p-4 w-[130px] text-center whitespace-nowrap">Estado</th>
-                                <th className="p-4 w-[130px] text-right pr-6 whitespace-nowrap">Acción</th>
+                                <th className="p-3.5 w-[95px] whitespace-nowrap">1. Fecha</th>
+                                <th className="p-3.5 w-[150px]">2. Cliente / Casillero</th>
+                                <th className="p-3.5 w-[215px] whitespace-nowrap">3. Número de Guía</th>
+                                <th className="p-3.5">4. Descripción Organizada</th>
+                                <th className="p-3.5 w-[170px] text-center whitespace-nowrap">5. Estado en Bodega</th>
+                                <th className="p-3.5 w-[125px] text-right pr-6 whitespace-nowrap">Acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={7} className="p-12 text-center text-slate-400">
+                                    <td colSpan={6} className="p-12 text-center text-slate-400">
                                         <Clock className="w-8 h-8 animate-spin mx-auto mb-2 text-blue-500" />
                                         <span className="font-semibold text-sm">Cargando pre-alertas...</span>
                                     </td>
                                 </tr>
                             ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="p-12 text-center text-slate-500 font-medium">
+                                    <td colSpan={6} className="p-12 text-center text-slate-500 font-medium">
                                         No hay prealertas que coincidan con la búsqueda o filtro seleccionado.
                                     </td>
                                 </tr>
@@ -908,19 +907,18 @@ export function PreAlertsAdmin() {
                                 paginatedData.map((p) => {
                                     const isPagado = p.con_seguro && p.fondo_seguros && p.fondo_seguros.length > 0;
                                     const pagoDetails = isPagado ? p.fondo_seguros[0] : null;
-                                    const bodegaInfo = getBodegaInfo(p.bodegas?.nombre);
                                     const pkgInfo = paquetesMap.get(p.tracking?.toUpperCase());
                                     const isInBodega = enBodegaSet.has(p.id) || p.estado === 'procesada' || p.estado === 'recibido' || !!pkgInfo;
 
                                     return (
-                                        <tr key={p.id} className={`transition-all duration-200 border-b border-slate-100 align-top group ${
+                                        <tr key={p.id} className={`transition-all duration-150 border-b border-slate-200/80 align-top group ${
                                             isInBodega
-                                                ? 'bg-blue-50/70 border-l-4 border-l-blue-600 shadow-xs'
-                                                : 'bg-white hover:bg-slate-50/60'
+                                                ? 'bg-blue-50/80 hover:bg-blue-100/60 border-l-4 border-l-blue-600 shadow-xs'
+                                                : 'bg-white hover:bg-slate-50/80'
                                         }`}>
                                             {/* 1. FECHA */}
-                                            <td className="p-4 whitespace-nowrap">
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold shadow-xs">
+                                            <td className="p-3.5 whitespace-nowrap">
+                                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold shadow-xs">
                                                     <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                                                     {format(new Date(p.created_at), "yyyy-MM-dd")}
                                                 </div>
@@ -930,24 +928,24 @@ export function PreAlertsAdmin() {
                                             </td>
 
                                             {/* 2. CLIENTE / CASILLERO */}
-                                            <td className="p-4">
+                                            <td className="p-3.5">
                                                 <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
                                                     <User className="w-4 h-4 text-slate-400 shrink-0" />
-                                                    <span className="truncate max-w-[150px]" title={`${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`}>
+                                                    <span className="truncate max-w-[140px]" title={`${p.clientes?.nombre || ''} ${p.clientes?.apellido || ''}`}>
                                                         {p.clientes?.nombre} {p.clientes?.apellido}
                                                     </span>
                                                 </div>
-                                                <div className="mt-1.5">
-                                                    <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs">
+                                                <div className="mt-1">
+                                                    <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-xs">
                                                         Casillero: {p.clientes?.locker_id || 'N/A'}
                                                     </span>
                                                 </div>
                                             </td>
 
                                             {/* 3. NÚMERO DE GUÍA (Tracking) */}
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <span className="font-mono font-bold text-blue-700 text-sm select-all break-all">
+                                            <td className="p-3.5 whitespace-nowrap">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-mono font-bold text-blue-700 text-xs sm:text-sm select-all whitespace-nowrap tracking-tight">
                                                         {p.tracking}
                                                     </span>
                                                     <button
@@ -957,16 +955,16 @@ export function PreAlertsAdmin() {
                                                         title="Copiar tracking"
                                                     >
                                                         {copiedTrackingId === p.id ? (
-                                                            <Check className="w-4 h-4 text-emerald-600" />
+                                                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                                                         ) : (
-                                                            <Copy className="w-4 h-4" />
+                                                            <Copy className="w-3.5 h-3.5" />
                                                         )}
                                                     </button>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => openEdit(p)}
-                                                    className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100 border border-blue-200 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                    className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
                                                 >
                                                     <Pencil className="w-3 h-3" />
                                                     Editar Guía
@@ -974,84 +972,87 @@ export function PreAlertsAdmin() {
                                             </td>
 
                                             {/* 4. DESCRIPCIÓN ORGANIZADA */}
-                                            <td className="p-4">
-                                                <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-200/90 space-y-2.5 shadow-xs">
-                                                    {/* Fila de badges */}
+                                            <td className="p-3.5">
+                                                <div className="bg-slate-50/90 p-2.5 rounded-xl border border-slate-200/90 space-y-2 text-xs shadow-xs">
+                                                    {/* Fila 1: Badges principales en 1 sola fila organizada */}
                                                     <div className="flex flex-wrap items-center gap-1.5">
                                                         {/* Bodega */}
-                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold border ${bodegaInfo.color} shadow-xs`}>
-                                                            {bodegaInfo.label}
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-semibold bg-white border border-slate-200 text-slate-700 shadow-xs">
+                                                            <MapPin className="w-3 h-3 text-blue-600" />
+                                                            {p.bodegas?.nombre || 'General'}
                                                         </span>
 
-                                                        {/* Valor declarado */}
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
+                                                        {/* Valor Declarado */}
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold bg-emerald-50 border border-emerald-200 text-emerald-800 shadow-xs">
                                                             💵 Valor: ${Number(p.valor_factura || 0).toFixed(2)}
+                                                        </span>
+
+                                                        {/* Peso Báscula integrado directamente aquí */}
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold border shadow-xs ${
+                                                            pkgInfo?.peso_lbs
+                                                                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                                                : 'bg-slate-100 text-slate-500 border-slate-200'
+                                                        }`}>
+                                                            ⚖️ {pkgInfo?.peso_lbs ? `${pkgInfo.peso_lbs} Lbs (Báscula)` : 'Sin Pesar'}
                                                         </span>
 
                                                         {/* Seguro */}
                                                         {p.con_seguro ? (
                                                             isPagado ? (
-                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-xs" title={`Pagado vía ${pagoDetails?.metodo_pago}`}>
-                                                                    <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-xs">
+                                                                    <ShieldCheck className="w-3 h-3 text-blue-600" />
                                                                     Seguro Pagado (${Number(p.monto_seguro || 0).toFixed(2)})
                                                                 </span>
                                                             ) : (
-                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-xs">
-                                                                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-xs animate-pulse">
+                                                                    <AlertCircle className="w-3 h-3 text-rose-600" />
                                                                     Debe Seguro: ${Number(p.monto_seguro || 0).toFixed(2)}
                                                                 </span>
                                                             )
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200 shadow-xs">
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md font-medium bg-amber-50 text-amber-800 border border-amber-200 shadow-xs">
                                                                 ⚠️ Sin Seguro
                                                             </span>
                                                         )}
 
-                                                        {/* Tipo */}
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium bg-white text-slate-600 border border-slate-200 shadow-xs">
-                                                            🛍️ Compra Online
-                                                        </span>
-                                                    </div>
-
-                                                    {/* Estado de firma / póliza */}
-                                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                        {/* Firma / Renuncia Status */}
                                                         {!p.con_seguro ? (
-                                                            <span className="inline-flex items-center gap-1 text-amber-800 bg-amber-50/80 px-2.5 py-0.5 rounded-md border border-amber-200 font-medium">
-                                                                ✍️ Firmado: {p.clientes?.nombre} {p.clientes?.apellido} (Renuncia)
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-amber-800 bg-amber-50 border border-amber-200 font-medium">
+                                                                ✍️ Renuncia Firmada
                                                             </span>
                                                         ) : isPagado ? (
-                                                            <span className="inline-flex items-center gap-1 text-emerald-800 bg-emerald-50/80 px-2.5 py-0.5 rounded-md border border-emerald-200 font-medium">
-                                                                🛡️ Póliza Activa: Cobertura 100% (Ref: {pagoDetails?.referencia || pagoDetails?.metodo_pago})
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-emerald-800 bg-emerald-50 border border-emerald-200 font-medium">
+                                                                🛡️ Póliza Activa
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 text-rose-800 bg-rose-50/80 px-2.5 py-0.5 rounded-md border border-rose-200 font-medium">
-                                                                ⚠️ Cobertura pendiente de cobro de prima
+                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-rose-700 bg-rose-50 border border-rose-200 font-medium">
+                                                                ⚠️ Póliza Por Cobrar
                                                             </span>
                                                         )}
                                                     </div>
 
-                                                    {/* Contenido / Descripción */}
-                                                    <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-700 flex items-center gap-2 shadow-xs">
+                                                    {/* Fila 2: Caja de Contenido */}
+                                                    <div className="bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-xs text-slate-700 flex items-center gap-2 shadow-xs">
                                                         <span className="font-bold text-slate-800 shrink-0">CONTENIDO:</span>
                                                         <span className="text-slate-600 font-medium truncate">
                                                             {p.contenido || p.descripcion || p.notas || 'PAQUETE PRE-ALERTADO (DECLARADO EN FACTURA)'}
                                                         </span>
                                                     </div>
 
-                                                    {/* Botones de documentos */}
+                                                    {/* Fila 3: Documentos adjuntos limpios */}
                                                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
                                                         {p.factura_url ? (
                                                             <a
                                                                 href={p.factura_url}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors shadow-xs"
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors shadow-xs"
                                                             >
                                                                 <FileText className="w-3.5 h-3.5 text-blue-600" />
-                                                                Ver Factura ({getCleanFileName(p.factura_url)})
+                                                                Ver Factura
                                                             </a>
                                                         ) : (
-                                                            <span className="text-xs text-slate-400 italic">Sin factura adjunta</span>
+                                                            <span className="text-xs text-slate-400 italic">Sin factura</span>
                                                         )}
 
                                                         {p.renuncia_url && (
@@ -1059,10 +1060,10 @@ export function PreAlertsAdmin() {
                                                                 href={p.renuncia_url}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition-colors shadow-xs"
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition-colors shadow-xs"
                                                             >
                                                                 <Shield className="w-3.5 h-3.5 text-amber-600" />
-                                                                Ver Firma / Constancia
+                                                                Ver Firma / Renuncia
                                                             </a>
                                                         )}
 
@@ -1070,74 +1071,53 @@ export function PreAlertsAdmin() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => generateInsuranceReceipt(p, pagoDetails)}
-                                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-colors shadow-xs cursor-pointer"
+                                                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-colors shadow-xs cursor-pointer"
                                                             >
                                                                 <Download className="w-3.5 h-3.5 text-emerald-600" />
-                                                                Ver Recibo Seguro (PDF)
+                                                                Recibo Seguro
                                                             </button>
                                                         )}
                                                     </div>
                                                 </div>
                                             </td>
 
-                                            {/* 5. PESO */}
-                                            <td className="p-4 whitespace-nowrap text-center">
-                                                {pkgInfo?.peso_lbs ? (
-                                                    <div>
-                                                        <span className="text-sm font-extrabold text-slate-800">
-                                                            {pkgInfo.peso_lbs} Lbs
-                                                        </span>
-                                                        <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">
-                                                            Báscula
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <span className="text-sm font-semibold text-slate-400">
-                                                            —
-                                                        </span>
-                                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                                                            Sin Pesar
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </td>
-
-                                            {/* 6. ESTADO */}
-                                            <td className="p-4 whitespace-nowrap text-center">
-                                                <div className="flex flex-col gap-2 items-center w-full min-w-[145px]">
-                                                    {/* Badge de estado actual */}
-                                                    <span className={`inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold uppercase border shadow-xs ${
-                                                        p.estado === 'procesada'
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                            : p.estado === 'recibido'
-                                                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                                                            : p.estado === 'rechazada'
-                                                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                                                    }`}>
-                                                        {p.estado === 'procesada' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                                                        {p.estado === 'recibido' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />}
-                                                        {p.estado === 'pendiente' && <Clock className="w-3.5 h-3.5 text-amber-600" />}
-                                                        {p.estado === 'rechazada' && <XCircle className="w-3.5 h-3.5 text-rose-600" />}
-                                                        {p.estado === 'procesada' ? 'En Almacén' : p.estado}
-                                                    </span>
-
-                                                    {/* Botón "Ya en Bodega" para subrayar la fila y activar los 2 botones */}
+                                            {/* 5. ESTADO EN BODEGA */}
+                                            <td className="p-3.5 whitespace-nowrap text-center">
+                                                <div className="flex flex-col gap-1.5 items-center w-full">
+                                                    {/* Si NO está marcado en bodega */}
                                                     {!isInBodega ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleEnBodega(p.id)}
-                                                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 shadow-xs transition-all active:scale-95 cursor-pointer"
-                                                            title="Marcar que el paquete ya se encuentra en bodega (subraya la fila y activa opciones)"
-                                                        >
-                                                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                                                            Ya en Bodega
-                                                        </button>
+                                                        <div className="flex flex-col gap-1.5 items-center w-full">
+                                                            <span className={`inline-flex items-center justify-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase border shadow-xs ${
+                                                                p.estado === 'procesada'
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    : p.estado === 'recibido'
+                                                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                                                    : p.estado === 'rechazada'
+                                                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                            }`}>
+                                                                {p.estado === 'procesada' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                                                                {p.estado === 'recibido' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />}
+                                                                {p.estado === 'pendiente' && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                                                                {p.estado === 'rechazada' && <XCircle className="w-3.5 h-3.5 text-rose-600" />}
+                                                                {p.estado === 'procesada' ? 'En Almacén' : p.estado}
+                                                            </span>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => toggleEnBodega(p.id)}
+                                                                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50/70 hover:bg-blue-100 text-blue-700 border border-blue-200 shadow-xs transition-all active:scale-95 cursor-pointer"
+                                                                title="Marcar que el paquete ya se encuentra en bodega"
+                                                            >
+                                                                <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                                                Ya en Bodega
+                                                            </button>
+                                                        </div>
                                                     ) : (
-                                                        <div className="flex flex-col items-center gap-1.5 w-full bg-blue-100/70 p-2 rounded-xl border border-blue-200">
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-800">
+                                                        /* Si YA está en bodega: se resalta la fila en azul suave y se activan los dos botones */
+                                                        <div className="flex flex-col gap-1.5 items-center w-full bg-blue-100/60 p-2 rounded-xl border border-blue-200">
+                                                            <div className="flex items-center justify-between w-full px-1">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-800 uppercase tracking-wide">
                                                                     <Building2 className="w-3 h-3 text-blue-600" />
                                                                     En Bodega
                                                                 </span>
@@ -1145,28 +1125,28 @@ export function PreAlertsAdmin() {
                                                                     type="button"
                                                                     onClick={() => toggleEnBodega(p.id)}
                                                                     className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                                                                    title="Desmarcar estado en bodega"
+                                                                    title="Desmarcar"
                                                                 >
                                                                     Desmarcar
                                                                 </button>
                                                             </div>
 
                                                             {/* Los dos botones activados al estar en bodega */}
-                                                            <div className="flex flex-col gap-1.5 w-full mt-1">
-                                                                {/* Botón 1: Si está recibido */}
+                                                            <div className="flex flex-col gap-1.5 w-full mt-0.5">
+                                                                {/* Botón 1: Recibido */}
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleProcesar(p, 'recibido')}
                                                                     disabled={procesando}
-                                                                    className={`w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                                                                    className={`w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer ${
                                                                         p.estado === 'recibido'
                                                                             ? 'bg-emerald-600 text-white shadow-sm'
-                                                                            : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 active:scale-95'
+                                                                            : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 active:scale-95'
                                                                     }`}
                                                                     title="Confirmar paquete como recibido"
                                                                 >
                                                                     <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                    {p.estado === 'recibido' ? '✓ Recibido' : 'Recibido'}
+                                                                    {p.estado === 'recibido' ? '✓ Recibido' : 'Marcar Recibido'}
                                                                 </button>
 
                                                                 {/* Botón 2: Procesar a Warehouse (Ingresar peso) */}
@@ -1177,11 +1157,11 @@ export function PreAlertsAdmin() {
                                                                         setWarehousePeso(String(pkgInfo?.peso_lbs || ''));
                                                                         setWarehouseNotas('');
                                                                     }}
-                                                                    className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+                                                                    className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
                                                                     title="Ingresar peso de báscula y procesar al inventario de Warehouse"
                                                                 >
                                                                     <Package className="w-3.5 h-3.5 text-white" />
-                                                                    {pkgInfo?.peso_lbs ? 'Actualizar Peso' : 'Procesar a Warehouse'}
+                                                                    {pkgInfo?.peso_lbs ? 'Actualizar Peso' : 'Procesar Warehouse'}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -1189,9 +1169,9 @@ export function PreAlertsAdmin() {
                                                 </div>
                                             </td>
 
-                                            {/* 7. ACCIÓN */}
-                                            <td className="p-4 whitespace-nowrap text-right pr-6">
-                                                <div className="flex flex-col gap-1.5 items-end">
+                                            {/* 6. ACCIÓN */}
+                                            <td className="p-3.5 whitespace-nowrap text-right pr-6">
+                                                <div className="flex flex-col gap-1.5 items-end justify-center">
                                                     {/* Botón Cobrar Seguro si tiene seguro pendiente de pago */}
                                                     {p.con_seguro && !isPagado && (
                                                         <button
