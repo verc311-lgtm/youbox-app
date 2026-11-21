@@ -63,168 +63,150 @@ function generateConstanciaPDF(
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 18;
+    const margin = 14;
     const contentWidth = pageWidth - (margin * 2);
-    let y = 18;
-
-    const checkPageBreak = (needed: number) => {
-        if (y + needed > 255) {
-            doc.addPage();
-            y = 18;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(100, 116, 139);
-            doc.text(`YOUBOXGT • Constancia de Prealerta — Tracking: ${tracking.toUpperCase()}`, margin, y);
-            y += 8;
-            doc.setDrawColor(226, 232, 240);
-            doc.setLineWidth(0.3);
-            doc.line(margin, y, pageWidth - margin, y);
-            y += 6;
-        }
-    };
+    let y = 11;
 
     // Header: YOUBOXGT
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
+    doc.setFontSize(16);
     doc.setTextColor(30, 64, 175);
     doc.text('YOUBOXGT', pageWidth / 2, y, { align: 'center' });
-    y += 7;
+    y += 5.5;
 
-    doc.setFontSize(13);
+    doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
     doc.text('CONSTANCIA DE PREALERTA', pageWidth / 2, y, { align: 'center' });
-    y += 5;
+    y += 4;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(7.5);
     doc.setTextColor(71, 85, 105);
     doc.text('REGISTRO DEL ENVÍO • COBERTURA • ACEPTACIÓN DE CONDICIONES', pageWidth / 2, y, { align: 'center' });
-    y += 6;
+    y += 4.5;
 
     // Line
     doc.setDrawColor(30, 64, 175);
-    doc.setLineWidth(0.7);
+    doc.setLineWidth(0.6);
     doc.line(margin, y, pageWidth - margin, y);
-    y += 5;
+    y += 3.5;
 
     // DATOS DEL ENVÍO
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
-    doc.roundedRect(margin, y, contentWidth, 36, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(30, 64, 175);
-    doc.text('DATOS DEL ENVÍO', margin + 4, y + 5);
-
-    doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-
-    const fechaStr = format(new Date(), 'dd/MM/yyyy HH:mm');
-    const col1X = margin + 4;
-    const col2X = margin + (contentWidth / 2);
-
-    // Row 1
-    doc.setFont('helvetica', 'bold');
-    doc.text('Nombre del cliente:', col1X, y + 11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'N/A', col1X + 30, y + 11);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Código YBG:', col2X, y + 11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(user?.locker_id || 'N/A', col2X + 22, y + 11);
-
-    // Row 2
-    doc.setFont('helvetica', 'bold');
-    doc.text('Fecha de prealerta:', col1X, y + 17);
-    doc.setFont('helvetica', 'normal');
-    doc.text(fechaStr, col1X + 30, y + 17);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Valor declarado:', col2X, y + 17);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`$${Number(valorFactura || 0).toFixed(2)} USD`, col2X + 24, y + 17);
-
-    // Row 3
-    doc.setFont('helvetica', 'bold');
-    doc.text('Número de tracking:', col1X, y + 23);
-    doc.setFont('helvetica', 'normal');
-    doc.text(tracking.toUpperCase(), col1X + 30, y + 23);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Contenido declarado:', col2X, y + 23);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Mercancía declarada en factura', col2X + 32, y + 23);
-
-    // Row 4 - Cobertura
-    doc.setFont('helvetica', 'bold');
-    doc.text('Cobertura:', col1X, y + 29);
-    doc.setFont('helvetica', 'normal');
-    const optBasica = !conSeguro ? '[ X ] Básica USD 50' : '[   ] Básica USD 50';
-    const optTotal = conSeguro ? '[ X ] Total 5% (Con Seguro)' : '[   ] Total 5% (Con Seguro)';
-    doc.text(`${optBasica}        ${optTotal}`, col1X + 18, y + 29);
-
-    y += 41;
-
-    // Intro text
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.setTextColor(51, 65, 85);
-    const introText = 'Por medio de este documento, el cliente confirma que ha solicitado el traslado de su paquete con YOUBOXGT y declara que conoce y acepta las condiciones siguientes:';
-    const splitIntro = doc.splitTextToSize(introText, contentWidth);
-    doc.text(splitIntro, margin, y);
-    y += (splitIntro.length * 3.6) + 3;
-
-    // Clauses 1 to 7
-    for (const c of CLAUSES) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(15, 23, 42);
-        checkPageBreak(12);
-        doc.text(`${c.num}. ${c.title}`, margin, y);
-        y += 4;
-
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
-        doc.setTextColor(51, 65, 85);
-        const splitBody = doc.splitTextToSize(c.text, contentWidth);
-        checkPageBreak((splitBody.length * 3.2) + 2);
-        doc.text(splitBody, margin, y);
-        y += (splitBody.length * 3.2) + 3;
-    }
-
-    // Signature Block
-    checkPageBreak(42);
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.4);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 5;
+    doc.roundedRect(margin, y, contentWidth, 26, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 64, 175);
+    doc.text('DATOS DEL ENVÍO', margin + 3.5, y + 4.5);
+
+    doc.setFontSize(7.2);
+    doc.setTextColor(15, 23, 42);
+
+    const fechaStr = format(new Date(), 'dd/MM/yyyy HH:mm');
+    const col1X = margin + 3.5;
+    const col2X = margin + (contentWidth / 2) + 2;
+
+    // Row 1
+    doc.setFont('helvetica', 'bold');
+    doc.text('Nombre del cliente:', col1X, y + 9.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${user?.nombre || ''} ${user?.apellido || ''}`.trim() || 'N/A', col1X + 28, y + 9.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Código YBG:', col2X, y + 9.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(user?.locker_id || 'N/A', col2X + 20, y + 9.5);
+
+    // Row 2
+    doc.setFont('helvetica', 'bold');
+    doc.text('Fecha de prealerta:', col1X, y + 14.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(fechaStr, col1X + 28, y + 14.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Valor declarado:', col2X, y + 14.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`$${Number(valorFactura || 0).toFixed(2)} USD`, col2X + 24, y + 14.5);
+
+    // Row 3
+    doc.setFont('helvetica', 'bold');
+    doc.text('Número de tracking:', col1X, y + 19.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(tracking.toUpperCase(), col1X + 28, y + 19.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Contenido declarado:', col2X, y + 19.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Mercancía declarada en factura', col2X + 30, y + 19.5);
+
+    // Row 4 - Cobertura
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cobertura:', col1X, y + 24.5);
+    doc.setFont('helvetica', 'normal');
+    const optBasica = !conSeguro ? '[ X ] Básica USD 50' : '[   ] Básica USD 50';
+    const optTotal = conSeguro ? '[ X ] Total 5% (Con Seguro)' : '[   ] Total 5% (Con Seguro)';
+    doc.text(`${optBasica}        ${optTotal}`, col1X + 17, y + 24.5);
+
+    y += 29.5;
+
+    // Intro text
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.2);
+    doc.setTextColor(51, 65, 85);
+    const introText = 'Por medio de este documento, el cliente confirma que ha solicitado el traslado de su paquete con YOUBOXGT y declara que conoce y acepta las condiciones siguientes:';
+    const splitIntro = doc.splitTextToSize(introText, contentWidth);
+    doc.text(splitIntro, margin, y);
+    y += (splitIntro.length * 3.1) + 2;
+
+    // Clauses 1 to 7
+    for (const c of CLAUSES) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.2);
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${c.num}. ${c.title}`, margin, y);
+        y += 3.2;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.6);
+        doc.setTextColor(51, 65, 85);
+        const splitBody = doc.splitTextToSize(c.text, contentWidth);
+        doc.text(splitBody, margin, y);
+        y += (splitBody.length * 2.65) + 1.8;
+    }
+
+    // Line before signature
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.4);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 3.5;
+
+    // Signature Block
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.8);
+    doc.setTextColor(30, 64, 175);
     doc.text('FIRMA / NOMBRE DE ACEPTACIÓN DEL CLIENTE', margin, y);
-    y += 4;
+    y += 3.5;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
-    doc.text(`Nombre: ${user?.nombre || ''} ${user?.apellido || ''}`.trim() + `   •   Casillero: ${user?.locker_id || 'N/A'}`, margin, y);
-    y += 4;
-    doc.text(`Fecha de aceptación: ${fechaStr}   •   Firma digital registrada:`, margin, y);
-    y += 2;
+    doc.text(`Nombre: ${user?.nombre || ''} ${user?.apellido || ''}`.trim() + `   •   Casillero: ${user?.locker_id || 'N/A'}   •   Fecha: ${fechaStr}`, margin, y);
+    y += 3.5;
+    doc.text('Firma digital registrada:', margin, y);
+    y += 1.5;
 
     if (signature) {
-        doc.addImage(signature, 'PNG', margin, y, 55, 18);
-        y += 20;
+        doc.addImage(signature, 'PNG', margin, y, 48, 15);
+        y += 16.5;
     } else {
-        y += 10;
+        y += 8;
     }
 
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7);
+    doc.setFontSize(6.2);
     doc.setTextColor(100, 116, 139);
     doc.text('Documento firmado electrónicamente conforme a los términos de servicio de YOUBOXGT.', margin, y);
 
