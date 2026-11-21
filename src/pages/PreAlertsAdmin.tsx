@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar, AlertCircle, ShieldCheck, Copy, Check, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar, AlertCircle, ShieldCheck, Copy, Check, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Building2, Package } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
@@ -57,6 +58,99 @@ export function PreAlertsAdmin() {
     const [debitMonto, setDebitMonto] = useState('');
     const [debitDescripcion, setDebitDescripcion] = useState('');
     const [debitSaving, setDebitSaving] = useState(false);
+
+    // --- EN BODEGA & WAREHOUSE PROCESSING state ---
+    const [enBodegaSet, setEnBodegaSet] = useState<Set<string>>(new Set());
+    const [warehousePrealerta, setWarehousePrealerta] = useState<any | null>(null);
+    const [warehousePeso, setWarehousePeso] = useState('');
+    const [warehouseNotas, setWarehouseNotas] = useState('');
+    const [warehouseSaving, setWarehouseSaving] = useState(false);
+
+    const toggleEnBodega = (id: string) => {
+        setEnBodegaSet(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const handleProcessToWarehouse = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!warehousePrealerta) return;
+        const pesoNum = parseFloat(warehousePeso);
+        if (isNaN(pesoNum) || pesoNum <= 0) {
+            toast.error('Por favor ingresa un peso válido en libras mayor a 0');
+            return;
+        }
+
+        setWarehouseSaving(true);
+        try {
+            const p = warehousePrealerta;
+            const cleanTracking = p.tracking.trim().toUpperCase();
+
+            // 1. Verificar si ya existe en 'paquetes'
+            const { data: existingPkg, error: checkError } = await supabase
+                .from('paquetes')
+                .select('id, peso_lbs, estado')
+                .eq('tracking', cleanTracking)
+                .maybeSingle();
+
+            if (checkError) console.warn('Check error:', checkError);
+
+            if (existingPkg) {
+                const { error: updError } = await supabase
+                    .from('paquetes')
+                    .update({
+                        peso_lbs: pesoNum,
+                        estado: 'en_bodega',
+                        cliente_id: p.cliente_id || existingPkg.cliente_id,
+                        bodega_id: p.bodega_id || existingPkg.bodega_id,
+                        notas: warehouseNotas.trim() || undefined
+                    })
+                    .eq('id', existingPkg.id);
+                if (updError) throw updError;
+            } else {
+                const { error: insError } = await supabase
+                    .from('paquetes')
+                    .insert({
+                        tracking: cleanTracking,
+                        cliente_id: p.cliente_id,
+                        bodega_id: p.bodega_id || bodegas[0]?.id || null,
+                        peso_lbs: pesoNum,
+                        piezas: 1,
+                        estado: 'en_bodega',
+                        notas: warehouseNotas.trim() || `Ingresado desde Pre-alerta.${p.con_seguro ? ' (Con seguro)' : ' (Sin seguro)'}`,
+                        usuario_recepcion: user?.id === 'admin-001' ? null : user?.id
+                    });
+                if (insError) throw insError;
+            }
+
+            // 2. Actualizar estado de prealerta a 'procesada'
+            const { error: preError } = await supabase
+                .from('prealertas')
+                .update({ estado: 'procesada' })
+                .eq('id', p.id);
+            if (preError) throw preError;
+
+            // 3. Actualizar mapa local de pesos y marcar en bodega
+            setPaquetesMap(prev => {
+                const next = new Map(prev);
+                next.set(cleanTracking, { peso_lbs: pesoNum, estado: 'en_bodega' });
+                return next;
+            });
+            setEnBodegaSet(prev => new Set(prev).add(p.id));
+
+            toast.success(`¡Tracking ${cleanTracking} procesado a Warehouse con ${pesoNum} lbs!`);
+            setWarehousePrealerta(null);
+            fetchData();
+        } catch (err: any) {
+            console.error('Error procesando a warehouse:', err);
+            toast.error('Error al procesar a warehouse: ' + (err.message || ''));
+        } finally {
+            setWarehouseSaving(false);
+        }
+    };
 
     // --- INSURANCE PAYMENT modal state ---
     const [paymentPrealerta, setPaymentPrealerta] = useState<any | null>(null);
@@ -816,9 +910,14 @@ export function PreAlertsAdmin() {
                                     const pagoDetails = isPagado ? p.fondo_seguros[0] : null;
                                     const bodegaInfo = getBodegaInfo(p.bodegas?.nombre);
                                     const pkgInfo = paquetesMap.get(p.tracking?.toUpperCase());
+                                    const isInBodega = enBodegaSet.has(p.id) || p.estado === 'procesada' || p.estado === 'recibido' || !!pkgInfo;
 
                                     return (
-                                        <tr key={p.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-100 align-top group">
+                                        <tr key={p.id} className={`transition-all duration-200 border-b border-slate-100 align-top group ${
+                                            isInBodega
+                                                ? 'bg-blue-50/70 border-l-4 border-l-blue-600 shadow-xs'
+                                                : 'bg-white hover:bg-slate-50/60'
+                                        }`}>
                                             {/* 1. FECHA */}
                                             <td className="p-4 whitespace-nowrap">
                                                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold shadow-xs">
@@ -1006,7 +1105,8 @@ export function PreAlertsAdmin() {
 
                                             {/* 6. ESTADO */}
                                             <td className="p-4 whitespace-nowrap text-center">
-                                                <div className="flex flex-col gap-1.5 items-center">
+                                                <div className="flex flex-col gap-2 items-center w-full min-w-[145px]">
+                                                    {/* Badge de estado actual */}
                                                     <span className={`inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold uppercase border shadow-xs ${
                                                         p.estado === 'procesada'
                                                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -1023,24 +1123,68 @@ export function PreAlertsAdmin() {
                                                         {p.estado === 'procesada' ? 'En Almacén' : p.estado}
                                                     </span>
 
-                                                    {/* Quick status actions */}
-                                                    {p.estado === 'pendiente' ? (
+                                                    {/* Botón "Ya en Bodega" para subrayar la fila y activar los 2 botones */}
+                                                    {!isInBodega ? (
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleProcesar(p, 'procesada')}
-                                                            disabled={procesando}
-                                                            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline transition-all cursor-pointer"
+                                                            onClick={() => toggleEnBodega(p.id)}
+                                                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 shadow-xs transition-all active:scale-95 cursor-pointer"
+                                                            title="Marcar que el paquete ya se encuentra en bodega (subraya la fila y activa opciones)"
                                                         >
-                                                            ✓ Marcar En Almacén
+                                                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                                                            Ya en Bodega
                                                         </button>
                                                     ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSelectedPrealerta(p)}
-                                                            className="text-[11px] font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
-                                                        >
-                                                            ↩️ Cambiar Estado
-                                                        </button>
+                                                        <div className="flex flex-col items-center gap-1.5 w-full bg-blue-100/70 p-2 rounded-xl border border-blue-200">
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-blue-800">
+                                                                    <Building2 className="w-3 h-3 text-blue-600" />
+                                                                    En Bodega
+                                                                </span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleEnBodega(p.id)}
+                                                                    className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                                                                    title="Desmarcar estado en bodega"
+                                                                >
+                                                                    Desmarcar
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Los dos botones activados al estar en bodega */}
+                                                            <div className="flex flex-col gap-1.5 w-full mt-1">
+                                                                {/* Botón 1: Si está recibido */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleProcesar(p, 'recibido')}
+                                                                    disabled={procesando}
+                                                                    className={`w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer ${
+                                                                        p.estado === 'recibido'
+                                                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                                                            : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 active:scale-95'
+                                                                    }`}
+                                                                    title="Confirmar paquete como recibido"
+                                                                >
+                                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                    {p.estado === 'recibido' ? '✓ Recibido' : 'Recibido'}
+                                                                </button>
+
+                                                                {/* Botón 2: Procesar a Warehouse (Ingresar peso) */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setWarehousePrealerta(p);
+                                                                        setWarehousePeso(String(pkgInfo?.peso_lbs || ''));
+                                                                        setWarehouseNotas('');
+                                                                    }}
+                                                                    className="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs transition-all active:scale-95 cursor-pointer"
+                                                                    title="Ingresar peso de báscula y procesar al inventario de Warehouse"
+                                                                >
+                                                                    <Package className="w-3.5 h-3.5 text-white" />
+                                                                    {pkgInfo?.peso_lbs ? 'Actualizar Peso' : 'Procesar a Warehouse'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -1838,6 +1982,121 @@ export function PreAlertsAdmin() {
                                 >
                                     {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                     Descargar Excel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: PROCESAR A WAREHOUSE CON PESO DE BÁSCULA ── */}
+            {warehousePrealerta && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !warehouseSaving && setWarehousePrealerta(null)} />
+                    <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                        <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                                    <Package className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-base">Procesar a Warehouse</h3>
+                                    <p className="text-xs text-blue-100">Ingreso a inventario con pesaje de báscula</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => !warehouseSaving && setWarehousePrealerta(null)}
+                                className="text-blue-100 hover:text-white"
+                            >
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleProcessToWarehouse} className="p-6 space-y-4">
+                            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Tracking:</span>
+                                    <span className="font-mono font-bold text-blue-700">{warehousePrealerta.tracking}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Cliente:</span>
+                                    <span className="font-bold text-slate-800">
+                                        {warehousePrealerta.clientes?.locker_id} – {warehousePrealerta.clientes?.nombre} {warehousePrealerta.clientes?.apellido}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Bodega:</span>
+                                    <span className="font-semibold text-slate-700">{warehousePrealerta.bodegas?.nombre || 'General'}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-slate-500">Seguro:</span>
+                                    <span className="font-semibold text-slate-700">
+                                        {warehousePrealerta.con_seguro ? `Con seguro ($${Number(warehousePrealerta.monto_seguro).toFixed(2)})` : 'Sin seguro (Renuncia)'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Peso en Báscula (Libras) *
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0.01"
+                                        required
+                                        autoFocus
+                                        placeholder="Ej. 2.5"
+                                        value={warehousePeso}
+                                        onChange={(e) => setWarehousePeso(e.target.value)}
+                                        className="block w-full rounded-xl border border-slate-300 pr-12 pl-4 py-2.5 text-base font-extrabold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                                    />
+                                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-extrabold text-slate-400">
+                                        LBS
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Este peso se registrará en el inventario de Warehouse para control y facturación.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Notas de Recepción (Opcional)
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Ej. Caja sellada en buen estado..."
+                                    value={warehouseNotas}
+                                    onChange={(e) => setWarehouseNotas(e.target.value)}
+                                    className="block w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                                />
+                            </div>
+
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setWarehousePrealerta(null)}
+                                    disabled={warehouseSaving}
+                                    className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={warehouseSaving}
+                                    className="flex-1 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                                >
+                                    {warehouseSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4" /> Guardar y Procesar
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
