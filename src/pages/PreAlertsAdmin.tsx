@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar, AlertCircle, ShieldCheck, Copy, Check, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Building2, Package } from 'lucide-react';
+import { Shield, Search, FileText, CheckCircle2, Clock, XCircle, DollarSign, HandCoins, PlusCircle, Loader2, Upload, Pencil, Download, Calendar, AlertCircle, ShieldCheck, Copy, Check, User, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Building2, Package, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -75,6 +75,29 @@ export function PreAlertsAdmin() {
         });
     };
 
+    const handleDesmarcar = async (p: any) => {
+        // 1. Quitar de la selección de bodega inmediatamente
+        setEnBodegaSet(prev => {
+            const next = new Set(prev);
+            next.delete(p.id);
+            return next;
+        });
+
+        // 2. Si el estado operativo era 'recibido', restaurar a 'pendiente' en la base de datos
+        if (p.estado === 'recibido') {
+            try {
+                const { error: updError } = await supabase
+                    .from('prealertas')
+                    .update({ estado: 'pendiente' })
+                    .eq('id', p.id);
+                if (updError) throw updError;
+                fetchData();
+            } catch (err) {
+                console.error('Error desmarcando estado recibido:', err);
+            }
+        }
+    };
+
     const handleProcessToWarehouse = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!warehousePrealerta) return;
@@ -139,7 +162,11 @@ export function PreAlertsAdmin() {
                 next.set(cleanTracking, { peso_lbs: pesoNum, estado: 'en_bodega' });
                 return next;
             });
-            setEnBodegaSet(prev => new Set(prev).add(p.id));
+            setEnBodegaSet(prev => {
+                const next = new Set(prev);
+                next.delete(p.id);
+                return next;
+            });
 
             toast.success(`¡Tracking ${cleanTracking} procesado a Warehouse con ${pesoNum} lbs!`);
             setWarehousePrealerta(null);
@@ -908,11 +935,11 @@ export function PreAlertsAdmin() {
                                     const isPagado = p.con_seguro && p.fondo_seguros && p.fondo_seguros.length > 0;
                                     const pagoDetails = isPagado ? p.fondo_seguros[0] : null;
                                     const pkgInfo = paquetesMap.get(p.tracking?.toUpperCase());
-                                    const isInBodega = enBodegaSet.has(p.id) || p.estado === 'procesada' || p.estado === 'recibido' || !!pkgInfo;
+                                    const isEnBodegaSelected = enBodegaSet.has(p.id);
 
                                     return (
                                         <tr key={p.id} className={`transition-all duration-150 border-b border-slate-200/80 align-top group ${
-                                            isInBodega
+                                            isEnBodegaSelected
                                                 ? 'bg-blue-50/80 hover:bg-blue-100/60 border-l-4 border-l-blue-600 shadow-xs'
                                                 : 'bg-white hover:bg-slate-50/80'
                                         }`}>
@@ -1083,8 +1110,8 @@ export function PreAlertsAdmin() {
                                             {/* 5. ESTADO EN BODEGA */}
                                             <td className="py-3 px-2.5 whitespace-nowrap text-center">
                                                 <div className="flex flex-col gap-1.5 items-center w-full min-w-[130px]">
-                                                    {/* Si NO está marcado en bodega */}
-                                                    {!isInBodega ? (
+                                                    {/* Si NO está seleccionado en bodega */}
+                                                    {!isEnBodegaSelected ? (
                                                         <div className="flex flex-col gap-1.5 items-center w-full">
                                                             <span className={`inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase border shadow-xs ${
                                                                 p.estado === 'procesada'
@@ -1113,7 +1140,7 @@ export function PreAlertsAdmin() {
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        /* Si YA está en bodega: se resalta la fila en azul suave y se activan los dos botones */
+                                                        /* Si YA está seleccionado en bodega: se resalta la fila en azul suave y se activan los dos botones */
                                                         <div className="flex flex-col gap-1 items-center w-full bg-blue-100/60 p-1.5 rounded-xl border border-blue-200">
                                                             <div className="flex items-center justify-between w-full px-1">
                                                                 <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-blue-800 uppercase tracking-wide">
@@ -1122,10 +1149,14 @@ export function PreAlertsAdmin() {
                                                                 </span>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => toggleEnBodega(p.id)}
-                                                                    className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                                                                    title="Desmarcar"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDesmarcar(p);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-slate-500 hover:text-rose-600 hover:underline cursor-pointer transition-colors"
+                                                                    title="Quitar selección de bodega"
                                                                 >
+                                                                    <RotateCcw className="w-2.5 h-2.5" />
                                                                     Desmarcar
                                                                 </button>
                                                             </div>
