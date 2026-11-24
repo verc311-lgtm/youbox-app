@@ -1,4 +1,20 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy as reactLazy, Suspense, ComponentType } from 'react';
+
+// Si falla la carga de una página (versión nueva publicada y la del navegador está desactualizada),
+// recargamos automáticamente una vez para obtener los archivos nuevos.
+const lazy = <T extends ComponentType<any>>(factory: () => Promise<{ default: T }>) =>
+  reactLazy(() =>
+    factory().catch((err) => {
+      const key = 'youbox_chunk_reload_at';
+      const last = Number(sessionStorage.getItem(key) || 0);
+      if (Date.now() - last > 10000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+        return new Promise<{ default: T }>(() => {});
+      }
+      throw err;
+    })
+  );
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryClientProvider } from '@tanstack/react-query';

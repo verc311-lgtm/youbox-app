@@ -291,13 +291,14 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
             const cleanTracking = tracking.trim().toUpperCase();
 
             // Check if tracking already exists
-            const { data: existingPrealerta, error: checkError } = await supabase
+            const { data: existingRows, error: checkError } = await supabase
                 .from('prealertas')
                 .select('id')
                 .eq('tracking', cleanTracking)
-                .maybeSingle();
+                .limit(1);
 
             if (checkError) throw checkError;
+            const existingPrealerta = existingRows && existingRows.length > 0;
 
             if (existingPrealerta) {
                 setError('Este tracking ya ha sido pre-alertado anteriormente y no se puede volver a registrar.');
@@ -306,7 +307,8 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
             }
 
             // 1. Upload factura to Supabase Storage
-            const fileExt = file.name.split('.').pop();
+            const rawExt = file.name.includes('.') ? file.name.split('.').pop() || 'bin' : 'bin';
+            const fileExt = rawExt.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
             const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
             const filePath = `${user.id}/${fileName}`;
 
@@ -324,12 +326,13 @@ export function PreAlertModal({ isOpen, onClose }: PreAlertModalProps) {
             let constanciaUrl: string | null = null;
             try {
                 const pdfBlob = generateConstanciaPDF(user, cleanTracking, valorFactura, conSeguro, signature);
-                const pdfFileName = `constancia_${cleanTracking}_${Date.now()}.pdf`;
+                const safeTrackingKey = cleanTracking.replace(/[^A-Z0-9_-]/g, '_');
+                const pdfFileName = `constancia_${safeTrackingKey}_${Date.now()}.pdf`;
                 const pdfPath = `${user.id}/${pdfFileName}`;
 
                 const { error: pdfUploadError } = await supabase.storage
                     .from('prealertas')
-                    .upload(pdfPath, pdfBlob);
+                    .upload(pdfPath, pdfBlob, { contentType: 'application/pdf' });
 
                 if (pdfUploadError) throw pdfUploadError;
 

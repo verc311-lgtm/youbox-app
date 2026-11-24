@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { FileUp, Shield, MapPin, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
+import { FileUp, Shield, MapPin, Clock, AlertCircle, ShieldCheck, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PreAlertModal } from '../components/PreAlertModal';

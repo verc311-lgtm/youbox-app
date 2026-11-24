@@ -113,11 +113,12 @@ export function PreAlertsAdmin() {
             const cleanTracking = p.tracking.trim().toUpperCase();
 
             // 1. Verificar si ya existe en 'paquetes'
-            const { data: existingPkg, error: checkError } = await supabase
+            const { data: existingPkgs, error: checkError } = await supabase
                 .from('paquetes')
-                .select('id, peso_lbs, estado')
+                .select('id, peso_lbs, estado, cliente_id, bodega_id')
                 .eq('tracking', cleanTracking)
-                .maybeSingle();
+                .limit(1);
+            const existingPkg = existingPkgs && existingPkgs.length > 0 ? existingPkgs[0] : null;
 
             if (checkError) console.warn('Check error:', checkError);
 
@@ -322,9 +323,10 @@ export function PreAlertsAdmin() {
             setLoading(true);
             // Fetch Prealertas
             const isSuperAdmin = user?.role === 'admin' && !user?.sucursal_id;
-            let query = supabase
-                .from('prealertas')
-                .select(`
+            const buildQuery = () => {
+                let query = supabase
+                    .from('prealertas')
+                    .select(`
           *,
           clientes!inner (
             nombre,
@@ -345,16 +347,26 @@ export function PreAlertsAdmin() {
             verificado_por
           )
         `)
-                .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: false });
 
-            if (!isSuperAdmin && user?.sucursal_id) {
-                query = query.eq('clientes.sucursal_id', user.sucursal_id);
+                if (!isSuperAdmin && user?.sucursal_id) {
+                    query = query.eq('clientes.sucursal_id', user.sucursal_id);
+                }
+                return query;
+            };
+
+            // Supabase devuelve máximo 1000 filas por consulta: paginamos para traer TODAS las prealertas
+            const PAGE = 1000;
+            const prealertaData: any[] = [];
+            for (let from = 0; ; from += PAGE) {
+                const { data: page, error: pError } = await buildQuery().range(from, from + PAGE - 1);
+                if (pError) throw pError;
+                prealertaData.push(...(page || []));
+                if (!page || page.length < PAGE) break;
             }
 
-            const { data: prealertaData, error: pError } = await query;
-
-            if (pError) throw pError;
-            setPrealertas(prealertaData || []);
+            setPrealertas(prealertaData);
 
             // Mapear pesos de paquetes si ya fueron recibidos/pesados en almacén
             if (prealertaData && prealertaData.length > 0) {
@@ -643,13 +655,14 @@ export function PreAlertsAdmin() {
             const cleanTracking = newTracking.trim().toUpperCase();
             
             // Check if tracking already exists
-            const { data: existingPrealerta, error: checkError } = await supabase
+            const { data: existingRows, error: checkError } = await supabase
                 .from('prealertas')
                 .select('id')
                 .eq('tracking', cleanTracking)
-                .maybeSingle();
+                .limit(1);
 
             if (checkError) throw checkError;
+            const existingPrealerta = existingRows && existingRows.length > 0;
 
             if (existingPrealerta) {
                 alert('Este tracking ya ha sido pre-alertado anteriormente.');
